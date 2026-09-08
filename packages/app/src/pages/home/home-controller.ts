@@ -5,6 +5,7 @@ import { useServerSync } from "@/context/server-sync"
 import { useTabs } from "@/context/tabs"
 import { toggleHomeProjectSelection } from "@/pages/layout/helpers"
 import { createEffect, createMemo } from "solid-js"
+import { addHomeProjects } from "./home-project-add"
 
 export function createHomeController() {
   const sync = useServerSync()
@@ -87,24 +88,8 @@ export function createHomeController() {
         setSelection(toggleHomeProjectSelection(selection(), key, directory))
       },
       add: (conn: ServerConnection.Any, directories: string[]) => {
-        const directory = directories[0]
+        const directory = addHomeProjects(global, conn, directories)
         if (!directory) return
-        const ctx = global.ensureServerCtx(conn)
-        directories.forEach((item) => {
-          if (ctx.projects.list().some((project) => project.worktree === item)) return
-          const location = { directory: item }
-          void ctx.sdk.api.file
-            .list({ path: ".", location })
-            .then(async (files) => {
-              if (files.data.length > 0) return ctx.sdk.api.project.current({ location })
-              const result = await ctx.sdk.client.project.initGit({ directory: item })
-              return result.data ?? ctx.sdk.api.project.current({ location })
-            })
-            .then((project) => ctx.sync.child(item, { bootstrap: false })[1]("project", project.id))
-            .catch(() => undefined)
-          ctx.projects.open(item)
-        })
-        ctx.projects.touch(directory)
         setSelection({ server: ServerConnection.key(conn), directory })
       },
       openNewSession: () => {

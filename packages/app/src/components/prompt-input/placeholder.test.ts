@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { promptDesignPlaceholder, promptPlaceholder } from "./placeholder"
+import { PROMPT_PLACEHOLDER_PHRASES, promptDesignPlaceholder, promptPlaceholder } from "./placeholder"
 
 describe("promptPlaceholder", () => {
   const t = (key: string, params?: Record<string, string>) => `${key}${params?.example ? `:${params.example}` : ""}`
@@ -59,5 +59,12 @@ describe("promptDesignPlaceholder", () => {
 
   test("preserves the shell placeholder", () => {
     expect(promptDesignPlaceholder("shell", "Enter shell command...", t)).toBe("Enter shell command...")
+  })
+})
+
+describe("prompt placeholder phrases", () => {
+  test("provides a broad rotating set with the requested opening phrases", () => {
+    expect(PROMPT_PLACEHOLDER_PHRASES.length).toBe(600)
+    expect(PROMPT_PLACEHOLDER_PHRASES.slice(0, 2)).toEqual(["Do anything", "Build anything"])
   })
 })

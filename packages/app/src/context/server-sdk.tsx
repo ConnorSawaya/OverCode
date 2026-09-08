@@ -4,7 +4,7 @@ import { createSimpleContext } from "@opencode-ai/ui/context"
 import { createGlobalEmitter } from "@solid-primitives/event-bus"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { type Accessor, batch, createMemo, createResource, onCleanup, onMount } from "solid-js"
-import { createApiForServer, createSdkForServer, type ServerApi } from "@/utils/server"
+import { authTokenFromCredentials, createApiForServer, createSdkForServer, type ServerApi } from "@/utils/server"
 import { useLanguage } from "./language"
 import { usePlatform } from "./platform"
 import { ServerConnection, useServer } from "./server"
@@ -174,6 +174,7 @@ type ServerSDKBase = {
   client: ReturnType<typeof createSdkForServer>
   api: CompatibleApi
   currentApi: ServerApi
+  request: (input: { path: string; method: "DELETE" | "POST"; directory?: string }) => Promise<unknown>
   event: {
     on: ServerEventEmitter["on"]
     listen: ServerEventEmitter["listen"]
@@ -346,7 +347,28 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
       throwOnError: true,
       directory,
     })
-  const api = createCompatibleApi({ protocol, current: currentApi, legacy })
+  const request = async (input: { path: string; method: "DELETE" | "POST"; directory?: string }) => {
+    const headers = new Headers()
+    if (server.http.password) {
+      headers.set(
+        "Authorization",
+        `Basic ${authTokenFromCredentials({ username: server.http.username, password: server.http.password })}`,
+      )
+    }
+    if (input.directory) headers.set("x-opencode-directory", encodeURIComponent(input.directory))
+    const response = await (platform.fetch ?? globalThis.fetch)(new URL(input.path, server.http.url), {
+      method: input.method,
+      headers,
+    })
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "")
+      throw new Error(detail || `Request failed with status ${response.status}`)
+    }
+    if (response.status === 204) return
+    const body = await response.text()
+    return body ? JSON.parse(body) : undefined
+  }
+  const api = createCompatibleApi({ protocol, current: currentApi, legacy, request })
 
   return {
     server,
@@ -357,6 +379,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
     client: sdk,
     api,
     currentApi,
+    request,
     event: {
       on: emitter.on.bind(emitter),
       listen: emitter.listen.bind(emitter),
@@ -432,6 +455,7 @@ function createDirSdkContext(directory: string, serverSDK: ServerSDKBase) {
       current: serverSDK.currentApi,
       legacy: (next) => serverSDK.createClient({ directory: next ?? directory, throwOnError: true }),
       directory,
+      request: serverSDK.request,
     }),
     event: emitter,
     get url() {

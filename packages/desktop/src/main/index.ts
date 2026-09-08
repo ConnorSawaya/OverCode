@@ -49,6 +49,7 @@ import { migrate } from "./migrate"
 import { cleanupStoreFiles } from "./store-cleanup"
 import { startBackgroundCli } from "./background-cli"
 import { setNativeTranslations } from "./native-translations"
+import { BrowserManager } from "./browser"
 
 const APP_NAMES: Record<string, string> = {
   dev: "OpenCode Dev",
@@ -66,6 +67,7 @@ const jsCallStackFeature = "DocumentPolicyIncludeJSCallStacksInCrashReports"
 
 let logger: ReturnType<typeof initLogging>
 let server: SidecarListener | null = null
+let browserManager: BrowserManager | null = null
 
 const pendingDeepLinks: string[] = []
 
@@ -90,6 +92,12 @@ async function killSidecar() {
   const current = server
   server = null
   await current.stop()
+}
+
+async function stopBrowser() {
+  const current = browserManager
+  browserManager = null
+  if (current) await current.stop()
 }
 
 function ensureLoopbackNoProxy() {
@@ -223,12 +231,12 @@ const main = Effect.gen(function* () {
 
   app.on("before-quit", () => {
     setAppQuitting()
-    void stopSidecars()
+    void Promise.all([stopSidecars(), stopBrowser()])
   })
 
   app.on("will-quit", () => {
     setAppQuitting()
-    void stopSidecars()
+    void Promise.all([stopSidecars(), stopBrowser()])
   })
 
   app.on("child-process-gone", (_event, details) => {
@@ -246,13 +254,16 @@ const main = Effect.gen(function* () {
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.on(signal, () => {
       setAppQuitting()
-      void stopSidecars().finally(() => app.quit())
+      void Promise.all([stopSidecars(), stopBrowser()]).finally(() => app.quit())
     })
   }
 
   const serverReady = Deferred.makeUnsafe<ServerReadyData, unknown>()
 
   yield* Effect.promise(() => app.whenReady())
+
+  browserManager = new BrowserManager()
+  yield* Effect.promise(() => browserManager!.start())
 
   if (!TEST_ONBOARDING) migrate()
   yield* Effect.promise(() => cleanupStoreFiles(app.getPath("userData"))).pipe(
@@ -310,12 +321,9 @@ const main = Effect.gen(function* () {
     setNativeTranslations: (bundle) => {
       if (setNativeTranslations(bundle)) createMenu(menuDeps)
     },
+    browser: browserManager,
   })
   registerWslIpcHandlers(wslServers)
-  void updater.start()
-  const updateTimer = setInterval(() => void updater.check(), 10 * 60 * 1000)
-  updateTimer.unref()
-  app.once("will-quit", () => clearInterval(updateTimer))
   yield* Effect.promise(() => startNetLog()).pipe(
     Effect.catch((error) =>
       Effect.sync(() => {

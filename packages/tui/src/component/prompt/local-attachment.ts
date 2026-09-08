@@ -15,7 +15,7 @@ export function readLocalAttachment(file: string) {
   return readLocalAttachmentWith(
     {
       readText: (value) => readFile(value, "utf8"),
-      readBytes: (value) => readFile(value),
+      readBytes: (value) => readFile(value).then((bytes) => Uint8Array.from(bytes)),
       mime: async (value) => mimeTypes[path.extname(value).toLowerCase()] ?? "application/octet-stream",
     },
     file,

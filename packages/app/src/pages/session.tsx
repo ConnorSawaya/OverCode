@@ -70,6 +70,7 @@ import {
   createSessionComposerRegionController,
   SessionComposerRegion,
 } from "@/pages/session/composer"
+import { SessionGoalDock } from "@/pages/session/composer/session-goal-dock"
 import { createOpenReviewFile, createSessionTabs, createSizing, shouldShowFileTree } from "@/pages/session/helpers"
 import { MessageTimeline } from "@/pages/session/timeline/message-timeline"
 import { createTimelineModel } from "@/pages/session/timeline/model"
@@ -78,6 +79,7 @@ import { useSessionLayout } from "@/pages/session/session-layout"
 import { restorePromptModel, syncPromptModel, syncSessionModel } from "@/pages/session/session-model-helpers"
 import {
   clampSessionPanelWidth,
+  sessionPanelAvailableWidth,
   SESSION_PANEL_WIDTH_MIN,
   sessionPanelWidthMax,
 } from "@/pages/session/session-panel-width"
@@ -91,6 +93,8 @@ import { createReviewPanelV2State } from "@/pages/session/v2/review-panel-v2-sta
 import { reviewDiffDirectory, reviewDiffNeedsLoad, reviewRootDirectory } from "@/pages/session/v2/review-diff-kinds"
 import { TerminalPanel } from "@/pages/session/terminal-panel"
 import { TerminalPanelV2 } from "@/pages/session/terminal-panel-v2"
+import { SidePanel } from "@/pages/session/side-panel"
+import { clampSidePanelWidth, sidePanelWidthMax } from "@/pages/session/side-panel-width"
 import { useComposerCommands } from "@/pages/session/use-composer-commands"
 import { useSessionCommands } from "@/pages/session/use-session-commands"
 import { useSessionHashScroll } from "@/pages/session/use-session-hash-scroll"
@@ -103,10 +107,11 @@ import { legacySessionHref, requireServerKey, sessionHref } from "@/utils/sessio
 import { useUsageExceededDialogs } from "./session/usage-exceeded-dialogs"
 import { createSessionOwnership } from "./session/session-ownership"
 import { createSessionLineage } from "./session/session-lineage"
+import { goalFromMetadata, goalToMetadata, type SessionGoal } from "./session/session-goal"
+import type { SessionPendingPrompt } from "@/utils/session-pending"
 
-type FollowupItem = FollowupDraft & { id: string }
-type FollowupEdit = Pick<FollowupItem, "id" | "prompt" | "context">
-const emptyFollowups: FollowupItem[] = []
+type FollowupEdit = Pick<FollowupDraft, "prompt" | "context"> & { id: string }
+const emptyFollowups: SessionPendingPrompt[] = []
 
 type ChangeMode = "git" | "branch" | "turn"
 type VcsMode = "git" | "branch"
@@ -466,6 +471,15 @@ export default function Page() {
     newSessionDesign() ? desktopV2ReviewOpen() || desktopTerminalOpen() : desktopReviewOpen(),
   )
   const desktopSidePanelOpen = createMemo(() => desktopSessionResizeOpen() || desktopFileTreeOpen())
+  const desktopCodexSidePanelOpen = createMemo(() => newSessionDesign() && isDesktop() && view().sidePanel.opened())
+  const desktopAnySidePanelOpen = createMemo(() => desktopSidePanelOpen() || desktopCodexSidePanelOpen())
+  const desktopPanelGap = createMemo(() => {
+    if (!newSessionDesign()) return 0
+    const panelCount =
+      (desktopV2ReviewOpen() || desktopTerminalOpen() || desktopFileTreeOpen() ? 1 : 0) +
+      (desktopCodexSidePanelOpen() ? 1 : 0)
+    return panelCount * 8
+  })
   let panelRow: HTMLDivElement | undefined
   const [panelRowWidth, setPanelRowWidth] = createSignal<number>()
   createResizeObserver(
@@ -475,12 +489,20 @@ export default function Page() {
   const splitReview = createMemo(
     () => (newSessionDesign() ? desktopV2ReviewOpen() : desktopReviewOpen()) && layout.review.diffStyle() === "split",
   )
-  // The observer reports the content-box width, which already excludes the row
-  // padding; only the flex gap between the panels remains to subtract.
+  const codexSidePanelWidth = createMemo(() =>
+    clampSidePanelWidth({ width: view().sidePanel.width(), available: panelRowWidth() }),
+  )
+  const codexSidePanelMax = createMemo(() => sidePanelWidthMax(panelRowWidth()))
+  // The observer reports the content-box width, which already excludes row
+  // padding; reserve the inter-panel gaps and any Codex side panel here.
   const sessionPanelAvailable = createMemo(() => {
     const width = panelRowWidth()
     if (width === undefined) return undefined
-    return width - (settings.general.newLayoutDesigns() ? 8 : 0)
+    return sessionPanelAvailableWidth({
+      rowWidth: width,
+      gap: desktopPanelGap(),
+      sidePanelWidth: desktopCodexSidePanelOpen() ? codexSidePanelWidth() : undefined,
+    })
   })
   const sessionPanelMax = createMemo(() => {
     const available = sessionPanelAvailable()
@@ -497,9 +519,13 @@ export default function Page() {
     }),
   )
   const sessionPanelWidth = createMemo(() => {
-    if (!desktopSidePanelOpen()) return "100%"
+    if (!desktopAnySidePanelOpen()) return "100%"
     if (desktopSessionResizeOpen()) return `${sessionPanelResizedWidth()}px`
-    return `calc(100% - ${layout.fileTree.width()}px)`
+    const fixedWidths: string[] = []
+    if (desktopFileTreeOpen()) fixedWidths.push(`${layout.fileTree.width()}px`)
+    if (desktopCodexSidePanelOpen()) fixedWidths.push(`${codexSidePanelWidth()}px`)
+    if (fixedWidths.length === 0) return "100%"
+    return `calc(100% - ${[...fixedWidths, `${desktopPanelGap()}px`].join(" - ")})`
   })
   const centered = createMemo(() => isDesktop() && (newSessionDesign() || !desktopReviewOpen()))
   const desktopV2PanelLayout = createMemo(() =>
@@ -606,15 +632,16 @@ export default function Page() {
   const [followup, setFollowup] = persisted(
     Persist.serverWorkspace(serverSDK().scope, sdk().directory, "followup", ["followup.v1"]),
     createStore<{
-      items: Record<string, FollowupItem[] | undefined>
-      failed: Record<string, string | undefined>
-      paused: Record<string, boolean | undefined>
       edit: Record<string, FollowupEdit | undefined>
     }>({
-      items: {},
-      failed: {},
-      paused: {},
       edit: {},
+    }),
+  )
+
+  const [goal, setGoal] = persisted(
+    Persist.serverWorkspace(serverSDK().scope, sdk().directory, "goal", ["goal.v1"]),
+    createStore<{ items: Record<string, SessionGoal | undefined> }>({
+      items: {},
     }),
   )
 
@@ -1676,7 +1703,11 @@ export default function Page() {
 
   const line = (id: string) => {
     const text = draft(id)
-      .map((part) => (part.type === "image" ? `[image:${part.filename}]` : part.content))
+      .map((part) => {
+        if (part.type === "image") return `[image:${part.filename}]`
+        if (part.type === "pasted_text") return `[pasted text:${part.title}]`
+        return part.content
+      })
       .join("")
       .replace(/\s+/g, " ")
       .trim()
@@ -1702,10 +1733,82 @@ export default function Page() {
 
   const busy = (sessionID: string) => sync().data.session_working(sessionID)
 
+  const currentGoal = createMemo(() => {
+    const id = params.id
+    return id ? goal.items[id] : undefined
+  })
+
+  const currentGoalTodos = createMemo(() => {
+    const id = params.id
+    return id ? (serverSync().session.data.todo[id] ?? []) : []
+  })
+
+  const [goalAction, setGoalAction] = createStore<{ pending: Record<string, boolean> }>({ pending: {} })
+  createEffect(() => {
+    const id = params.id
+    const target = sdk()
+    if (!id) return
+    const accept = (metadata: Record<string, unknown> | undefined) => {
+      if (!metadata || !Object.hasOwn(metadata, "goalLoop")) return
+      const item = goalFromMetadata(metadata.goalLoop)
+      setGoal("items", id, item)
+    }
+    void target.client.session
+      .get({ sessionID: id })
+      .then((response) => accept(response.data?.metadata))
+      .catch(() => {})
+    const off = target.event.on("session.updated", (event) => {
+      if (event.properties.info.id === id) accept(event.properties.info.metadata)
+    })
+    onCleanup(off)
+  })
+
+  const saveGoal = async (sessionID: string, item: SessionGoal | undefined) => {
+    if (goalAction.pending[sessionID]) return false
+    const target = sdk()
+    const model = local.model.current()
+    const agent = local.agent.current()
+    setGoalAction("pending", sessionID, true)
+    try {
+      const response = await target.client.session.get({ sessionID })
+      const metadata = response.data?.metadata ?? {}
+      const previous = metadata.goalLoop && typeof metadata.goalLoop === "object" ? metadata.goalLoop : {}
+      await target.client.session.update({
+        sessionID,
+        metadata: {
+          ...metadata,
+          goalLoop: item
+            ? {
+                ...previous,
+                ...goalToMetadata(item, target.directory),
+                agent: agent?.name,
+                model: model ? { providerID: model.provider.id, modelID: model.id } : undefined,
+              }
+            : null,
+        },
+      })
+      setGoal("items", sessionID, item)
+      return true
+    } catch (error) {
+      fail(error)
+      return false
+    } finally {
+      setGoalAction("pending", sessionID, false)
+    }
+  }
+
   const queuedFollowups = createMemo(() => {
     const id = params.id
     if (!id) return emptyFollowups
-    return followup.items[id] ?? emptyFollowups
+    return serverSync().session.pending.list(id)
+  })
+
+  createEffect(() => {
+    const id = params.id
+    if (!id) return
+    void serverSync()
+      .session.pending.sync(id)
+      .catch(() => {})
   })
 
   const editingFollowup = createMemo(() => {
@@ -1714,30 +1817,99 @@ export default function Page() {
     return followup.edit[id]
   })
 
+  const pendingToEdit = (item: SessionPendingPrompt): FollowupEdit => {
+    type EditablePart = Exclude<FollowupDraft["prompt"][number], { type: "image" }>
+    type Token = {
+      start?: number
+      end?: number
+      label: string
+      make: (content: string, start: number, end: number) => EditablePart
+    }
+    const tokens: Token[] = [
+      ...item.files.map((file) => ({
+        start: file.mention?.start,
+        end: file.mention?.end,
+        label: file.mention?.text ?? (file.name ? `@${file.name}` : "@attachment"),
+        make: (content: string, start: number, end: number) => ({
+          type: "file" as const,
+          path: file.name ?? file.uri,
+          url: file.uri,
+          mime: file.mime,
+          filename: file.name,
+          content,
+          start,
+          end,
+        }),
+      })),
+      ...item.agents.map((agent) => ({
+        start: agent.mention?.start,
+        end: agent.mention?.end,
+        label: agent.mention?.text ?? `@${agent.name}`,
+        make: (content: string, start: number, end: number) => ({
+          type: "agent" as const,
+          name: agent.name,
+          content,
+          start,
+          end,
+        }),
+      })),
+    ]
+    const mentioned = tokens
+      .filter(
+        (token): token is Token & { start: number; end: number } =>
+          token.start !== undefined &&
+          token.end !== undefined &&
+          token.start >= 0 &&
+          token.end > token.start &&
+          token.end <= item.text.length,
+      )
+      .sort((a, b) => a.start - b.start || a.end - b.end)
+    const prompt: FollowupDraft["prompt"] = []
+    let cursor = 0
+    for (const token of mentioned) {
+      if (token.start < cursor) continue
+      if (token.start > cursor)
+        prompt.push({ type: "text", content: item.text.slice(cursor, token.start), start: cursor, end: token.start })
+      prompt.push(token.make(item.text.slice(token.start, token.end), token.start, token.end))
+      cursor = token.end
+    }
+    if (cursor < item.text.length)
+      prompt.push({ type: "text", content: item.text.slice(cursor), start: cursor, end: item.text.length })
+
+    const used = new Set(mentioned)
+    for (const token of tokens) {
+      if (used.has(token as Token & { start: number; end: number })) continue
+      if (cursor > 0) {
+        prompt.push({ type: "text", content: " ", start: cursor, end: cursor + 1 })
+        cursor += 1
+      }
+      const content = token.label
+      prompt.push(token.make(content, cursor, cursor + content.length))
+      cursor += content.length
+    }
+    if (prompt.length === 0) prompt.push({ type: "text", content: "", start: 0, end: 0 })
+    return { id: item.id, prompt, context: [] }
+  }
+
   const followupMutation = useMutation(() => ({
-    mutationFn: async (input: { sessionID: string; id: string; manual?: boolean }) => {
+    mutationFn: async (input: { sessionID: string; id: string; action: "promote" | "edit" | "remove" }) => {
       const owner = sessionOwnership.capture()
-      const item = (followup.items[input.sessionID] ?? []).find((entry) => entry.id === input.id)
+      const item = serverSync()
+        .session.pending.list(input.sessionID)
+        .find((entry) => entry.id === input.id)
       if (!item) return
-
-      if (input.manual) setFollowup("paused", input.sessionID, undefined)
-      setFollowup("failed", input.sessionID, undefined)
-
-      const ok = await sendFollowupDraft({
-        api: sdk().api.session,
-        sync: sync(),
-        serverSync: serverSync(),
-        draft: item,
-        optimisticBusy: item.sessionDirectory === sdk().directory,
-      }).catch((err) => {
-        setFollowup("failed", input.sessionID, input.id)
-        fail(err)
-        return false
-      })
-      if (!ok) return
-
-      setFollowup("items", input.sessionID, (items) => (items ?? []).filter((entry) => entry.id !== input.id))
-      if (input.manual) owner.run(resumeScroll)
+      const request = {
+        sessionID: input.sessionID,
+        messageID: input.id,
+        directory: info()?.directory ?? sdk().directory,
+      }
+      if (input.action === "promote") {
+        await serverSync().session.pending.promote(request)
+        owner.run(resumeScroll)
+        return
+      }
+      await serverSync().session.pending.cancel(request)
+      if (input.action === "edit") setFollowup("edit", input.sessionID, pendingToEdit(item))
     },
   }))
 
@@ -1748,7 +1920,8 @@ export default function Page() {
     const id = params.id
     if (!id) return
     if (!followupBusy(id)) return
-    return followupMutation.variables?.id
+    if (followupMutation.variables?.action !== "promote") return
+    return followupMutation.variables.id
   })
 
   const queueEnabled = createMemo(() => {
@@ -1757,58 +1930,53 @@ export default function Page() {
     return settings.general.followup() === "queue" && busy(id) && !composer.blocked() && !isChildSession()
   })
 
-  const followupText = (item: FollowupDraft) => {
-    const text = item.prompt
-      .map((part) => {
-        if (part.type === "image") return `[image:${part.filename}]`
-        if (part.type === "file") return `[file:${part.path}]`
-        if (part.type === "agent") return `@${part.name}`
-        return part.content
-      })
-      .join("")
+  const followupText = (item: SessionPendingPrompt) => {
+    const text = item.text
       .split(/\r?\n/)
       .map((line) => line.trim())
       .find((line) => !!line)
 
     if (text) return text
+    const attachment = item.files
+      .map((file) => file.name)
+      .filter(Boolean)
+      .join(", ")
+    if (attachment) return attachment
     return `[${language.t("common.attachment")}]`
   }
 
-  const queueFollowup = (draft: FollowupDraft) => {
-    setFollowup("items", draft.sessionID, (items) => [
-      ...(items ?? []),
-      { id: Identifier.ascending("message"), ...draft },
-    ])
-    setFollowup("failed", draft.sessionID, undefined)
-    setFollowup("paused", draft.sessionID, undefined)
+  const admitFollowup = async (draft: FollowupDraft) => {
+    const messageID = Identifier.ascending("message")
+    const ok = await sendFollowupDraft({
+      api: sdk().api.session,
+      sync: sync(),
+      serverSync: serverSync(),
+      draft,
+      messageID,
+      delivery: "queue",
+    }).catch((error) => {
+      fail(error)
+      return false
+    })
+    return ok ? messageID : undefined
   }
+
+  const queueFollowup = async (draft: FollowupDraft) => !!(await admitFollowup(draft))
 
   const followupDock = createMemo(() => queuedFollowups().map((item) => ({ id: item.id, text: followupText(item) })))
 
-  const sendFollowup = (sessionID: string, id: string, opts?: { manual?: boolean }) => {
+  const runFollowupAction = (sessionID: string, id: string, action: "promote" | "edit" | "remove") => {
     if (sync().session.get(sessionID)?.parentID) return Promise.resolve()
-    const item = (followup.items[sessionID] ?? []).find((entry) => entry.id === id)
-    if (!item) return Promise.resolve()
     if (followupBusy(sessionID)) return Promise.resolve()
-
-    return followupMutation.mutateAsync({ sessionID, id, manual: opts?.manual })
+    return followupMutation.mutateAsync({ sessionID, id, action }).catch(fail)
   }
+
+  const sendFollowup = (sessionID: string, id: string) => runFollowupAction(sessionID, id, "promote")
 
   const editFollowup = (id: string) => {
     const sessionID = params.id
     if (!sessionID) return
-    if (followupBusy(sessionID)) return
-
-    const item = queuedFollowups().find((entry) => entry.id === id)
-    if (!item) return
-
-    setFollowup("items", sessionID, (items) => (items ?? []).filter((entry) => entry.id !== id))
-    setFollowup("failed", sessionID, (value) => (value === id ? undefined : value))
-    setFollowup("edit", sessionID, {
-      id: item.id,
-      prompt: item.prompt,
-      context: item.context,
-    })
+    void runFollowupAction(sessionID, id, "edit")
   }
 
   const clearFollowupEdit = () => {
@@ -1817,12 +1985,215 @@ export default function Page() {
     setFollowup("edit", id, undefined)
   }
 
+  const removeFollowup = (id: string) => {
+    const sessionID = params.id
+    if (!sessionID) return
+    void runFollowupAction(sessionID, id, "remove")
+  }
+
   const halt = (sessionID: string) =>
     busy(sessionID)
       ? sdk()
           .api.session.interrupt({ sessionID })
           .catch(() => {})
       : Promise.resolve()
+
+  const sendGoalInstruction = async (input: {
+    sessionID: string
+    sessionDirectory: string
+    goalID: string
+    title: string
+    resume?: boolean
+  }) => {
+    const pendingMessageID = goal.items[input.sessionID]?.pendingMessageID
+    if (
+      pendingMessageID &&
+      serverSync()
+        .session.pending.list(input.sessionID)
+        .some((item) => item.id === pendingMessageID)
+    )
+      return
+
+    const currentModel = local.model.current()
+    const currentAgent = local.agent.current()
+    if (!currentModel || !currentAgent) {
+      showToast({
+        title: language.t("prompt.toast.modelAgentRequired.title"),
+        description: language.t("prompt.toast.modelAgentRequired.description"),
+      })
+      return
+    }
+
+    const text = input.resume
+      ? `Continue working toward this goal: ${input.title}\nUse todowrite for steps and goal_control to report evidence, blockers, and completion. Complete the goal only after verifying the result.`
+      : `Work toward this goal: ${input.title}\nBreak it into steps with todowrite. The goal is already saved. Use goal_control to report evidence, blockers, and completion. Complete it only after verifying the result.`
+    const draft: FollowupDraft = {
+      sessionID: input.sessionID,
+      sessionDirectory: input.sessionDirectory,
+      goalID: input.goalID,
+      synthetic: true,
+      prompt: [{ type: "text", content: text, start: 0, end: text.length }],
+      context: [],
+      agent: currentAgent.name,
+      model: {
+        providerID: currentModel.provider.id,
+        modelID: currentModel.id,
+      },
+      variant: local.model.variant.current(),
+    }
+
+    if (busy(input.sessionID) || serverSync().session.pending.list(input.sessionID).length > 0) {
+      const messageID = await admitFollowup(draft)
+      const current = goal.items[input.sessionID]
+      if (!messageID || !current || current.id !== input.goalID || current.status !== "active") return
+      await saveGoal(input.sessionID, { ...current, pendingMessageID: messageID, updatedAt: Date.now() })
+      return
+    }
+
+    await sendFollowupDraft({
+      api: sdk().api.session,
+      sync: sync(),
+      serverSync: serverSync(),
+      draft,
+      optimisticBusy: input.sessionDirectory === sdk().directory,
+    }).catch(fail)
+  }
+
+  const startGoal = (title: string, session: { id: string; directory: string }) => {
+    const value = title.trim()
+    const control = value.toLowerCase()
+    if (session.id === params.id && ["pause", "resume", "stop", "clear", "complete", "status"].includes(control)) {
+      if (control === "pause") void pauseGoal()
+      if (control === "resume") void resumeGoal()
+      if (control === "stop" || control === "clear") void stopGoal()
+      if (control === "complete") void completeGoal()
+      if (control === "status") {
+        const toggle = document.querySelector<HTMLButtonElement>(
+          '[data-component="session-goal-dock"] button[aria-expanded]',
+        )
+        if (toggle?.getAttribute("aria-expanded") !== "true") toggle?.click()
+      }
+      return true
+    }
+    if (!value) {
+      showToast({
+        title: language.t("session.goal.titleRequired"),
+        description: language.t("session.goal.titleRequiredDescription"),
+      })
+      return false
+    }
+
+    const now = Date.now()
+    const goalID = `goal-${now}`
+    if (goalAction.pending[session.id] || !local.model.current() || !local.agent.current()) return false
+    const item: SessionGoal = {
+      id: goalID,
+      title: value,
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+      maxIterations: 20,
+      iteration: 0,
+    }
+    void saveGoal(session.id, item).then((saved) => {
+      if (!saved) return
+      void sendGoalInstruction({
+        sessionID: session.id,
+        sessionDirectory: session.directory,
+        goalID,
+        title: value,
+      })
+    })
+    return true
+  }
+
+  const pauseGoal = async () => {
+    const sessionID = params.id
+    const item = sessionID ? goal.items[sessionID] : undefined
+    if (!sessionID || !item || item.status !== "active") return
+    if (item.pendingMessageID)
+      await serverSync()
+        .session.pending.cancel({
+          sessionID,
+          messageID: item.pendingMessageID,
+          directory: info()?.directory ?? sdk().directory,
+        })
+        .catch(() => {})
+    await halt(sessionID)
+    await saveGoal(sessionID, {
+      ...item,
+      status: "paused",
+      pendingMessageID: undefined,
+      updatedAt: Date.now(),
+    })
+  }
+
+  const resumeGoal = async () => {
+    const sessionID = params.id
+    const item = sessionID ? goal.items[sessionID] : undefined
+    if (!sessionID || !item || (item.status !== "paused" && item.status !== "blocked")) return
+    const session = sync().session.get(sessionID)
+    if (
+      !(await saveGoal(sessionID, {
+        ...item,
+        status: "active",
+        iteration: 0,
+        reason: "",
+        pendingMessageID: undefined,
+        updatedAt: Date.now(),
+      }))
+    )
+      return
+    void sendGoalInstruction({
+      sessionID,
+      sessionDirectory: session?.directory ?? sdk().directory,
+      goalID: item.id,
+      title: item.title,
+      resume: true,
+    })
+  }
+
+  const completeGoal = async () => {
+    const sessionID = params.id
+    const item = sessionID ? goal.items[sessionID] : undefined
+    if (!sessionID || !item || !["active", "paused", "blocked"].includes(item.status)) return
+    if (item.pendingMessageID)
+      await serverSync()
+        .session.pending.cancel({
+          sessionID,
+          messageID: item.pendingMessageID,
+          directory: info()?.directory ?? sdk().directory,
+        })
+        .catch(() => {})
+    await halt(sessionID)
+    await saveGoal(sessionID, {
+      ...item,
+      status: "completed",
+      pendingMessageID: undefined,
+      updatedAt: Date.now(),
+    })
+  }
+
+  const stopGoal = async () => {
+    const sessionID = params.id
+    const item = sessionID ? goal.items[sessionID] : undefined
+    if (!sessionID || !item || !["active", "paused", "blocked"].includes(item.status)) return
+    if (item.pendingMessageID)
+      await serverSync()
+        .session.pending.cancel({
+          sessionID,
+          messageID: item.pendingMessageID,
+          directory: info()?.directory ?? sdk().directory,
+        })
+        .catch(() => {})
+    await halt(sessionID)
+    await saveGoal(sessionID, {
+      ...item,
+      status: "stopped",
+      pendingMessageID: undefined,
+      updatedAt: Date.now(),
+    })
+  }
 
   const revertMutation = useMutation(() => ({
     mutationFn: async (input: { sessionID: string; messageID: string }) => {
@@ -1924,22 +2295,6 @@ export default function Page() {
   }
 
   const actions = { revert, openAttachment }
-
-  createEffect(() => {
-    const sessionID = params.id
-    if (!sessionID) return
-
-    const item = queuedFollowups()[0]
-    if (!item) return
-    if (followupBusy(sessionID)) return
-    if (followup.failed[sessionID] === item.id) return
-    if (followup.paused[sessionID]) return
-    if (isChildSession()) return
-    if (composer.blocked()) return
-    if (busy(sessionID)) return
-
-    void sendFollowup(sessionID, item.id)
-  })
 
   createResizeObserver(
     () => promptDock,
@@ -2146,8 +2501,9 @@ export default function Page() {
                 ? {
                     items: followupDock(),
                     sending: sendingFollowup(),
-                    onSend: (id) => void sendFollowup(params.id!, id, { manual: true }),
+                    onSend: (id) => void sendFollowup(params.id!, id),
                     onEdit: editFollowup,
+                    onRemove: removeFollowup,
                   }
                 : undefined,
             revert: () =>
@@ -2179,6 +2535,29 @@ export default function Page() {
           return (
             <SessionComposerRegion
               controller={controller}
+              goal={
+                <Show when={currentGoal()}>
+                  {(item) => (
+                    <SessionGoalDock
+                      goal={item()}
+                      todos={currentGoalTodos()}
+                      onPause={pauseGoal}
+                      onResume={resumeGoal}
+                      onStop={stopGoal}
+                      onComplete={completeGoal}
+                      pending={goalAction.pending[params.id!]}
+                      onEdit={(title) => {
+                        const id = params.id
+                        if (id && title.trim())
+                          void saveGoal(id, { ...item(), title: title.trim(), updatedAt: Date.now() })
+                      }}
+                      onDismiss={() => {
+                        if (params.id) void saveGoal(params.id, undefined)
+                      }}
+                    />
+                  )}
+                </Show>
+              }
               promptInput={
                 <Show
                   when={newSessionDesign()}
@@ -2198,11 +2577,7 @@ export default function Page() {
                       onEditLoaded={clearFollowupEdit}
                       shouldQueue={queueEnabled}
                       onQueue={queueFollowup}
-                      onAbort={() => {
-                        const id = params.id
-                        if (!id) return
-                        setFollowup("paused", id, true)
-                      }}
+                      onGoal={startGoal}
                     />
                   }
                 >
@@ -2228,13 +2603,9 @@ export default function Page() {
                       onEditLoaded: clearFollowupEdit,
                       shouldQueue: queueEnabled,
                       onQueue: queueFollowup,
-                      onAbort: () => {
-                        const id = params.id
-                        if (!id) return
-                        setFollowup("paused", id, true)
-                      },
+                      onGoal: startGoal,
                     })
-                    return <PromptInputV2Composer controller={controller} borderUnderlay />
+                    return <PromptInputV2Composer controller={controller} borderUnderlay sessionID={params.id} />
                   }}
                 </Show>
               }
@@ -2380,6 +2751,23 @@ export default function Page() {
               </Show>
             </div>
           </Show>
+        </Show>
+        <Show when={newSessionDesign() && isDesktop() && view().sidePanel.opened()}>
+          <SidePanel
+            tab={view().sidePanel.tab}
+            width={codexSidePanelWidth}
+            maxWidth={codexSidePanelMax}
+            chatSessionID={view().sidePanel.chatSession}
+            sourceSessionID={params.id}
+            sourceDirectory={info()?.directory ?? sdk().directory}
+            sourceServer={params.serverKey as ServerConnection.Key}
+            draft={view().sidePanel.draft}
+            onTab={(tab) => view().sidePanel.setTab(tab)}
+            onChatSession={(sessionID) => view().sidePanel.setChatSession(sessionID)}
+            onDraft={(sessionID, draft) => view().sidePanel.setDraft(sessionID, draft)}
+            onClose={() => view().sidePanel.close()}
+            onResize={(width) => view().sidePanel.resize(Math.min(width, codexSidePanelMax()))}
+          />
         </Show>
       </div>
 

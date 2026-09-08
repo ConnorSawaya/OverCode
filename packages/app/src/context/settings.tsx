@@ -3,6 +3,7 @@ import { batch, createEffect, createMemo, createSignal, onCleanup } from "solid-
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { persisted } from "@/utils/persist"
 import { usePlatform } from "@/context/platform"
+import type { BackgroundPreset } from "@/utils/background"
 
 export interface NotificationSettings {
   agent: boolean
@@ -33,6 +34,10 @@ export interface Settings {
     shellToolPartsExpanded: boolean
     editToolPartsExpanded: boolean
     showCustomAgents: boolean
+    quickChatEnabled: boolean
+    composerEffects: boolean
+    dictationDevice: string
+    dictationLanguage: string
     mobileTitlebarPosition: "top" | "bottom"
     newLayoutDesigns?: boolean
     layoutTransitionEligible?: boolean
@@ -45,6 +50,8 @@ export interface Settings {
     mono: string
     sans: string
     terminal: string
+    backgroundPreset: BackgroundPreset
+    backgroundImage: string
   }
   keybinds: Record<string, string>
   permissions: {
@@ -57,6 +64,7 @@ export interface Settings {
 export const monoDefault = "System Mono"
 export const sansDefault = "System Sans"
 export const terminalDefault = "JetBrainsMono Nerd Font Mono"
+export const normalizeFollowupMode = (value: unknown): "queue" | "steer" => (value === "queue" ? "queue" : "steer")
 const legacyNewLayoutDesignsDefault = import.meta.env.VITE_OPENCODE_CHANNEL !== "prod"
 export const newLayoutDesignsDefault = true
 // Existing users can switch layouts until local midnight on this date. Set new Date(YYYY, M-1, D) to show.
@@ -185,7 +193,7 @@ const defaultSettings: Settings = {
     autoSave: true,
     releaseNotes: true,
     followup: "steer",
-    showFileTree: false,
+    showFileTree: true,
     showNavigation: false,
     showSearch: false,
     showStatus: false,
@@ -194,6 +202,10 @@ const defaultSettings: Settings = {
     shellToolPartsExpanded: false,
     editToolPartsExpanded: false,
     showCustomAgents: false,
+    quickChatEnabled: false,
+    composerEffects: true,
+    dictationDevice: "",
+    dictationLanguage: "en-US",
     mobileTitlebarPosition: "top",
   },
   appearance: {
@@ -201,6 +213,8 @@ const defaultSettings: Settings = {
     mono: "",
     sans: "",
     terminal: "",
+    backgroundPreset: "none",
+    backgroundImage: "",
   },
   keybinds: {},
   permissions: {
@@ -350,11 +364,6 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
       root.style.setProperty("--font-family-sans", sansFontFamily(store.appearance?.sans))
     })
 
-    createEffect(() => {
-      if (store.general?.followup !== "queue") return
-      setStore("general", "followup", "steer")
-    })
-
     return {
       ready,
       get current() {
@@ -369,12 +378,9 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         setReleaseNotes(value: boolean) {
           setStore("general", "releaseNotes", value)
         },
-        followup: withFallback(
-          () => (store.general?.followup === "queue" ? "steer" : store.general?.followup),
-          defaultSettings.general.followup,
-        ),
+        followup: withFallback(() => normalizeFollowupMode(store.general?.followup), defaultSettings.general.followup),
         setFollowup(value: "queue" | "steer") {
-          setStore("general", "followup", value === "queue" ? "steer" : value)
+          setStore("general", "followup", normalizeFollowupMode(value))
         },
         showFileTree,
         setShowFileTree(value: boolean) {
@@ -420,6 +426,22 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         showCustomAgents,
         setShowCustomAgents(value: boolean) {
           setStore("general", "showCustomAgents", value)
+        },
+        quickChatEnabled: withFallback(() => store.general?.quickChatEnabled, defaultSettings.general.quickChatEnabled),
+        composerEffects: withFallback(() => store.general?.composerEffects, defaultSettings.general.composerEffects),
+        dictationDevice: withFallback(() => store.general?.dictationDevice, ""),
+        dictationLanguage: withFallback(() => store.general?.dictationLanguage, "en-US"),
+        setDictationDevice(value: string) {
+          setStore("general", "dictationDevice", value)
+        },
+        setDictationLanguage(value: string) {
+          setStore("general", "dictationLanguage", value)
+        },
+        setComposerEffects(value: boolean) {
+          setStore("general", "composerEffects", value)
+        },
+        setQuickChatEnabled(value: boolean) {
+          setStore("general", "quickChatEnabled", value)
         },
         mobileTitlebarPosition: withFallback(
           () => store.general?.mobileTitlebarPosition,
@@ -474,6 +496,17 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         terminalFont: withFallback(() => store.appearance?.terminal, defaultSettings.appearance.terminal),
         setTerminalFont(value: string) {
           setStore("appearance", "terminal", value.trim() ? value : "")
+        },
+        backgroundPreset: withFallback(
+          () => store.appearance?.backgroundPreset,
+          defaultSettings.appearance.backgroundPreset,
+        ),
+        backgroundImage: withFallback(() => store.appearance?.backgroundImage, defaultSettings.appearance.backgroundImage),
+        setBackgroundPreset(value: BackgroundPreset) {
+          setStore("appearance", "backgroundPreset", value)
+        },
+        setBackgroundImage(value: string) {
+          setStore("appearance", "backgroundImage", value)
         },
       },
       keybinds: {

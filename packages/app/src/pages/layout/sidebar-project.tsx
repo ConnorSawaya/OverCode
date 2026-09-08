@@ -10,6 +10,7 @@ import { useLayout, type LocalProject } from "@/context/layout"
 import { useServerSync } from "@/context/server-sync"
 import { useLanguage } from "@/context/language"
 import { useNotification } from "@/context/notification"
+import { usePins } from "@/context/pins"
 import { ProjectIcon, SessionItem, type SessionItemProps } from "./sidebar-items"
 import { displayName, sortedRootSessions } from "./helpers"
 
@@ -75,6 +76,7 @@ const ProjectTile = (props: {
 }): JSX.Element => {
   const notification = useNotification()
   const layout = useLayout()
+  const pins = usePins()
   const unseenCount = createMemo(() =>
     props.dirs().reduce((total, directory) => total + notification.project.unseenCount(directory), 0),
   )
@@ -150,6 +152,13 @@ const ProjectTile = (props: {
         <ContextMenu.Content>
           <ContextMenu.Item onSelect={() => props.showEditProjectDialog(props.project)}>
             <ContextMenu.ItemLabel>{props.language.t("common.edit")}</ContextMenu.ItemLabel>
+          </ContextMenu.Item>
+          <ContextMenu.Item onSelect={() => pins.toggleProject(props.project.worktree)}>
+            <ContextMenu.ItemLabel>
+              {pins.isProjectPinned(props.project.worktree)
+                ? props.language.t("sidebar.unpin.project")
+                : props.language.t("sidebar.pin.project")}
+            </ContextMenu.ItemLabel>
           </ContextMenu.Item>
           <ContextMenu.Item
             data-action="project-workspaces-toggle"

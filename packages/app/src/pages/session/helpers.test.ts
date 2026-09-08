@@ -8,6 +8,7 @@ import {
   createSessionTabs,
   focusTerminalById,
   getTabReorderIndex,
+  moveFollowupItem,
   shouldShowFileTree,
 } from "./helpers"
 
@@ -102,6 +103,26 @@ describe("getTabReorderIndex", () => {
 
   test("returns undefined for unknown droppable id", () => {
     expect(getTabReorderIndex(["a", "b", "c"], "a", "missing")).toBeUndefined()
+  })
+})
+
+describe("moveFollowupItem", () => {
+  const items = [{ id: "a" }, { id: "b" }, { id: "c" }]
+
+  test("moves an item up and down", () => {
+    expect(moveFollowupItem(items, "b", -1).map((item) => item.id)).toEqual(["b", "a", "c"])
+    expect(moveFollowupItem(items, "b", 1).map((item) => item.id)).toEqual(["a", "c", "b"])
+  })
+
+  test("keeps order at the boundaries and for unknown ids", () => {
+    expect(moveFollowupItem(items, "a", -1).map((item) => item.id)).toEqual(["a", "b", "c"])
+    expect(moveFollowupItem(items, "c", 1).map((item) => item.id)).toEqual(["a", "b", "c"])
+    expect(moveFollowupItem(items, "missing", 1).map((item) => item.id)).toEqual(["a", "b", "c"])
+  })
+
+  test("does not mutate the input", () => {
+    moveFollowupItem(items, "b", -1)
+    expect(items.map((item) => item.id)).toEqual(["a", "b", "c"])
   })
 })
 

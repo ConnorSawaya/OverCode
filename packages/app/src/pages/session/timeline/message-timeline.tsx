@@ -822,19 +822,6 @@ export function MessageTimeline(props: {
     const index = sessions.findIndex((s) => s.id === sessionID)
     const nextSession = index === -1 ? undefined : (sessions[index + 1] ?? sessions[index - 1])
 
-    const result = await sdk()
-      .api.session.remove({ sessionID })
-      .then(() => true)
-      .catch((err) => {
-        showToast({
-          title: language.t("session.delete.failed.title"),
-          description: errorMessage(err),
-        })
-        return false
-      })
-
-    if (!result) return false
-
     const removed = new Set<string>([sessionID])
     const byParent = new Map<string, string[]>()
     for (const item of sync().data.session) {
@@ -862,6 +849,28 @@ export function MessageTimeline(props: {
         stack.push(child)
       }
     }
+
+    // Keep deleted chats recoverable on the server while removing the whole
+    // conversation tree from the normal UI.
+    const result = await Promise.all(
+      [...removed].map((id) =>
+        serverSDK().client.session.update({
+          sessionID: id,
+          directory: sdk().directory,
+          time: { archived: Date.now() },
+        }),
+      ),
+    )
+      .then(() => true)
+      .catch((err) => {
+        showToast({
+          title: language.t("session.delete.failed.title"),
+          description: errorMessage(err),
+        })
+        return false
+      })
+
+    if (!result) return false
 
     sessionArchive.navigateAfterRemoval(sessionID, session.parentID, nextSession?.id)
 
@@ -1546,9 +1555,6 @@ export function MessageTimeline(props: {
                                 <DropdownMenu.Item onSelect={() => exportSession(id)}>
                                   <DropdownMenu.ItemLabel>{language.t("common.export")}</DropdownMenu.ItemLabel>
                                 </DropdownMenu.Item>
-                                <DropdownMenu.Item onSelect={() => void sessionArchive.archive(id)}>
-                                  <DropdownMenu.ItemLabel>{language.t("common.archive")}</DropdownMenu.ItemLabel>
-                                </DropdownMenu.Item>
                                 <DropdownMenu.Separator />
                                 <DropdownMenu.Item
                                   onSelect={() => dialog.show(() => <DialogDeleteSession sessionID={id} />)}
@@ -1619,9 +1625,6 @@ export function MessageTimeline(props: {
                               </Show>
                               <MenuV2.Item onSelect={() => exportSession(id)}>
                                 {language.t("common.export")}...
-                              </MenuV2.Item>
-                              <MenuV2.Item onSelect={() => void sessionArchive.archive(id)}>
-                                {language.t("common.archive")}
                               </MenuV2.Item>
                               <MenuV2.Separator />
                               <MenuV2.Item onSelect={() => dialog.show(() => <DialogDeleteSession sessionID={id} />)}>

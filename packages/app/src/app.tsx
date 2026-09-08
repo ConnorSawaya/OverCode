@@ -50,10 +50,12 @@ import { LayoutProvider } from "@/context/layout"
 import { ModelsProvider } from "@/context/models"
 import { NotificationProvider } from "@/context/notification"
 import { PermissionProvider } from "@/context/permission"
+import { PinsProvider } from "@/context/pins"
 import { usePlatform } from "@/context/platform"
 import { PromptProvider } from "@/context/prompt"
 import { ServerConnection, ServerProvider, serverName, useServer } from "@/context/server"
 import { SettingsProvider, useSettings } from "@/context/settings"
+import { backgroundImageFor } from "@/utils/background"
 import { TabsProvider, useTabs, type DraftTab } from "@/context/tabs"
 import { SDKProvider, useSDK } from "@/context/sdk"
 import { WslServersProvider } from "@/wsl/context"
@@ -206,6 +208,65 @@ function DraftRoute() {
   )
 }
 
+function QuickChatRoute() {
+  const [search] = useSearchParams<{ directory?: string; server?: string }>()
+  const global = useGlobal()
+  const server = useServer()
+  const language = useLanguage()
+  const directory = createMemo(() => search.directory?.trim() ?? "")
+  const connection = createMemo(() => {
+    const requested = search.server?.trim()
+    if (requested) {
+      return global.servers.list().find((item) => ServerConnection.key(item) === requested) ?? server.current
+    }
+    return server.current
+  })
+
+  return (
+    <Show
+      when={directory()}
+      fallback={
+        <div class="flex size-full items-center justify-center bg-v2-background-bg-deep px-8 text-center">
+          <div class="max-w-[280px] text-13-regular text-v2-text-text-muted">
+            {language.t("quickChat.chooseProject")}
+          </div>
+        </div>
+      }
+      keyed
+    >
+      {(dir) => (
+        <Show
+          when={connection()}
+          fallback={
+            <div class="flex size-full items-center justify-center bg-v2-background-bg-deep px-8 text-center">
+              <div class="max-w-[280px] text-13-regular text-v2-text-text-muted">
+                {language.t("quickChat.unavailable")}
+              </div>
+            </div>
+          }
+          keyed
+        >
+          {(conn) => (
+            <ServerSDKProvider server={() => conn}>
+              <ServerSyncProvider server={() => conn}>
+                <ModelsProvider directory={() => dir}>
+                  <SDKProvider directory={dir}>
+                    <DirectoryDataProvider directory={dir} server={() => ServerConnection.key(conn)}>
+                      <DraftProviders>
+                        <NewSession />
+                      </DraftProviders>
+                    </DirectoryDataProvider>
+                  </SDKProvider>
+                </ModelsProvider>
+              </ServerSyncProvider>
+            </ServerSDKProvider>
+          )}
+        </Show>
+      )}
+    </Show>
+  )
+}
+
 function ResolvedDraftRoute(props: { draft: DraftTab }) {
   const global = useGlobal()
   const conn = createMemo(() => global.servers.list().find((item) => ServerConnection.key(item) === props.draft.server))
@@ -271,10 +332,6 @@ declare global {
     __OPENCODE__?: {
       deepLinks?: string[]
     }
-    api?: {
-      setTitlebar?: (theme: { mode: "light" | "dark"; scheme?: "system" | "light" | "dark" }) => Promise<void>
-      exportDebugLogs?: () => Promise<string>
-    }
   }
 }
 
@@ -303,6 +360,13 @@ function BodyDesignClass() {
     document.body.classList.toggle("font-(family-name:--font-family-text)", enabled)
     document.body.classList.toggle("text-[13px]", enabled)
     document.body.classList.toggle("font-[440]", enabled)
+
+    const backgroundImage = backgroundImageFor(
+      settings.appearance.backgroundPreset(),
+      settings.appearance.backgroundImage(),
+    )
+    document.documentElement.style.setProperty("--opencode-custom-background", backgroundImage)
+    document.body.toggleAttribute("data-custom-background", backgroundImage !== "none")
   })
 
   return null
@@ -394,14 +458,16 @@ export function AppBaseProviders(
   props: ParentProps<{
     locale?: Locale
     onNativeTranslations?: Parameters<typeof LanguageProvider>[0]["onNativeTranslations"]
+    defaultTheme?: string
   }>,
 ) {
   return (
     <MetaProvider>
       <Font />
       <ThemeProvider
+        defaultTheme={props.defaultTheme}
         onThemeApplied={(_, mode, scheme) => {
-          void window.api?.setTitlebar?.({ mode, scheme })
+          void (window as Window & { api?: { setTitlebar?: (theme: { mode: "light" | "dark"; scheme?: "system" | "light" | "dark" }) => Promise<void> } }).api?.setTitlebar?.({ mode, scheme })
         }}
       >
         <LanguageProvider locale={props.locale} onNativeTranslations={props.onNativeTranslations}>
@@ -592,11 +658,13 @@ export function AppInterface(props: {
                   <TabsProvider>
                     <PermissionProvider>
                       <NotificationProvider>
-                        <ServerShell>
-                          <Show when={useSettings().general.newLayoutDesigns()} fallback={routerProps.children}>
-                            <NewAppLayout serverScoped={props.serverScoped}>{routerProps.children}</NewAppLayout>
-                          </Show>
-                        </ServerShell>
+                        <PinsProvider>
+                          <ServerShell>
+                            <Show when={useSettings().general.newLayoutDesigns()} fallback={routerProps.children}>
+                              <NewAppLayout serverScoped={props.serverScoped}>{routerProps.children}</NewAppLayout>
+                            </Show>
+                          </ServerShell>
+                        </PinsProvider>
                       </NotificationProvider>
                     </PermissionProvider>
                   </TabsProvider>
@@ -640,6 +708,7 @@ function Routes(props: { serverScoped?: JSX.Element }) {
         <Route path="/:dir/session/:id" component={NewLayoutLegacySessionRedirect} />
         <Route path="/server/:serverKey/session/:id" component={TargetSessionRoute} />
       </Show>
+      <Route path="/quick-chat" component={QuickChatRoute} />
       <Route path="/new-session" component={DraftRoute} />
     </>
   )

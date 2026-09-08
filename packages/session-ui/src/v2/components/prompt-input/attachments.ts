@@ -1,64 +1,13 @@
 import { onMount } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
-import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
-
-const accepted = [
-  "image/png",
-  "image/jpeg",
-  "image/gif",
-  "image/webp",
-  "application/pdf",
-  "text/*",
-  "application/json",
-  "application/ld+json",
-  "application/toml",
-  "application/x-toml",
-  "application/x-yaml",
-  "application/xml",
-  "application/yaml",
-  ".c",
-  ".cc",
-  ".cjs",
-  ".conf",
-  ".cpp",
-  ".css",
-  ".csv",
-  ".cts",
-  ".env",
-  ".go",
-  ".gql",
-  ".graphql",
-  ".h",
-  ".hh",
-  ".hpp",
-  ".htm",
-  ".html",
-  ".ini",
-  ".java",
-  ".js",
-  ".json",
-  ".jsx",
-  ".log",
-  ".md",
-  ".mdx",
-  ".mjs",
-  ".mts",
-  ".py",
-  ".rb",
-  ".rs",
-  ".sass",
-  ".scss",
-  ".sh",
-  ".sql",
-  ".toml",
-  ".ts",
-  ".tsx",
-  ".txt",
-  ".xml",
-  ".yaml",
-  ".yml",
-  ".zsh",
-]
+import { LOCAL_FILE_REFERENCE_MIME } from "@opencode-ai/core/file"
+import {
+  pastedTextStats,
+  pastedTextTitle,
+  releaseLocalPastedTextBlob,
+  shouldCreatePastedTextAttachment,
+} from "./pasted-text"
+import type { PromptInputV2Attachment, PromptInputV2PastedText, PromptInputV2Prompt } from "./types"
 
 type PromptTarget = {
   current: () => PromptInputV2Prompt
@@ -68,7 +17,7 @@ type PromptTarget = {
 
 export type PromptInputV2AttachmentConfig = {
   picker?: (
-    options: { defaultPath?: string; multiple?: boolean; accept?: string[] },
+    options: { defaultPath?: string; multiple?: boolean; accept?: string[]; allowAll?: boolean },
     onFile: (file: File) => Promise<unknown>,
   ) => Promise<void>
   directory: () => string
@@ -78,7 +27,8 @@ export type PromptInputV2AttachmentConfig = {
   onError: (error: unknown) => void
   readClipboardImage?: () => Promise<File | null>
   getPathForFile?: (file: File) => string
-  store?: (file: File) => Promise<{ id: string; url: string }>
+  store?: (blob: Blob) => Promise<{ id: string; url: string }>
+  loadText?: (blob: { id: string; url: string }) => Promise<string>
 }
 
 export function createPromptInputV2Attachments(
@@ -93,8 +43,7 @@ export function createPromptInputV2Attachments(
   const capture = () => {
     const prompt = input.capture()
     const editor = input.editor()
-    if (!editor) return
-    return { prompt, cursor: prompt.cursor() ?? cursorPosition(editor) }
+    return { prompt, cursor: prompt.cursor() ?? (editor ? cursorPosition(editor) : 0) }
   }
   const add = async (file: File, toast = true, target = capture(), clipboard = false) => {
     if (!target) return false
@@ -102,6 +51,24 @@ export function createPromptInputV2Attachments(
     if (!mime) {
       if (toast) input.warn()
       return false
+    }
+    if (mime === LOCAL_FILE_REFERENCE_MIME) {
+      const sourcePath = input.getPathForFile?.(file)
+      if (!sourcePath) {
+        if (toast) input.warn()
+        return false
+      }
+      const content = `@${file.name}`
+      input.focusEditor()
+      return input.addPart({
+        type: "file",
+        path: sourcePath,
+        filename: file.name,
+        mime,
+        content,
+        start: 0,
+        end: content.length,
+      })
     }
     const blob = input.store ? await input.store(file) : await blobReference(file)
     const sourcePath = input.getPathForFile?.(file) || undefined
@@ -162,13 +129,46 @@ export function createPromptInputV2Attachments(
       if (file && (await add(file, true, target, true))) return
     }
     if (!plainText) return
+    const stats = pastedTextStats(plainText)
+    if (shouldCreatePastedTextAttachment(plainText, stats)) {
+      const source = new Blob([plainText], { type: "text/plain" })
+      const blob = {
+        id: `paste_local_${globalThis.crypto?.randomUUID?.() ?? Math.random().toString(16).slice(2)}`,
+        url: URL.createObjectURL(source),
+      }
+      const attachment: PromptInputV2PastedText = {
+        type: "pasted_text",
+        id: globalThis.crypto?.randomUUID?.() ?? Math.random().toString(16).slice(2),
+        title: pastedTextTitle(plainText),
+        charCount: stats.charCount,
+        lineCount: stats.lineCount,
+        blob,
+      }
+      target.prompt.set([...target.prompt.current(), attachment], target.cursor)
+      if (input.store) {
+        void input.store(source).then((stored) => {
+          releaseLocalPastedTextBlob(blob)
+          const latest = input.capture()
+          if (!latest) return
+          const current = latest.current()
+          if (!current.some((part) => part.type === "pasted_text" && part.id === attachment.id)) return
+          latest.set(
+            current.map((part) =>
+              part.type === "pasted_text" && part.id === attachment.id ? { ...part, blob: stored } : part,
+            ),
+            latest.cursor(),
+          )
+        }, input.onError)
+      }
+      return
+    }
     const text = plainText.includes("\r") ? plainText.replace(/\r\n?/g, "\n") : plainText
     const put = () => {
       if (input.addPart({ type: "text", content: text, start: 0, end: 0 })) return true
       input.focusEditor()
       return input.addPart({ type: "text", content: text, start: 0, end: 0 })
     }
-    if (text.includes("\n") || largePaste(text)) {
+    if (text.includes("\n")) {
       put()
       return
     }
@@ -213,7 +213,9 @@ export function createPromptInputV2Attachments(
         return
       }
       void input
-        .picker({ defaultPath: input.directory(), multiple: true, accept: accepted }, (file) => add(file))
+        .picker({ defaultPath: input.directory(), multiple: true, accept: undefined, allowAll: true }, (file) =>
+          add(file),
+        )
         .catch(input.onError)
     },
   }
@@ -234,6 +236,34 @@ const imageExtensions = new Map([
   ["png", "image/png"],
   ["webp", "image/webp"],
 ])
+const binaryExtensions = new Set([
+  "7z",
+  "a",
+  "bin",
+  "class",
+  "dll",
+  "doc",
+  "docx",
+  "exe",
+  "gz",
+  "jar",
+  "lib",
+  "o",
+  "obj",
+  "odp",
+  "ods",
+  "odt",
+  "ppt",
+  "pptx",
+  "pyc",
+  "so",
+  "tar",
+  "war",
+  "wasm",
+  "xls",
+  "xlsx",
+  "zip",
+])
 const textMimes = new Set([
   "application/json",
   "application/ld+json",
@@ -251,13 +281,19 @@ async function attachmentMime(file: File) {
   const suffix = index === -1 ? "" : file.name.slice(index + 1).toLowerCase()
   const fallback = imageExtensions.get(suffix) ?? (suffix === "pdf" ? "application/pdf" : undefined)
   if ((!type || type === "application/octet-stream") && fallback) return fallback
+  if (binaryExtensions.has(suffix)) return LOCAL_FILE_REFERENCE_MIME
   if (type.startsWith("text/") || textMimes.has(type) || type.endsWith("+json") || type.endsWith("+xml")) {
     return "text/plain"
   }
   const bytes = new Uint8Array(await file.slice(0, 4096).arrayBuffer())
-  if (bytes.some((byte) => byte === 0)) return
+  if (bytes.some((byte) => byte === 0)) return LOCAL_FILE_REFERENCE_MIME
+  try {
+    new TextDecoder("utf-8", { fatal: true }).decode(bytes)
+  } catch {
+    return LOCAL_FILE_REFERENCE_MIME
+  }
   const control = bytes.filter((byte) => byte < 9 || (byte > 13 && byte < 32)).length
-  if (bytes.length > 0 && control / bytes.length > 0.3) return
+  if (bytes.length > 0 && control / bytes.length > 0.3) return LOCAL_FILE_REFERENCE_MIME
   return "text/plain"
 }
 
@@ -270,9 +306,4 @@ function cursorPosition(editor: HTMLElement) {
   before.selectNodeContents(editor)
   before.setEnd(range.startContainer, range.startOffset)
   return before.toString().replace(/\u200B/g, "").length
-}
-
-function largePaste(text: string) {
-  if (text.length >= 8000) return true
-  return text.split("\n").length - 1 >= 120
 }

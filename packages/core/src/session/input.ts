@@ -188,6 +188,79 @@ export const hasPending = Effect.fn("SessionInput.hasPending")(function* (
   return row !== undefined
 })
 
+export const listPending = Effect.fn("SessionInput.listPending")(function* (
+  db: DatabaseService,
+  sessionID: SessionSchema.ID,
+) {
+  const rows = yield* db
+    .select()
+    .from(SessionInputTable)
+    .where(and(eq(SessionInputTable.session_id, sessionID), isNull(SessionInputTable.promoted_seq)))
+    .orderBy(asc(SessionInputTable.admitted_seq))
+    .all()
+    .pipe(Effect.orDie)
+  return rows.map(fromRow)
+})
+
+export const cancel = Effect.fn("SessionInput.cancel")(function* (
+  events: EventV2.Interface,
+  input: { sessionID: SessionSchema.ID; messageID: SessionMessage.ID },
+) {
+  yield* events.publish(SessionEvent.PromptCancelled, {
+    ...input,
+    timestamp: yield* DateTime.now,
+  })
+})
+
+export const changeDelivery = Effect.fn("SessionInput.changeDelivery")(function* (
+  events: EventV2.Interface,
+  input: { sessionID: SessionSchema.ID; messageID: SessionMessage.ID; delivery: Delivery },
+) {
+  yield* events.publish(SessionEvent.PromptDeliveryChanged, {
+    ...input,
+    timestamp: yield* DateTime.now,
+  })
+})
+
+export const projectCancelled = Effect.fn("SessionInput.projectCancelled")(function* (
+  db: DatabaseService,
+  input: { sessionID: SessionSchema.ID; messageID: SessionMessage.ID },
+) {
+  const deleted = yield* db
+    .delete(SessionInputTable)
+    .where(
+      and(
+        eq(SessionInputTable.session_id, input.sessionID),
+        eq(SessionInputTable.id, input.messageID),
+        isNull(SessionInputTable.promoted_seq),
+      ),
+    )
+    .returning({ id: SessionInputTable.id })
+    .get()
+    .pipe(Effect.orDie)
+  if (!deleted) return yield* Effect.die(new LifecycleConflict({ id: input.messageID }))
+})
+
+export const projectDeliveryChanged = Effect.fn("SessionInput.projectDeliveryChanged")(function* (
+  db: DatabaseService,
+  input: { sessionID: SessionSchema.ID; messageID: SessionMessage.ID; delivery: Delivery },
+) {
+  const updated = yield* db
+    .update(SessionInputTable)
+    .set({ delivery: input.delivery })
+    .where(
+      and(
+        eq(SessionInputTable.session_id, input.sessionID),
+        eq(SessionInputTable.id, input.messageID),
+        isNull(SessionInputTable.promoted_seq),
+      ),
+    )
+    .returning({ id: SessionInputTable.id })
+    .get()
+    .pipe(Effect.orDie)
+  if (!updated) return yield* Effect.die(new LifecycleConflict({ id: input.messageID }))
+})
+
 export const equivalent = (
   input: Admitted,
   expected: {

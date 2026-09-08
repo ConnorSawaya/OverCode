@@ -5,6 +5,7 @@ import { useLanguage } from "@/context/language"
 
 export function useNewSessionCommands(input: {
   restoreFocus: () => void
+  onSidePanelSelect: (choice: "browser" | "files" | "chat") => void
   project: {
     empty: () => boolean
     open: () => void
@@ -13,6 +14,12 @@ export function useNewSessionCommands(input: {
   const command = useCommand()
   const dialog = useDialog()
   const language = useLanguage()
+
+  const openSidePanelPicker = () => {
+    void import("@/components/dialog-select-side-panel").then((x) =>
+      dialog.show(() => <x.DialogSelectSidePanel onSelect={input.onSidePanelSelect} />),
+    )
+  }
 
   useSettingsCommand()
   command.register("new-session", () => [
@@ -31,6 +38,13 @@ export function useNewSessionCommands(input: {
       category: language.t("command.category.view"),
       keybind: "ctrl+l",
       onSelect: input.restoreFocus,
+    },
+    {
+      id: "side.toggle",
+      title: language.t("command.side.toggle"),
+      category: language.t("command.category.view"),
+      slash: "side",
+      onSelect: openSidePanelPicker,
     },
     {
       id: "project.select",

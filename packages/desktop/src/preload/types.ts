@@ -1,7 +1,9 @@
 import type { DesktopMenuAction } from "@opencode-ai/app/desktop-menu"
+import type { ComputerPlatform } from "@opencode-ai/app/context/computer"
 import type { WslServersPlatform } from "@opencode-ai/app/wsl/types"
 import type { UpdaterState } from "@opencode-ai/app/updater"
 import type { DesktopNativeBundle } from "@opencode-ai/app/i18n/desktop-native"
+import type { BrowserBounds, BrowserController, BrowserEvent, BrowserProfileCandidate, BrowserSnapshot, SpeechPlatform } from "@opencode-ai/app"
 export type {
   WslDistroProbe,
   WslInstalledDistro,
@@ -28,6 +30,40 @@ export type UpdaterAPI = {
   check: () => Promise<UpdaterState>
   install: () => Promise<void>
 }
+export type SpeechAPI = SpeechPlatform
+
+export type BrowserAPI = {
+  computer: ComputerPlatform
+  snapshot: (sessionID: string) => Promise<BrowserSnapshot>
+  listChromeProfiles: () => Promise<BrowserProfileCandidate[]>
+  importChromeProfile: (sessionID: string, profileID: string) => Promise<BrowserSnapshot>
+  attach: (sessionID: string, bounds: BrowserBounds) => Promise<BrowserSnapshot>
+  resize: (sessionID: string, bounds: BrowserBounds) => Promise<void>
+  detach: (sessionID?: string) => Promise<void>
+  action: (input: {
+    sessionID: string
+    action: string
+    url?: string
+    tabId?: string
+    target?: string
+    text?: string
+    key?: string
+    x?: number
+    y?: number
+    direction?: "up" | "down" | "left" | "right"
+    amount?: number
+    option?: string
+    timeoutMs?: number
+  }) => Promise<BrowserSnapshot>
+  control: (sessionID: string, controller: BrowserController) => Promise<BrowserSnapshot>
+  onEvent: (cb: (event: BrowserEvent) => void) => () => void
+}
+
+export type QuickChatOptions = {
+  directory?: string
+  sessionID?: string
+  serverKey?: string
+}
 
 export type LinuxDisplayBackend = "wayland" | "auto"
 export type TitlebarTheme = {
@@ -43,11 +79,14 @@ export type FatalRendererError = {
 }
 
 export type ElectronAPI = {
+  quickStartDirectory: () => Promise<string>
   killSidecar: () => Promise<void>
   installCli: () => Promise<string>
   awaitInitialization: () => Promise<ServerReadyData>
   wslServers: WslServersAPI
   updater: UpdaterAPI
+  speech: SpeechAPI
+  browser: BrowserAPI
   consumeInitialDeepLinks: () => Promise<string[]>
   getDefaultServerUrl: () => Promise<string | null>
   setDefaultServerUrl: (url: string | null) => Promise<void>
@@ -71,6 +110,7 @@ export type ElectronAPI = {
   draftBlobGet: (id: string) => Promise<ArrayBuffer | null>
 
   getWindowID: () => Promise<string>
+  openQuickChat: (options?: QuickChatOptions) => Promise<void>
   onMenuCommand: (cb: (id: string) => void) => () => void
   onDeepLink: (cb: (urls: string[]) => void) => () => void
 
@@ -84,6 +124,7 @@ export type ElectronAPI = {
     title?: string
     defaultPath?: string
     extensions?: string[]
+    allowAll?: boolean
   }) => Promise<{ token: string; files: { path: string; name: string; size: number }[] } | null>
   readPickedFile: (token: string, path: string) => Promise<ArrayBuffer>
   releasePickedFiles: (token: string) => Promise<void>
@@ -97,6 +138,8 @@ export type ElectronAPI = {
   getWindowFocused: () => Promise<boolean>
   getWindowFullscreen: () => Promise<boolean>
   onWindowFullscreenChanged: (cb: (fullscreen: boolean) => void) => () => void
+  getWindowMaximized: () => Promise<boolean>
+  onWindowMaximizedChanged: (cb: (maximized: boolean) => void) => () => void
   setWindowFocus: () => Promise<void>
   showWindow: () => Promise<void>
   relaunch: () => void

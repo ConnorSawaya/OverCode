@@ -89,7 +89,7 @@ const layer = Layer.effect(
       const photon = yield* loadPhoton
 
       const decoded = yield* Effect.try({
-        try: () => photon.PhotonImage.new_from_byteslice(Buffer.from(base64, "base64")),
+        try: () => photon.PhotonImage.new_from_byteslice(Uint8Array.from(Buffer.from(base64, "base64"))),
         catch: () => new DecodeError(),
       }).pipe(Effect.tapError((error) => Effect.logWarning("failed to decode image", { error })))
 

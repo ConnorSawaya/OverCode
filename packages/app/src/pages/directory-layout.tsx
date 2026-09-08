@@ -17,6 +17,7 @@ export function DirectoryDataProvider(
   props: ParentProps<{
     directory: string | Accessor<string>
     draftID?: string
+    sessionID?: string
     server?: Accessor<ServerConnection.Key | undefined>
   }>,
 ) {
@@ -26,6 +27,7 @@ export function DirectoryDataProvider(
   const sync = useSync()
   const serverSync = useServerSync()
   const directory = () => (typeof props.directory === "function" ? props.directory() : props.directory)
+  const sessionID = () => props.sessionID ?? params.id
   const slug = createMemo(() => base64Encode(directory()))
   const href = (sessionID: string) => {
     const server = props.server?.()
@@ -35,7 +37,7 @@ export function DirectoryDataProvider(
 
   createEffect(() => {
     // A draft lives at /new-session?draftId=… and has no directory segment to normalize.
-    if (props.draftID || props.server?.()) return
+    if (props.sessionID || props.draftID || props.server?.()) return
     const next = sync().data.path.directory
     if (!next || next === directory()) return
     const path = location.pathname.slice(slug().length + 1)
@@ -43,7 +45,7 @@ export function DirectoryDataProvider(
   })
 
   createResource(
-    () => params.id,
+    sessionID,
     (id) =>
       sync()
         .session.sync(id)
@@ -51,10 +53,11 @@ export function DirectoryDataProvider(
   )
 
   createEffect(() => {
-    const sessionID = params.id
-    if (!sessionID) return
-    serverSync().session.pin(sessionID)
-    onCleanup(() => serverSync().session.unpin(sessionID))
+    const id = sessionID()
+    if (!id) return
+    const manager = serverSync().session
+    manager.pin(id)
+    onCleanup(() => manager.unpin(id))
   })
 
   return (
@@ -63,11 +66,11 @@ export function DirectoryDataProvider(
         <DataProvider
           data={sync().data}
           directory={directory}
-          sessionID={params.id}
+          sessionID={sessionID()}
           onNavigateToSession={(sessionID: string) => navigate(href(sessionID))}
           onSessionHref={href}
         >
-          <LocalProvider>{props.children}</LocalProvider>
+          <LocalProvider sessionID={sessionID()}>{props.children}</LocalProvider>
         </DataProvider>
       )}
     </Show>

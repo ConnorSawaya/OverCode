@@ -2,9 +2,10 @@ import { getFilename } from "@opencode-ai/core/util/path"
 import { type AgentPartInput, type FilePartInput, type Part, type TextPartInput } from "@opencode-ai/sdk/v2/client"
 import type { FileSelection } from "@/context/file"
 import { encodeFilePath } from "@/context/file/path"
-import type { AgentPart, FileAttachmentPart, ImageAttachmentPart, Prompt } from "@/context/prompt"
+import type { AgentPart, FileAttachmentPart, ImageAttachmentPart, PastedTextPart, Prompt } from "@/context/prompt"
 import { Identifier } from "@/utils/id"
 import { createCommentMetadata, formatCommentNote } from "@/utils/comment-note"
+import { isPastedTextMetadata, type PastedTextMetadata } from "@opencode-ai/session-ui/v2/prompt-input/pasted-text"
 
 type PromptRequestPart = (TextPartInput | FilePartInput | AgentPartInput) & { id: string }
 
@@ -27,6 +28,8 @@ type BuildRequestPartsInput = {
   messageID: string
   sessionID: string
   sessionDirectory: string
+  synthetic?: boolean
+  pastedTexts?: { part: PastedTextPart; text: string }[]
 }
 
 const absolute = (directory: string, path: string) => {
@@ -54,10 +57,11 @@ const isAgentAttachment = (part: Prompt[number]): part is AgentPart => part.type
 
 const toOptimisticPart = (part: PromptRequestPart, sessionID: string, messageID: string): Part => {
   if (part.type === "text") {
+    const pasted = isPastedTextMetadata(part.metadata) ? part.metadata : undefined
     return {
       id: part.id,
       type: "text",
-      text: part.text,
+      text: pasted ? `[Pasted text: ${pasted.title}]` : part.text,
       synthetic: part.synthetic,
       ignored: part.ignored,
       time: part.time,
@@ -95,6 +99,7 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
           id: Identifier.ascending("part"),
           type: "text",
           text: input.text,
+          synthetic: input.synthetic,
         },
       ]
     : []
@@ -126,6 +131,23 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
       url: attachment.url ?? `file://${encodeFilePath(path)}${fileQuery(attachment.selection)}`,
       filename: attachment.filename ?? getFilename(attachment.path),
       source,
+    } satisfies PromptRequestPart
+  })
+
+  const pastedTexts = (input.pastedTexts ?? []).map(({ part, text }) => {
+    const metadata: PastedTextMetadata = {
+      type: "pasted_text",
+      pastedTextId: part.id,
+      title: part.title,
+      charCount: part.charCount,
+      lineCount: part.lineCount,
+    }
+    return {
+      id: Identifier.ascending("part"),
+      type: "text",
+      text,
+      synthetic: true,
+      metadata,
     } satisfies PromptRequestPart
   })
 
@@ -204,7 +226,7 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
     } satisfies PromptRequestPart
   })
 
-  requestParts.push(...files, ...context, ...agents, ...images)
+  requestParts.push(...pastedTexts, ...files, ...context, ...agents, ...images)
 
   return {
     requestParts,

@@ -3,6 +3,7 @@ import { dict as en } from "./en"
 type Keys = keyof typeof en
 
 export const dict = {
+  ...featureFallback,
   "desktop.menu.app": "OpenCode",
   "desktop.menu.file": "文件",
   "desktop.menu.edit": "编辑",
@@ -170,6 +171,7 @@ export const dict = {
   "command.fileTree.toggle": "切换文件树",
 
   "command.review.toggle": "切换审查",
+  "command.side.toggle": "Toggle side panel",
 
   "command.terminal.new": "新建终端",
   "command.terminal.new.description": "创建新的终端标签页",
@@ -198,6 +200,15 @@ export const dict = {
 
   "command.prompt.mode.shell": "Shell",
   "command.prompt.mode.normal": "Prompt",
+  "composer.permissionMode.title": "Permission mode",
+  "composer.permissionMode.ask": "Ask",
+  "composer.permissionMode.ask.description": "Ask before sensitive operations",
+  "composer.permissionMode.auto": "Auto",
+  "composer.permissionMode.auto.description": "Run normal project operations automatically",
+  "composer.permissionMode.full": "Full access",
+  "composer.permissionMode.full.description": "Broad workspace access for this directory",
+  "command.permissions.mode.cycle": "Cycle permission mode",
+  "command.permissions.mode.cycle.description": "Switch between Ask, Auto, and Full access",
 
   "command.permissions.autoaccept.enable": "自动接受权限",
   "command.permissions.autoaccept.disable": "停止自动接受权限",
@@ -780,6 +791,9 @@ export const dict = {
   "session.followupDock.summary.other": "{{count}} 条排队消息",
   "session.followupDock.sendNow": "立即发送",
   "session.followupDock.edit": "编辑",
+  "session.followupDock.remove": "Remove",
+  "session.followupDock.moveUp": "Move up",
+  "session.followupDock.moveDown": "Move down",
   "session.followupDock.collapse": "折叠排队消息",
   "session.followupDock.expand": "展开排队消息",
   "session.revertDock.summary.one": "{{count}} 条已回滚消息",
@@ -874,6 +888,22 @@ export const dict = {
   "sidebar.project.clearNotifications": "清除通知",
   "sidebar.empty.title": "没有打开的项目",
   "sidebar.empty.description": "打开一个项目以开始使用",
+  "sidebar.search.placeholder": "Search chats and projects",
+  "sidebar.pinned": "Pinned",
+  "sidebar.projects": "Projects",
+  "sidebar.tabs": "Open tabs",
+  "sidebar.pin.chat": "Pin chat",
+  "sidebar.unpin.chat": "Unpin chat",
+  "sidebar.chat.menu.duplicate": "Duplicate chat",
+  "sidebar.pin.project": "Pin project",
+  "sidebar.unpin.project": "Unpin project",
+  "side.tabs.browser": "Browser",
+  "side.tabs.chat": "Side chat",
+  "side.chat.empty": "No messages yet",
+  "side.chat.reply": "Reply…",
+  "side.browser.url": "Enter URL…",
+  "side.browser.reload": "Reload",
+  "side.browser.openExternal": "Open in browser",
 
   "app.name.desktop": "OpenCode Desktop",
 
@@ -932,6 +962,9 @@ export const dict = {
   "settings.general.row.showCustomAgents.description": "在输入框中切换智能体。隐藏时默认使用 Build 智能体。",
   "settings.general.row.reasoningSummaries.title": "显示推理摘要",
   "settings.general.row.reasoningSummaries.description": "在时间线中显示模型推理摘要",
+  "settings.general.row.queueFollowup.title": "Queue follow-ups",
+  "settings.general.row.queueFollowup.description":
+    "Queue prompts while the agent is working instead of steering the current run",
   "settings.general.row.shellToolPartsExpanded.title": "展开 Shell 工具调用",
   "settings.general.row.shellToolPartsExpanded.description": "默认在时间线中展开 Shell 工具调用详情",
   "settings.general.row.editToolPartsExpanded.title": "展开编辑工具调用",
@@ -1225,3 +1258,4 @@ export const dict = {
   "error.childStore.storeCreateFailed": "创建存储失败",
   "terminal.connectionLost.abnormalClose": "WebSocket 异常关闭：{{code}}",
 } satisfies Partial<Record<Keys, string>>
+import { dict as featureFallback } from "./fallback"

@@ -7,7 +7,7 @@ import { rmSync } from "node:fs"
 import { app, BrowserWindow, dialog, net, nativeImage, nativeTheme, protocol, shell } from "electron"
 import { dirname, isAbsolute, join, relative, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
-import type { TitlebarTheme } from "../preload/types"
+import type { QuickChatOptions, TitlebarTheme } from "../preload/types"
 import { exportDebugLogs, write as writeLog } from "./logging"
 import { getStore, removeStoreFile } from "./store"
 import { PINCH_ZOOM_ENABLED_KEY, WINDOW_IDS_KEY } from "./store-keys"
@@ -23,7 +23,8 @@ const rendererProtocol = "oc"
 const rendererHost = "renderer"
 const clipboardWritePermission = "clipboard-sanitized-write"
 const notificationPermission = "notifications"
-const rendererPermissions = new Set([clipboardWritePermission, notificationPermission])
+const mediaPermission = "media"
+const rendererPermissions = new Set([clipboardWritePermission, notificationPermission, mediaPermission])
 const oc2Theme = oc2ThemeJson as DesktopTheme
 const oc2Background = {
   light: resolveThemeVariant(oc2Theme.light, false)["background-base"],
@@ -61,9 +62,14 @@ const registry = createWindowRegistry<BrowserWindow>({
     removeStoreFile(windowDataFile(id))
   },
 })
+let quickChatWindow: BrowserWindow | null = null
 const titlebarHeight = 40
 const maxZoomLevel = 10
 const minZoomLevel = 0.2
+const DEFAULT_MAIN_WINDOW_WIDTH = 1280
+const DEFAULT_MAIN_WINDOW_HEIGHT = 800
+const MIN_MAIN_WINDOW_WIDTH = 1120
+const MIN_MAIN_WINDOW_HEIGHT = 700
 
 export function setRelaunchHandler(handler: () => void) {
   relaunchHandler = handler
@@ -76,7 +82,10 @@ export function setAppQuitting(quitting = true) {
 export function setBackgroundColor(color: string) {
   backgroundColor = color
   BrowserWindow.getAllWindows().forEach((win) => {
-    win.setBackgroundColor(color)
+    // The renderer owns the visible surface on Windows so its transparent
+    // corners can expose the desktop. Keep the native window transparent even
+    // when a theme changes its background token.
+    win.setBackgroundColor(process.platform === "win32" ? "#00000000" : color)
     if (process.platform === "darwin") win.invalidateShadow()
   })
 }
@@ -168,21 +177,28 @@ export function setDockIcon() {
 export function createMainWindow(id: string = randomUUID()) {
   const state = windowState({
     file: windowStateFile(id),
-    defaultWidth: 1280,
-    defaultHeight: 800,
+    defaultWidth: DEFAULT_MAIN_WINDOW_WIDTH,
+    defaultHeight: DEFAULT_MAIN_WINDOW_HEIGHT,
   })
+  // Never reopen a main window at the compact quick-chat size. The renderer
+  // also owns a fixed viewport now, so the number of projects cannot change
+  // the native window's starting height.
+  const restoreDefaultBounds = state.width < MIN_MAIN_WINDOW_WIDTH || state.height < MIN_MAIN_WINDOW_HEIGHT
 
   const mode = tone()
   const win = new BrowserWindow({
     x: state.x,
     y: state.y,
-    width: state.width,
-    height: state.height,
+    width: restoreDefaultBounds ? DEFAULT_MAIN_WINDOW_WIDTH : state.width,
+    height: restoreDefaultBounds ? DEFAULT_MAIN_WINDOW_HEIGHT : state.height,
+    minWidth: MIN_MAIN_WINDOW_WIDTH,
+    minHeight: MIN_MAIN_WINDOW_HEIGHT,
     show: false,
     autoHideMenuBar: true,
     title: "OpenCode",
     icon: iconPath(),
-    backgroundColor: backgroundColor ?? defaultBackgroundColor(),
+    backgroundColor: process.platform === "win32" ? "#00000000" : (backgroundColor ?? defaultBackgroundColor()),
+    ...(process.platform === "win32" ? { transparent: true } : {}),
     ...(process.platform === "darwin"
       ? {
           titleBarStyle: "hidden" as const,
@@ -207,18 +223,7 @@ export function createMainWindow(id: string = randomUUID()) {
   allowRendererPermissions(win)
   wireWindowRecovery(win, id)
   wireNavigationPolicy(win)
-
-  win.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
-    const { requestHeaders } = details
-    upsertKeyValue(requestHeaders, "Access-Control-Allow-Origin", ["*"])
-    callback({ requestHeaders })
-  })
-
-  win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-    const { responseHeaders = {} } = details
-    addRendererHeaders(details.url, responseHeaders)
-    callback({ responseHeaders })
-  })
+  wireRendererSession(win)
 
   state.manage(win)
   registerWindow(win, id)
@@ -228,6 +233,79 @@ export function createMainWindow(id: string = randomUUID()) {
 
   win.once("ready-to-show", () => {
     win.show()
+    // A stale window-state file can contain a popup-sized normal frame while
+    // still marking the main window as maximized. Re-apply maximize after the
+    // native window is visible so the full app never opens as a tiny chat.
+    if (state.isMaximized && !win.isMaximized()) win.maximize()
+  })
+
+  return win
+}
+
+export function createQuickChatWindow(options: QuickChatOptions = {}, parent?: BrowserWindow | null) {
+  if (quickChatWindow && !quickChatWindow.isDestroyed()) {
+    quickChatWindow.show()
+    quickChatWindow.focus()
+    return quickChatWindow
+  }
+
+  const mode = tone()
+  const query = new URLSearchParams({ window: "quick-chat" })
+  if (options.directory) query.set("directory", options.directory)
+  if (options.sessionID) query.set("sessionID", options.sessionID)
+  if (options.serverKey) query.set("server", options.serverKey)
+
+  const win = new BrowserWindow({
+    width: 440,
+    height: 640,
+    minWidth: 360,
+    minHeight: 440,
+    show: false,
+    resizable: true,
+    alwaysOnTop: true,
+    autoHideMenuBar: true,
+    title: "OpenCode Quick Chat",
+    icon: iconPath(),
+    backgroundColor: process.platform === "win32" ? "#00000000" : (backgroundColor ?? defaultBackgroundColor()),
+    ...(process.platform === "win32" ? { transparent: true } : {}),
+    ...(parent && !parent.isDestroyed() ? { parent } : {}),
+    ...(process.platform === "darwin"
+      ? {
+          titleBarStyle: "hidden" as const,
+          trafficLightPosition: { x: 14, y: 14 },
+        }
+      : {}),
+    ...(process.platform === "win32"
+      ? {
+          frame: false,
+          titleBarStyle: "hidden" as const,
+          titleBarOverlay: overlay({ mode }),
+        }
+      : {}),
+    webPreferences: {
+      preload: join(root, "../preload/index.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+
+  quickChatWindow = win
+  windowIDs.set(win, "quick-chat")
+  allowRendererPermissions(win)
+  wireWindowRecovery(win, "quick-chat")
+  wireNavigationPolicy(win)
+  wireRendererSession(win)
+  wireFullscreen(win)
+  wireZoom(win)
+  loadWindow(win, `index.html?${query.toString()}`)
+
+  win.once("ready-to-show", () => {
+    win.show()
+    win.focus()
+  })
+  win.on("closed", () => {
+    if (quickChatWindow === win) quickChatWindow = null
   })
 
   return win
@@ -264,6 +342,20 @@ function wireNavigationPolicy(win: BrowserWindow) {
     if (isRendererUrl(url)) return
     event.preventDefault()
     openExternalURL(url)
+  })
+}
+
+function wireRendererSession(win: BrowserWindow) {
+  win.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
+    const { requestHeaders } = details
+    upsertKeyValue(requestHeaders, "Access-Control-Allow-Origin", ["*"])
+    callback({ requestHeaders })
+  })
+
+  win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    const { responseHeaders = {} } = details
+    addRendererHeaders(details.url, responseHeaders)
+    callback({ responseHeaders })
   })
 }
 
@@ -531,13 +623,19 @@ function wireZoom(win: BrowserWindow) {
 }
 
 function wireFullscreen(win: BrowserWindow) {
-  const send = (fullscreen: boolean) => {
+  const sendFullscreen = (fullscreen: boolean) => {
     if (win.isDestroyed() || win.webContents.isDestroyed()) return
     win.webContents.send("window-fullscreen-changed", fullscreen)
   }
+  const sendMaximized = (maximized: boolean) => {
+    if (win.isDestroyed() || win.webContents.isDestroyed()) return
+    win.webContents.send("window-maximized-changed", maximized)
+  }
 
-  win.on("enter-full-screen", () => send(true))
-  win.on("leave-full-screen", () => send(false))
+  win.on("enter-full-screen", () => sendFullscreen(true))
+  win.on("leave-full-screen", () => sendFullscreen(false))
+  win.on("maximize", () => sendMaximized(true))
+  win.on("unmaximize", () => sendMaximized(false))
 }
 
 function clampZoom(value: number) {

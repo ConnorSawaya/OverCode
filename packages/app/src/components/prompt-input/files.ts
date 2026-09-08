@@ -1,4 +1,5 @@
 import { ACCEPTED_FILE_TYPES, ACCEPTED_IMAGE_TYPES } from "@/constants/file-picker"
+import { LOCAL_FILE_REFERENCE_MIME } from "@opencode-ai/core/file"
 
 export { ACCEPTED_FILE_TYPES }
 
@@ -7,6 +8,7 @@ type AttachmentPicker = (
     defaultPath?: string
     multiple?: boolean
     accept?: string[]
+    allowAll?: boolean
   },
   onFile: (file: File) => Promise<unknown>,
 ) => Promise<void>
@@ -27,7 +29,8 @@ export function pickAttachmentFiles(input: {
       {
         defaultPath: input.directory(),
         multiple: true,
-        accept: ACCEPTED_FILE_TYPES,
+        accept: undefined,
+        allowAll: true,
       },
       input.onFile,
     )
@@ -50,6 +53,34 @@ const TEXT_MIMES = new Set([
   "application/x-yaml",
   "application/xml",
   "application/yaml",
+])
+const BINARY_EXTENSIONS = new Set([
+  "7z",
+  "a",
+  "bin",
+  "class",
+  "dll",
+  "doc",
+  "docx",
+  "exe",
+  "gz",
+  "jar",
+  "lib",
+  "o",
+  "obj",
+  "odp",
+  "ods",
+  "odt",
+  "ppt",
+  "pptx",
+  "pyc",
+  "so",
+  "tar",
+  "war",
+  "wasm",
+  "xls",
+  "xlsx",
+  "zip",
 ])
 
 const SAMPLE = 4096
@@ -74,6 +105,11 @@ function textMime(type: string) {
 
 function textBytes(bytes: Uint8Array) {
   if (bytes.length === 0) return true
+  try {
+    new TextDecoder("utf-8", { fatal: true }).decode(bytes)
+  } catch {
+    return false
+  }
   let count = 0
   for (const byte of bytes) {
     if (byte === 0) return false
@@ -90,9 +126,10 @@ export async function attachmentMime(file: File) {
   const suffix = ext(file.name)
   const fallback = IMAGE_EXTS.get(suffix) ?? (suffix === "pdf" ? "application/pdf" : undefined)
   if ((!type || type === "application/octet-stream") && fallback) return fallback
+  if (BINARY_EXTENSIONS.has(suffix)) return LOCAL_FILE_REFERENCE_MIME
 
   if (textMime(type)) return "text/plain"
   const bytes = new Uint8Array(await file.slice(0, SAMPLE).arrayBuffer())
-  if (!textBytes(bytes)) return
+  if (!textBytes(bytes)) return LOCAL_FILE_REFERENCE_MIME
   return "text/plain"
 }

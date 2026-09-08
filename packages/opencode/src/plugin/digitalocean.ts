@@ -71,10 +71,10 @@ async function startOAuthServer(): Promise<void> {
     }
 
     if (req.method === "POST" && url.pathname === OAUTH_TOKEN_PATH) {
-      const chunks: Buffer[] = []
-      req.on("data", (chunk: Buffer) => chunks.push(chunk))
+      const chunks: Uint8Array[] = []
+      req.on("data", (chunk: Buffer) => chunks.push(Uint8Array.from(chunk)))
       req.on("end", () => {
-        const raw = Buffer.concat(chunks).toString("utf8")
+        const raw = new TextDecoder().decode(Buffer.concat(chunks as unknown as Uint8Array<ArrayBufferLike>[]))
         let body: Record<string, string> = {}
         try {
           body = raw ? JSON.parse(raw) : {}

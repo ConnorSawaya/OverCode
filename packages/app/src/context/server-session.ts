@@ -22,6 +22,8 @@ import { compareMessages, messageKey, normalizeSessionMessages } from "@/utils/s
 import { dropSessionCaches, pickSessionCacheEvictions, SESSION_CACHE_LIMIT } from "./global-sync/session-cache"
 import { createV2SessionReducer, type V2SessionReduction } from "./server-session-v2-reducer"
 import type { ServerApi } from "@/utils/server"
+import type { CompatibleSessionApi } from "@/utils/server-compat"
+import type { SessionPendingPrompt } from "@/utils/session-pending"
 
 type MessageApi = ServerApi["message"]
 
@@ -187,11 +189,11 @@ type ServerSessionOptions = { retry?: typeof retry; protocol?: Promise<"v1" | "v
 
 export function createServerSession(
   client: OpencodeClient,
-  sessionApiOrOptions?: SessionApi | ServerSessionOptions,
+  sessionApiOrOptions?: SessionApi | CompatibleSessionApi | ServerSessionOptions,
   messageApi?: MessageApi,
   currentOptions?: ServerSessionOptions,
 ) {
-  const sessionApi = messageApi ? (sessionApiOrOptions as SessionApi) : undefined
+  const sessionApi = messageApi ? (sessionApiOrOptions as SessionApi | CompatibleSessionApi) : undefined
   const options = messageApi ? currentOptions : (sessionApiOrOptions as ServerSessionOptions | undefined)
   const [data, setData] = createStore({
     info: {} as Record<string, Session | undefined>,
@@ -200,6 +202,7 @@ export function createServerSession(
     todo: {} as Record<string, Todo[]>,
     permission: {} as Record<string, PermissionRequest[]>,
     question: {} as Record<string, QuestionRequest[]>,
+    pending_prompt: {} as Record<string, SessionPendingPrompt[] | undefined>,
     message: {} as Record<string, Message[]>,
     session_message: {} as Record<string, SessionMessageInfo[]>,
     part: {} as Record<string, Part[]>,
@@ -211,6 +214,8 @@ export function createServerSession(
   const requests = new Map<string, Promise<Session>>()
   const inflight = new Map<string, Promise<void>>()
   const inflightTodo = new Map<string, Promise<void>>()
+  const inflightPending = new Map<string, Promise<void>>()
+  const refreshPending = new Set<string>()
   const optimistic = new Map<string, Map<string, OptimisticItem>>()
   const v2 = createV2SessionReducer()
   const messageLoads = new Map<string, MessageLoadState>()
@@ -267,6 +272,7 @@ export function createServerSession(
         ...requests.keys(),
         ...inflight.keys(),
         ...inflightTodo.keys(),
+        ...inflightPending.keys(),
         ...messageLoads.keys(),
         ...optimistic.keys(),
         ...Object.entries(data.permission)
@@ -274,6 +280,9 @@ export function createServerSession(
           .map(([sessionID]) => sessionID),
         ...Object.entries(data.question)
           .filter(([, items]) => items.length > 0)
+          .map(([sessionID]) => sessionID),
+        ...Object.entries(data.pending_prompt)
+          .filter(([, items]) => (items?.length ?? 0) > 0)
           .map(([sessionID]) => sessionID),
         ...Object.entries(data.session_status)
           .filter(([, status]) => status.type !== "idle")
@@ -332,6 +341,43 @@ export function createServerSession(
     }
     void resolved.then(cleanup, cleanup)
     return resolved
+  }
+
+  const pendingApi = () => {
+    const pending = sessionApi?.pending
+    if (!pending || !("cancel" in pending) || !("promote" in pending)) return
+    return pending as CompatibleSessionApi["pending"]
+  }
+
+  const syncPending = (sessionID: string, request?: { force?: boolean }) => {
+    touch(sessionID)
+    const api = pendingApi()
+    if (!api) {
+      setData("pending_prompt", sessionID, [])
+      return Promise.resolve()
+    }
+    const running = inflightPending.get(sessionID)
+    if (running) {
+      if (request?.force) refreshPending.add(sessionID)
+      return running
+    }
+    if (data.pending_prompt[sessionID] !== undefined && !request?.force) return Promise.resolve()
+
+    const promise = api
+      .list({ sessionID, directory: data.info[sessionID]?.directory })
+      .then((items) => setData("pending_prompt", sessionID, reconcile(items, { key: "id" })))
+      .finally(() => {
+        if (inflightPending.get(sessionID) === promise) inflightPending.delete(sessionID)
+        if (!refreshPending.delete(sessionID)) return
+        void syncPending(sessionID, { force: true }).catch(() => {})
+      })
+    inflightPending.set(sessionID, promise)
+    return promise
+  }
+
+  const removePending = (sessionID: string, messageID: string) => {
+    if (data.pending_prompt[sessionID] === undefined) return
+    setData("pending_prompt", sessionID, (items) => items?.filter((item) => item.id !== messageID))
   }
 
   const peekLineage = (sessionID: string) => {
@@ -486,6 +532,8 @@ export function createServerSession(
       requests.delete(sessionID)
       inflight.delete(sessionID)
       inflightTodo.delete(sessionID)
+      inflightPending.delete(sessionID)
+      refreshPending.delete(sessionID)
       messageLoads.delete(sessionID)
       v2.clear(sessionID)
       pendingParts.delete(sessionID)
@@ -495,6 +543,7 @@ export function createServerSession(
     setData(
       produce((draft) => {
         dropSessionCaches(draft, sessionIDs)
+        for (const sessionID of sessionIDs) delete draft.pending_prompt[sessionID]
       }),
     )
     setMeta(
@@ -516,6 +565,7 @@ export function createServerSession(
       ...requests.keys(),
       ...inflight.keys(),
       ...inflightTodo.keys(),
+      ...inflightPending.keys(),
       ...messageLoads.keys(),
       ...optimistic.keys(),
       ...Object.entries(data.permission)
@@ -523,6 +573,9 @@ export function createServerSession(
         .map(([sessionID]) => sessionID),
       ...Object.entries(data.question)
         .filter(([, items]) => items.length > 0)
+        .map(([sessionID]) => sessionID),
+      ...Object.entries(data.pending_prompt)
+        .filter(([, items]) => (items?.length ?? 0) > 0)
         .map(([sessionID]) => sessionID),
       ...Object.entries(data.session_status)
         .filter(([, status]) => status.type !== "idle")
@@ -936,6 +989,14 @@ export function createServerSession(
   const applyV2 = (event: OpenCodeEvent) => {
     if (!("data" in event) || !("sessionID" in event.data) || typeof event.data.sessionID !== "string") return
     const sessionID = event.data.sessionID
+    const eventType: string = event.type
+    if (
+      eventType === "session.next.prompt.admitted" ||
+      eventType === "session.next.prompted" ||
+      eventType === "session.next.prompt.cancelled" ||
+      eventType === "session.next.prompt.delivery.changed"
+    )
+      void syncPending(sessionID, { force: true }).catch(() => {})
     const reduction = v2.reduce(data.session_message[sessionID] ?? [], event)
     if (reduction) {
       projectV2(reduction)
@@ -1003,6 +1064,8 @@ export function createServerSession(
         const info = (event.properties as { info: Session }).info
         remember(info)
         if (info.time.archived) evict([info.id])
+        if (!info.time.archived && data.pending_prompt[info.id] !== undefined)
+          void syncPending(info.id, { force: true }).catch(() => {})
         return
       }
       case "session.deleted": {
@@ -1025,10 +1088,13 @@ export function createServerSession(
       case "session.status": {
         const props = event.properties as { sessionID: string; status: SessionStatus }
         setData("session_status", props.sessionID, reconcile(props.status))
+        if (props.status.type === "idle" && data.pending_prompt[props.sessionID] !== undefined)
+          void syncPending(props.sessionID, { force: true }).catch(() => {})
         return
       }
       case "message.updated": {
         const info = cleanMessage((event.properties as { info: Message }).info)
+        removePending(info.sessionID, info.id)
         indexLegacyMessage(info)
         const load = messageLoads.get(info.sessionID)
         load?.touchedMessages.add(info.id)
@@ -1391,6 +1457,24 @@ export function createServerSession(
           setData("todo", sessionID, reconcile(result.data ?? [], { key: "id" }))
         })
       })
+    },
+    pending: {
+      list: (sessionID: string) => data.pending_prompt[sessionID] ?? [],
+      sync: syncPending,
+      remove: removePending,
+      async cancel(input: { sessionID: string; messageID: string; directory?: string }) {
+        const api = pendingApi()
+        if (!api) return
+        await api.cancel(input)
+        removePending(input.sessionID, input.messageID)
+      },
+      async promote(input: { sessionID: string; messageID: string; directory?: string }) {
+        const api = pendingApi()
+        if (!api) return
+        await api.promote(input)
+        removePending(input.sessionID, input.messageID)
+        void syncPending(input.sessionID, { force: true }).catch(() => {})
+      },
     },
     history: {
       more: (sessionID: string) =>

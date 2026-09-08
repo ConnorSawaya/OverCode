@@ -10,11 +10,16 @@ import { SettingsKeybinds } from "./settings-keybinds"
 import { SettingsProviders } from "./settings-providers"
 import { SettingsModels } from "./settings-models"
 import { SettingsServers } from "./settings-servers"
+import { SettingsToolsV2 } from "./settings-v2/tools"
+import { useParams } from "@solidjs/router"
+import { base64Decode } from "@opencode-ai/core/util/encode"
 
 export const DialogSettings: Component<{ defaultValue?: string }> = (props) => {
   const language = useLanguage()
   const platform = usePlatform()
   const dialog = useDialog()
+  const params = useParams()
+  const directory = () => params.dir ? base64Decode(params.dir) : undefined
   const [tab, setTab] = createSignal(props.defaultValue ?? "general")
 
   const showProviders = () => {
@@ -63,6 +68,10 @@ export const DialogSettings: Component<{ defaultValue?: string }> = (props) => {
                       <Icon name="models" />
                       {language.t("settings.models.title")}
                     </Tabs.Trigger>
+                    <Tabs.Trigger value="tools">
+                      <Icon name="mcp" />
+                      {language.t("settings.tools.title")}
+                    </Tabs.Trigger>
                   </div>
                 </div>
               </div>
@@ -87,6 +96,9 @@ export const DialogSettings: Component<{ defaultValue?: string }> = (props) => {
         </Tabs.Content>
         <Tabs.Content value="models" class="no-scrollbar">
           <SettingsModels />
+        </Tabs.Content>
+        <Tabs.Content value="tools" class="settings-v2-panel no-scrollbar">
+          <SettingsToolsV2 directory={directory} />
         </Tabs.Content>
       </Tabs>
     </Dialog>

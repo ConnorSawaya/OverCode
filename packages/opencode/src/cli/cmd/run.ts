@@ -381,8 +381,8 @@ export const RunCommand = effectCmd({
                 UI.error(`Cannot attach local file larger than 10 MiB or a special file: ${filePath}`)
                 process.exit(1)
               }
-              if (opened.size === 0) return Buffer.alloc(0)
-              const buffer = Buffer.alloc(Number(opened.size))
+              if (opened.size === 0) return new Uint8Array(0)
+              const buffer = new Uint8Array(Number(opened.size))
               let offset = 0
               while (offset < buffer.length) {
                 const read = await handle.read(buffer, offset, buffer.length - offset, offset)
@@ -395,18 +395,18 @@ export const RunCommand = effectCmd({
             }
           })()
           const detected = FSUtil.mimeType(resolvedPath)
-          const text = content?.toString("utf8")
+          const text = content ? Buffer.from(content).toString("utf8") : undefined
           const mime = !args.attach
             ? isDirectory
               ? "application/x-directory"
               : "text/plain"
-            : content && text !== undefined && Buffer.from(text, "utf8").equals(content)
+            : content && text !== undefined && Buffer.from(text, "utf8").equals(Uint8Array.from(content))
               ? "text/plain"
               : detected
 
           files.push({
             type: "file",
-            url: content ? `data:${mime};base64,${content.toString("base64")}` : pathToFileURL(resolvedPath).href,
+            url: content ? `data:${mime};base64,${Buffer.from(content).toString("base64")}` : pathToFileURL(resolvedPath).href,
             filename: path.basename(resolvedPath),
             mime,
           })

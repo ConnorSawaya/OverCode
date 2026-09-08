@@ -1,7 +1,7 @@
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { base64Encode } from "@opencode-ai/core/util/encode"
 import { useParams } from "@solidjs/router"
-import { batch, createEffect, createMemo, startTransition } from "solid-js"
+import { batch, createEffect, createMemo, createRoot, onCleanup, startTransition } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useModels } from "@/context/models"
 import { useSettings } from "@/context/settings"
@@ -56,9 +56,18 @@ const clone = (value: State | undefined) => {
   } satisfies State
 }
 
+// Main and side views must share one writer for a workspace's selection record.
+// Separate makePersisted instances otherwise overwrite each other's session entries.
+const createSelections = (target: ReturnType<typeof Persist.serverWorkspace>) => createRoot((dispose) => ({
+  dispose,
+  users: 0,
+  value: persisted({ ...target, migrate }, createStore<Saved>({ session: {} })),
+}))
+const selections = new Map<string, ReturnType<typeof createSelections>>()
+
 export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
   name: "Local",
-  init: () => {
+  init: (props: { sessionID?: string }) => {
     const params = useParams()
     const sdk = useSDK()
     const sync = useSync()
@@ -67,20 +76,25 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     const models = useModels()
     const settings = useSettings()
 
-    const id = createMemo(() => params.id || undefined)
+    const id = createMemo(() => props.sessionID ?? (params.id || undefined))
     const list = createMemo(() => sync().data.agent.filter((item) => item.mode !== "subagent" && !item.hidden))
     const agentsVisible = createMemo(() => settings.visibility.customAgents() || hasCustomAgent(list()))
     const connected = createMemo(() => new Set(providers.connected().map((item) => item.id)))
 
-    const [saved, setSaved, , savedReady] = persisted(
-      {
-        ...Persist.serverWorkspace(serverSDK().scope, sdk().directory, "model-selection", ["model-selection.v1"]),
-        migrate,
-      },
-      createStore<Saved>({
-        session: {},
-      }),
-    )
+    const selectionKey = ScopedKey.from(serverSDK().scope, sdk().directory, "model-selection")
+    let selection = selections.get(selectionKey)
+    if (!selection) {
+      selection = createSelections(Persist.serverWorkspace(serverSDK().scope, sdk().directory, "model-selection", ["model-selection.v1"]))
+      selections.set(selectionKey, selection)
+    }
+    const selectedStore = selection
+    selectedStore.users++
+    onCleanup(() => {
+      if (--selectedStore.users > 0) return
+      selections.delete(selectionKey)
+      selectedStore.dispose()
+    })
+    const [saved, setSaved, , savedReady] = selectedStore.value
 
     const [store, setStore] = createStore<{
       current?: string
@@ -183,7 +197,11 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       list,
       visible: agentsVisible,
       current() {
-        return pickAgent(agentsVisible() ? (scope()?.agent ?? store.current) : "build")
+        // Build and Plan are native primary agents, so their selection must
+        // remain usable even when the optional custom-agent picker is hidden.
+        // `list` already removes hidden/subagent entries, and custom agents
+        // make `agentsVisible` true when they are present.
+        return pickAgent(scope()?.agent ?? store.current)
       },
       set(name: string | undefined) {
         const item = pickAgent(name)

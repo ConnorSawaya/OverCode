@@ -51,7 +51,8 @@ export interface PromptInputProps {
   edit?: { id: string; prompt: Prompt; context: FollowupDraft["context"] }
   onEditLoaded?: () => void
   shouldQueue?: () => boolean
-  onQueue?: (draft: FollowupDraft) => void
+  onQueue?: (draft: FollowupDraft) => Promise<boolean> | boolean
+  onGoal?: (title: string, session: { id: string; directory: string }) => Promise<boolean> | boolean
   onAbort?: () => void
   onSubmit?: () => void
 }

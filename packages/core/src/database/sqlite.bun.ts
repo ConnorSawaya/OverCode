@@ -102,7 +102,7 @@ const make = (options: Config) =>
         return Stream.die("executeStream not implemented")
       },
       export: Effect.try({
-        try: () => native.serialize(),
+        try: () => Uint8Array.from(native.serialize()),
         catch: (cause) =>
           new SqlError({
             reason: classifySqliteError(cause, { message: "Failed to export database", operation: "export" }),

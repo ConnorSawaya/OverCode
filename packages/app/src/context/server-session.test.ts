@@ -4,6 +4,8 @@ import type { OpenCodeEvent, SessionApi } from "@opencode-ai/client/promise"
 import type { Message, OpencodeClient, Part, Session } from "@opencode-ai/sdk/v2/client"
 import { createServerSession } from "./server-session"
 import type { ServerApi } from "@/utils/server"
+import type { CompatibleSessionApi } from "@/utils/server-compat"
+import type { SessionPendingPrompt } from "@/utils/session-pending"
 
 type MessageApi = ServerApi["message"]
 
@@ -162,6 +164,60 @@ function setup(sessions: Record<string, Session>) {
 }
 
 describe("server session", () => {
+  test("routes pending work and mutations by exact session across three independent chats", async () => {
+    const item = (sessionID: string, id: string, sequence: number): SessionPendingPrompt => ({
+      id,
+      sessionID,
+      sequence,
+      timeCreated: sequence,
+      status: "queued",
+      type: "user",
+      delivery: "queue",
+      text: `${sessionID}:${id}`,
+      files: [],
+      agents: [],
+    })
+    const backend = new Map([
+      ["chat-a", [item("chat-a", "msg-a", 1)]],
+      ["chat-b", [item("chat-b", "msg-b", 2)]],
+      ["chat-c", [item("chat-c", "msg-c", 3)]],
+    ])
+    const mutations: string[] = []
+    const api = {
+      pending: {
+        list: async ({ sessionID }: { sessionID: string }) => [...(backend.get(sessionID) ?? [])],
+        cancel: async ({ sessionID, messageID }: { sessionID: string; messageID: string }) => {
+          mutations.push(`cancel:${sessionID}:${messageID}`)
+          backend.set(
+            sessionID,
+            (backend.get(sessionID) ?? []).filter((entry) => entry.id !== messageID),
+          )
+        },
+        promote: async ({ sessionID, messageID }: { sessionID: string; messageID: string }) => {
+          mutations.push(`promote:${sessionID}:${messageID}`)
+          backend.set(
+            sessionID,
+            (backend.get(sessionID) ?? []).filter((entry) => entry.id !== messageID),
+          )
+        },
+      },
+    } as unknown as CompatibleSessionApi
+    const store = createServerSession(messageClient(response()), api, {} as MessageApi)
+
+    await Promise.all(["chat-a", "chat-b", "chat-c"].map((id) => store.pending.sync(id)))
+    expect(store.pending.list("chat-a").map((entry) => entry.id)).toEqual(["msg-a"])
+    expect(store.pending.list("chat-b").map((entry) => entry.id)).toEqual(["msg-b"])
+    expect(store.pending.list("chat-c").map((entry) => entry.id)).toEqual(["msg-c"])
+
+    await store.pending.cancel({ sessionID: "chat-b", messageID: "msg-b" })
+    await store.pending.promote({ sessionID: "chat-c", messageID: "msg-c" })
+
+    expect(mutations).toEqual(["cancel:chat-b:msg-b", "promote:chat-c:msg-c"])
+    expect(store.pending.list("chat-a").map((entry) => entry.id)).toEqual(["msg-a"])
+    expect(store.pending.list("chat-b")).toEqual([])
+    expect(store.pending.list("chat-c")).toEqual([])
+  })
+
   test("projects V2 session events into current and legacy message state", () => {
     const ctx = setup({ child: session("child") })
     ctx.store.remember(session("child"))
@@ -211,6 +267,44 @@ describe("server session", () => {
     })
     expect(ctx.store.data.message.child?.map((message) => message.id)).toEqual(["msg_1_user", "msg_2_assistant"])
     expect(ctx.store.data.part.msg_2_assistant).toMatchObject([{ type: "text", text: "world" }])
+  })
+
+  test("refreshes a cached queue when a hidden session update arrives", async () => {
+    const item: SessionPendingPrompt = {
+      id: "msg-hidden",
+      sessionID: "chat-a",
+      sequence: 1,
+      timeCreated: 1,
+      status: "queued",
+      type: "user",
+      delivery: "queue",
+      text: "queued by another client",
+      files: [],
+      agents: [],
+    }
+    let backend: SessionPendingPrompt[] = []
+    let requests = 0
+    const api = {
+      pending: {
+        list: async () => {
+          requests++
+          return [...backend]
+        },
+        cancel: async () => {},
+        promote: async () => {},
+      },
+    } as unknown as CompatibleSessionApi
+    const store = createServerSession(messageClient(response()), api, {} as MessageApi)
+    store.remember(session("chat-a"))
+    await store.pending.sync("chat-a")
+    expect(store.pending.list("chat-a")).toEqual([])
+
+    backend = [item]
+    store.apply({ type: "session.updated", properties: { info: session("chat-a") } })
+    await store.pending.sync("chat-a")
+
+    expect(requests).toBe(2)
+    expect(store.pending.list("chat-a")).toEqual([item])
   })
 
   test("resolves lineage by session ID without directory", async () => {

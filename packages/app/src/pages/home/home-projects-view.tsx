@@ -14,6 +14,7 @@ import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
 import { getProjectAvatarVariant, type HomeProjectSelection, type LocalProject } from "@/context/layout"
 import { ServerConnection } from "@/context/server"
 import { useLanguage } from "@/context/language"
+import { usePins } from "@/context/pins"
 import { usePlatform } from "@/context/platform"
 import { displayName, getProjectAvatarSource } from "@/pages/layout/helpers"
 import { ServerRowMenuView, serverMenuLabels } from "@/components/server/server-row-menu"
@@ -455,6 +456,7 @@ function HomeProjectRow(
     },
 ) {
   const platform = usePlatform()
+  const pins = usePins()
   const serverUnreachable = () => props.serverHealth(props.server)?.healthy === false
   const sortable = useSortable({
     get id() {
@@ -547,6 +549,11 @@ function HomeProjectRow(
             <MenuV2.Content>
               <MenuV2.Item onSelect={() => props.onOpenProjectNewSession(props.server, props.project.worktree)}>
                 {props.language.t("command.session.new")}
+              </MenuV2.Item>
+              <MenuV2.Item onSelect={() => pins.toggleProject(props.project.worktree)}>
+                {pins.isProjectPinned(props.project.worktree)
+                  ? props.language.t("sidebar.unpin.project")
+                  : props.language.t("sidebar.pin.project")}
               </MenuV2.Item>
               <MenuV2.Item onSelect={() => props.onEditProject(props.server, props.project)}>
                 {props.language.t("dialog.project.edit.title")}

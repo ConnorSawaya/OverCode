@@ -165,6 +165,26 @@ export const SessionInputTable = sqliteTable(
   ],
 )
 
+export const SessionPromptQueueTable = sqliteTable(
+  "session_prompt_queue",
+  {
+    sequence: integer().primaryKey({ autoIncrement: true }),
+    id: text().$type<MessageID>().notNull(),
+    session_id: text()
+      .$type<SessionSchema.ID>()
+      .notNull()
+      .references(() => SessionTable.id, { onDelete: "cascade" }),
+    payload: text({ mode: "json" }).$type<unknown>().notNull(),
+    time_created: integer()
+      .notNull()
+      .$default(() => Date.now()),
+  },
+  (table) => [
+    uniqueIndex("session_prompt_queue_id_idx").on(table.id),
+    index("session_prompt_queue_session_sequence_idx").on(table.session_id, table.sequence),
+  ],
+)
+
 export const SessionContextEpochTable = sqliteTable("session_context_epoch", {
   session_id: text()
     .$type<SessionSchema.ID>()

@@ -1,7 +1,13 @@
 import { onMount } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { showToast } from "@/utils/toast"
-import { type ContentPart, type ImageAttachmentPart, type usePrompt } from "@/context/prompt"
+import {
+  type ContentPart,
+  type FileAttachmentPart,
+  type ImageAttachmentPart,
+  type PastedTextPart,
+  type usePrompt,
+} from "@/context/prompt"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { uuid } from "@/utils/uuid"
@@ -9,6 +15,13 @@ import { getCursorPosition } from "./editor-dom"
 import { createBlobReference, type DraftStore } from "@/utils/draft-store"
 import { attachmentMime } from "./files"
 import { normalizePaste, pasteMode } from "./paste"
+import {
+  pastedTextStats,
+  pastedTextTitle,
+  releaseLocalPastedTextBlob,
+  shouldCreatePastedTextAttachment,
+} from "@opencode-ai/session-ui/v2/prompt-input/pasted-text"
+import { LOCAL_FILE_REFERENCE_MIME } from "@opencode-ai/core/file"
 
 type PromptTarget = Pick<ReturnType<ReturnType<typeof usePrompt>["capture"]>, "current" | "cursor" | "set">
 type AttachmentTarget = { prompt: PromptTarget; cursor: number | undefined }
@@ -22,6 +35,7 @@ type PromptAttachmentsCoreInput = {
   readClipboardImage?: () => Promise<File | null>
   getPathForFile?: (file: File) => string
   draftStore?: DraftStore
+  onPastedTextError?: (error: unknown) => void
 }
 
 export type PromptAttachmentsInput = {
@@ -33,14 +47,14 @@ export type PromptAttachmentsInput = {
   addPart: (part: ContentPart) => boolean
   readClipboardImage?: () => Promise<File | null>
   getPathForFile?: (file: File) => string
+  onPastedTextError?: (error: unknown) => void
 }
 
 export function createPromptAttachmentsCore(input: PromptAttachmentsCoreInput) {
   const capture = (): AttachmentTarget | undefined => {
     const prompt = input.capture()
     const editor = input.editor()
-    if (!editor) return
-    return { prompt, cursor: prompt.cursor() ?? getCursorPosition(editor) }
+    return { prompt, cursor: prompt.cursor() ?? (editor ? getCursorPosition(editor) : 0) }
   }
 
   const add = async (file: File, toast = true, target = capture()) => {
@@ -51,11 +65,33 @@ export function createPromptAttachmentsCore(input: PromptAttachmentsCoreInput) {
       return false
     }
 
+    const sourcePath = input.getPathForFile?.(file)
+    if (mime === LOCAL_FILE_REFERENCE_MIME) {
+      if (!sourcePath) {
+        if (toast) input.warn?.()
+        return false
+      }
+
+      const content = `@${file.name}`
+      const attachment: FileAttachmentPart = {
+        type: "file",
+        path: sourcePath,
+        filename: file.name,
+        mime,
+        content,
+        start: target.cursor ?? 0,
+        end: (target.cursor ?? 0) + content.length,
+      }
+      if (input.addPart?.(attachment)) return true
+      target.prompt.set([...target.prompt.current(), attachment], target.cursor)
+      return true
+    }
+
     const attachment: ImageAttachmentPart = {
       type: "image",
       id: uuid(),
       filename: file.name,
-      sourcePath: input.getPathForFile?.(file) || undefined,
+      sourcePath: sourcePath || undefined,
       mime,
       blob: input.draftStore ? await input.draftStore.putBlob(file) : await createBlobReference(file),
     }
@@ -90,6 +126,46 @@ export function createPromptAttachmentsCore(input: PromptAttachmentsCoreInput) {
     target.set(next, target.cursor())
   }
 
+  const pastedText = (id: string) => {
+    return input
+      .capture()
+      .current()
+      .find((part): part is PastedTextPart => part.type === "pasted_text" && part.id === id)
+  }
+
+  const loadPastedText = (part: PastedTextPart) => fetch(part.blob.url).then((response) => response.text())
+
+  const removePastedText = (id: string) => {
+    const target = input.capture()
+    const part = target.current().find((item): item is PastedTextPart => item.type === "pasted_text" && item.id === id)
+    if (part) releaseLocalPastedTextBlob(part.blob)
+    target.set(
+      target.current().filter((part) => part.type !== "pasted_text" || part.id !== id),
+      target.cursor(),
+    )
+  }
+
+  const movePastedText = async (id: string) => {
+    const part = pastedText(id)
+    if (!part) return
+    try {
+      const text = await loadPastedText(part)
+      removePastedText(id)
+      input.focusEditor?.()
+      input.addPart?.({ type: "text", content: text, start: 0, end: 0 })
+    } catch (error) {
+      input.onPastedTextError?.(error)
+    }
+  }
+
+  const copyPastedText = async (part: PastedTextPart) => {
+    try {
+      await navigator.clipboard.writeText(await loadPastedText(part))
+    } catch (error) {
+      input.onPastedTextError?.(error)
+    }
+  }
+
   const handlePaste = async (event: ClipboardEvent) => {
     const clipboardData = event.clipboardData
     if (!clipboardData) return
@@ -119,6 +195,36 @@ export function createPromptAttachmentsCore(input: PromptAttachmentsCoreInput) {
 
     if (!plainText) return
 
+    const stats = pastedTextStats(plainText)
+    if (shouldCreatePastedTextAttachment(plainText, stats)) {
+      const source = new Blob([plainText], { type: "text/plain" })
+      const attachment: PastedTextPart = {
+        type: "pasted_text",
+        id: uuid(),
+        title: pastedTextTitle(plainText),
+        charCount: stats.charCount,
+        lineCount: stats.lineCount,
+        blob: { id: `paste_local_${uuid()}`, url: URL.createObjectURL(source) },
+      }
+      target.prompt.set([...target.prompt.current(), attachment], target.cursor)
+      if (input.draftStore) {
+        void input.draftStore.putBlob(source).then((blob) => {
+          releaseLocalPastedTextBlob(attachment.blob)
+          const latest = input.capture()
+          if (!latest) return
+          const current = latest.current()
+          if (!current.some((part) => part.type === "pasted_text" && part.id === attachment.id)) return
+          latest.set(
+            current.map((part) =>
+              part.type === "pasted_text" && part.id === attachment.id ? { ...part, blob } : part,
+            ),
+            latest.cursor(),
+          )
+        }, input.onPastedTextError)
+      }
+      return
+    }
+
     const text = normalizePaste(plainText)
 
     const put = () => {
@@ -143,6 +249,9 @@ export function createPromptAttachmentsCore(input: PromptAttachmentsCoreInput) {
     addAttachments,
     addClipboardAttachment,
     removeAttachment,
+    removePastedText,
+    movePastedText,
+    copyPastedText,
     handlePaste,
   }
 }

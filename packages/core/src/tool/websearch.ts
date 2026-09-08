@@ -175,7 +175,7 @@ const callMcp = <F extends Schema.Struct.Fields>(
         MAX_RESPONSE_BYTES,
         () => new Error(`${tool} response exceeded ${MAX_RESPONSE_BYTES} bytes`),
       )
-      return yield* parseResponse(body.toString("utf8"))
+      return yield* parseResponse(new TextDecoder().decode(body))
     }).pipe(
       Effect.timeoutOrElse({
         duration: Duration.seconds(25),

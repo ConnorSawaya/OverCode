@@ -56,7 +56,7 @@ export const compressionLayer = HttpRouter.middleware<{ handles: unknown }>()((e
 
     const compressed = encoding === "gzip" ? gzipSync(body.body) : deflateSync(body.body)
     return HttpServerResponse.setHeader(
-      HttpServerResponse.setBody(response, HttpBody.uint8Array(compressed, contentType)),
+      HttpServerResponse.setBody(response, HttpBody.uint8Array(Uint8Array.from(compressed), contentType)),
       "content-encoding",
       encoding,
     )

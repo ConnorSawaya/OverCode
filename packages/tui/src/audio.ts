@@ -26,7 +26,7 @@ export function loadSoundFile(file: string) {
   const cached = sounds.get(file)
   if (cached) return cached
   const task = readFile(file)
-    .then((bytes) => current.loadSound(bytes))
+    .then((bytes) => current.loadSound(Uint8Array.from(bytes)))
     .catch((error) => {
       console.debug("failed to load tui sound", { file, error })
       return null

@@ -27,9 +27,18 @@ describe("Credential", () => {
         label: "Replacement",
         value: Credential.Key.make({ type: "key", key: "replacement" }),
       })
-      expect(yield* credentials.list(integrationID)).toEqual([replacement])
+      expect((yield* credentials.list(integrationID)).map(({ id, label, active }) => ({ id, label, active }))).toEqual([
+        { id: created.id, label: "Personal", active: false },
+        { id: replacement.id, label: "Replacement", active: true },
+      ])
+      expect((yield* credentials.list(integrationID)).map((item) => item.active)).toEqual([false, true])
+
+      yield* credentials.update(created.id, { active: true })
+      expect((yield* credentials.list(integrationID)).map((item) => item.active)).toEqual([true, false])
 
       yield* credentials.remove(replacement.id)
+      expect((yield* credentials.list(integrationID)).map((item) => item.id)).toEqual([created.id])
+      yield* credentials.remove(created.id)
       expect(yield* credentials.list(integrationID)).toEqual([])
     }),
   )

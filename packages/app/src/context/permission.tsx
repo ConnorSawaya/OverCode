@@ -176,6 +176,9 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
       disableAutoAccept(sessionID: string, directory?: string) {
         selected().disableAutoAccept(sessionID, directory)
       },
+      setDirectoryAutoAccept(directory: string, value: boolean) {
+        selected().setDirectoryAutoAccept(directory, value)
+      },
       permissionsEnabled,
       isPermissionAllowAll(directory: string) {
         return selected().isPermissionAllowAll(directory)
@@ -453,6 +456,14 @@ function createServerPermissionState(input: { sdk: ServerSDK; sync: ServerSync }
         return
       }
       enableDirectory(directory)
+    },
+    setDirectoryAutoAccept(directory: string, value: boolean) {
+      if (meta.disposed) return
+      if (value) {
+        enableDirectory(directory)
+        return
+      }
+      disableDirectory(directory)
     },
     enableAutoAccept(sessionID: string, directory: string) {
       if (meta.disposed) return

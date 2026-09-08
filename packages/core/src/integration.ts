@@ -173,7 +173,7 @@ export interface Interface extends State.Transformable<Draft> {
     /** Updates a stored credential exposed as a connection. */
     readonly update: (
       credentialID: Credential.ID,
-      updates: Partial<Pick<Credential.Info, "label">>,
+      updates: Partial<Pick<Credential.Info, "label" | "active">>,
     ) => Effect.Effect<void>
     /** Removes a stored credential connection. */
     readonly remove: (credentialID: Credential.ID) => Effect.Effect<void>
@@ -287,12 +287,19 @@ export const locationLayer = Layer.effect(
 
     const resolveConnections = (entry: Entry | undefined, saved: readonly Credential.Info[]) => {
       const credentials = saved
-        .map((credential) => ({
-          type: "credential" as const,
-          id: credential.id,
-          label: credential.label,
-        }))
         .toReversed()
+        .toSorted((a, b) => Number(b.active) - Number(a.active))
+        .map((credential) => {
+          const connection = {
+            type: "credential" as const,
+            id: credential.id,
+            label: credential.label,
+          }
+          if (credential.value.type === "oauth") {
+            return { ...connection, methodID: credential.value.methodID } satisfies IntegrationConnection.CredentialInfo
+          }
+          return connection
+        })
       const env = (entry?.methods ?? [])
         .filter((method) => method.type === "env")
         .flatMap((method) => method.names.filter((name) => process.env[name]))

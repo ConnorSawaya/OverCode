@@ -23,7 +23,7 @@ import { InstallationVersion } from "./installation/version"
 import { Slug } from "./util/slug"
 import { ProjectTable } from "./project/sql"
 import path from "path"
-import { fromRow } from "./session/info"
+import { fromRow, toV1Info } from "./session/info"
 import { SessionRunner } from "./session/runner/index"
 import { SessionStore } from "./session/store"
 import { SessionExecution } from "./session/execution"
@@ -114,6 +114,7 @@ export interface Interface {
   readonly list: (input?: ListInput) => Effect.Effect<SessionSchema.Info[]>
   readonly create: (input: CreateInput) => Effect.Effect<SessionSchema.Info>
   readonly get: (sessionID: SessionSchema.ID) => Effect.Effect<SessionSchema.Info, NotFoundError>
+  readonly remove: (sessionID: SessionSchema.ID) => Effect.Effect<void, NotFoundError>
   readonly messages: (input: {
     sessionID: SessionSchema.ID
     limit?: number
@@ -130,6 +131,15 @@ export interface Interface {
   readonly context: (
     sessionID: SessionSchema.ID,
   ) => Effect.Effect<SessionMessage.Message[], NotFoundError | MessageDecodeError>
+  readonly pending: (sessionID: SessionSchema.ID) => Effect.Effect<SessionInput.Admitted[], NotFoundError>
+  readonly cancelPending: (input: {
+    sessionID: SessionSchema.ID
+    messageID: SessionMessage.ID
+  }) => Effect.Effect<void, NotFoundError | PromptConflictError>
+  readonly promotePending: (input: {
+    sessionID: SessionSchema.ID
+    messageID: SessionMessage.ID
+  }) => Effect.Effect<void, NotFoundError | PromptConflictError>
   readonly events: (input: {
     sessionID: SessionSchema.ID
     after?: number
@@ -265,6 +275,31 @@ const layer = Layer.effect(
         if (!session) return yield* new NotFoundError({ sessionID })
         return session
       }),
+      remove: Effect.fn("V2Session.remove")((sessionID) =>
+        Effect.uninterruptible(
+          Effect.gen(function* () {
+            const row = yield* db
+              .select()
+              .from(SessionTable)
+              .where(eq(SessionTable.id, sessionID))
+              .get()
+              .pipe(Effect.orDie)
+            if (!row) return yield* new NotFoundError({ sessionID })
+
+            yield* execution.interrupt(sessionID)
+            const children = yield* db
+              .select({ id: SessionTable.id })
+              .from(SessionTable)
+              .where(eq(SessionTable.parent_id, sessionID))
+              .all()
+              .pipe(Effect.orDie)
+            for (const child of children) yield* result.remove(SessionSchema.ID.make(child.id))
+
+            yield* events.publish(SessionV1.Event.Deleted, { sessionID, info: toV1Info(row) })
+            yield* events.remove(sessionID)
+          }),
+        ),
+      ),
       list: Effect.fn("V2Session.list")(function* (input = {}) {
         const direction = input.anchor?.direction ?? "next"
         const requestedOrder = input.order ?? "desc"
@@ -342,6 +377,31 @@ const layer = Layer.effect(
       context: Effect.fn("V2Session.context")(function* (sessionID) {
         yield* result.get(sessionID)
         return yield* store.context(sessionID)
+      }),
+      pending: Effect.fn("V2Session.pending")(function* (sessionID) {
+        yield* result.get(sessionID)
+        return yield* SessionInput.listPending(db, sessionID)
+      }),
+      cancelPending: Effect.fn("V2Session.cancelPending")(function* (input) {
+        yield* result.get(input.sessionID)
+        yield* SessionInput.cancel(events, input).pipe(
+          Effect.catchDefect((defect) =>
+            defect instanceof SessionInput.LifecycleConflict
+              ? new PromptConflictError({ sessionID: input.sessionID, messageID: input.messageID })
+              : Effect.die(defect),
+          ),
+        )
+      }),
+      promotePending: Effect.fn("V2Session.promotePending")(function* (input) {
+        yield* result.get(input.sessionID)
+        yield* SessionInput.changeDelivery(events, { ...input, delivery: "steer" }).pipe(
+          Effect.catchDefect((defect) =>
+            defect instanceof SessionInput.LifecycleConflict
+              ? new PromptConflictError({ sessionID: input.sessionID, messageID: input.messageID })
+              : Effect.die(defect),
+          ),
+        )
+        yield* execution.wake(input.sessionID)
       }),
       events: (input) =>
         Stream.unwrap(

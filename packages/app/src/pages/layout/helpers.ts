@@ -1,8 +1,10 @@
 import { getFilename } from "@opencode-ai/core/util/path"
 import { type Session } from "@opencode-ai/sdk/v2/client"
 import { pathKey } from "@/utils/path-key"
+import { sessionTitle } from "@/utils/session-title"
 import type { ServerConnection } from "@/context/server"
-import type { HomeProjectSelection } from "@/context/layout"
+import type { HomeProjectSelection, LocalProject } from "@/context/layout"
+import type { PinnedChat } from "@/context/pins"
 
 type SessionStore = {
   session?: Session[]
@@ -48,6 +50,57 @@ export const childSessionOnPath = (sessions: Session[] | undefined, rootID: stri
 
 export const displayName = (project: { name?: string; worktree: string }) =>
   project.name || getFilename(project.worktree) || project.worktree
+
+export const collectSessionDescendants = (sessions: { id: string; parentID?: string }[], rootID: string) => {
+  const byParent = new Map<string, string[]>()
+  for (const item of sessions) {
+    if (!item.parentID) continue
+    const existing = byParent.get(item.parentID)
+    if (existing) {
+      existing.push(item.id)
+      continue
+    }
+    byParent.set(item.parentID, [item.id])
+  }
+  const removed = new Set<string>([rootID])
+  const stack = [rootID]
+  while (stack.length > 0) {
+    const parentID = stack.pop()
+    if (!parentID) continue
+    for (const child of byParent.get(parentID) ?? []) {
+      if (removed.has(child)) continue
+      removed.add(child)
+      stack.push(child)
+    }
+  }
+  return removed
+}
+
+export const filterSessionsByQuery = (sessions: Session[], query: string) => {
+  const q = query.trim().toLowerCase()
+  if (!q) return sessions
+  return sessions.filter((session) => (sessionTitle(session.title) ?? "").toLowerCase().includes(q))
+}
+
+// Resolved (visible) pinned rows for the Codex sidebar. The panel header only
+// renders when at least one pin actually resolves — no phantom "Pinned"
+// section for other-server, deleted, or closed-project pins.
+export const resolvePinnedChats = (
+  chatPins: PinnedChat[],
+  serverKey: string,
+  getSession: (sessionID: string) => Session | undefined,
+): Session[] =>
+  chatPins.flatMap((pin) => {
+    if (pin.server !== serverKey) return []
+    const session = getSession(pin.sessionID)
+    if (!session) return []
+    return [session]
+  })
+
+export const resolvePinnedProjects = (
+  projects: LocalProject[],
+  isPinned: (worktree: string) => boolean,
+): LocalProject[] => projects.filter((project) => isPinned(project.worktree))
 
 export function toggleHomeProjectSelection(
   current: HomeProjectSelection | undefined,

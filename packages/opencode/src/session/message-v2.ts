@@ -1,5 +1,6 @@
 import { SessionID, MessageID } from "./schema"
 import { SessionV1 } from "@opencode-ai/core/v1/session"
+import { LOCAL_FILE_REFERENCE_MIME } from "@opencode-ai/core/file"
 import { ProviderV2 } from "@opencode-ai/core/provider"
 import {
   APIError,
@@ -209,6 +210,10 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
             text: part.text,
           })
         // text/plain and directory files are converted into text parts, ignore them
+        // Local binary references are represented by a synthetic instruction that
+        // contains the private path. Never pass the marker file part to a model
+        // provider, since most providers reject unknown binary MIME types.
+        if (part.type === "file" && part.mime === LOCAL_FILE_REFERENCE_MIME) continue
         if (part.type === "file" && part.mime !== "text/plain" && part.mime !== "application/x-directory") {
           if (options?.stripMedia && isMedia(part.mime)) {
             userMessage.parts.push({

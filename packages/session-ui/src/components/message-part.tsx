@@ -66,6 +66,11 @@ import { animate } from "motion"
 import { attached, inline, kind, typeLabel } from "./message-file"
 import { readPartText } from "./message-part-text"
 import { SessionProgressIndicatorV2 } from "../v2/components/session-progress-indicator-v2"
+import {
+  formatPastedTextSize,
+  isPastedTextMetadata,
+  type PastedTextMetadata,
+} from "../v2/components/prompt-input/pasted-text"
 
 async function writeClipboard(text: string): Promise<boolean> {
   const body = typeof document === "undefined" ? undefined : document.body
@@ -1211,6 +1216,13 @@ export function UserMessageDisplay(props: {
 
   const agents = createMemo(() => (props.parts?.filter((p) => p.type === "agent") as AgentPart[]) ?? [])
 
+  const pastedTextParts = createMemo(
+    () =>
+      (props.parts?.filter(
+        (part): part is TextPart => part.type === "text" && isPastedTextMetadata(part.metadata),
+      ) as TextPart[]) ?? [],
+  )
+
   const model = createMemo(() => {
     const providerID = props.message.model?.providerID
     const modelID = props.message.model?.modelID
@@ -1312,17 +1324,26 @@ export function UserMessageDisplay(props: {
     </Show>
   )
 
+  const renderPastedText = () => (
+    <Show when={pastedTextParts().length > 0}>
+      <div class="flex flex-col gap-2" data-slot="user-message-pasted-texts">
+        <For each={pastedTextParts()}>{(part) => <PastedTextMessagePart part={part} />}</For>
+      </div>
+    </Show>
+  )
+
   return (
     <div data-component="user-message" data-timeline-part-id={textPart()?.id}>
       <Show when={!props.useV2Actions}>{renderAttachments()}</Show>
       <Show
-        when={text()}
+        when={text() || pastedTextParts().length > 0}
         fallback={
           <Show when={messageComments().length > 0}>
             <UserMessageComments comments={messageComments()} bounded={false} />
           </Show>
         }
       >
+        {renderPastedText()}
         <div data-slot="user-message-body">
           <div
             data-slot="user-message-text"
@@ -1337,7 +1358,7 @@ export function UserMessageDisplay(props: {
         </div>
       </Show>
       <Show when={props.useV2Actions}>{renderAttachments()}</Show>
-      <Show when={text() || (props.useV2Actions && messageComments().length > 0)}>
+      <Show when={text() || pastedTextParts().length > 0 || (props.useV2Actions && messageComments().length > 0)}>
         <div data-slot="user-message-copy-wrapper">
           <Show when={metaHead() || metaTail()}>
             <span data-slot="user-message-meta-wrap">
@@ -1386,6 +1407,42 @@ export function UserMessageDisplay(props: {
             />
           </Show>
         </div>
+      </Show>
+    </div>
+  )
+}
+
+function PastedTextMessagePart(props: { part: TextPart }) {
+  const [expanded, setExpanded] = createSignal(false)
+  const metadata = () => props.part.metadata as PastedTextMetadata
+  return (
+    <div class="w-full max-w-[560px] rounded-lg border border-border-base bg-surface-raised-base p-2">
+      <button
+        type="button"
+        class="flex w-full items-center gap-2 text-left"
+        onClick={() => setExpanded((value) => !value)}
+        aria-expanded={expanded()}
+      >
+        <IconV2
+          name={expanded() ? "chevron-down" : "outline-chevron-down"}
+          class="size-4 shrink-0 text-icon-weak-base"
+        />
+        <span class="min-w-0 flex-1">
+          <span class="block truncate text-12-medium text-text-strong">{metadata().title}</span>
+          <span class="block text-11-regular text-text-weak">
+            Pasted text · {formatPastedTextSize(metadata().charCount)} · {metadata().lineCount} lines
+          </span>
+        </span>
+      </button>
+      <Show when={expanded()}>
+        <textarea
+          class="mt-2 h-[min(360px,45vh)] w-full resize-y rounded border border-border-base bg-surface-base p-2 font-mono text-12-regular text-text-base outline-none"
+          value={props.part.text}
+          readonly
+          wrap="off"
+          spellcheck={false}
+          aria-label="Pasted text contents"
+        />
       </Show>
     </div>
   )

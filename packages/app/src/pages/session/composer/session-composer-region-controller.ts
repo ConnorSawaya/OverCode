@@ -1,5 +1,6 @@
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { useSpring } from "@opencode-ai/ui/motion-spring"
+import { getFilename } from "@opencode-ai/core/util/path"
 import { type Accessor, createEffect, createMemo, createResource, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { PromptInputState } from "@/components/prompt-input"
@@ -12,6 +13,7 @@ export type SessionComposerFollowupDock = {
   sending?: string
   onSend: (id: string) => void
   onEdit: (id: string) => void
+  onRemove: (id: string) => void
 }
 
 export type SessionComposerRevertDock = {
@@ -82,9 +84,10 @@ export function createSessionComposerRegionController(input: {
       prompt: input.prompt
         .current()
         .map((part) => {
-          if (part.type === "file") return `[file:${part.path}]`
+          if (part.type === "file") return `[file:${part.filename ?? getFilename(part.path)}]`
           if (part.type === "agent") return `@${part.name}`
           if (part.type === "image") return `[image:${part.filename}]`
+          if (part.type === "pasted_text") return `[pasted text:${part.title}]`
           return part.content
         })
         .join("")

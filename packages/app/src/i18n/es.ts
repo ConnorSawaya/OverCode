@@ -1,4 +1,5 @@
 export const dict = {
+  ...featureFallback,
   "desktop.menu.app": "OpenCode",
   "desktop.menu.file": "Archivo",
   "desktop.menu.edit": "Editar",
@@ -156,6 +157,7 @@ export const dict = {
   "command.terminal.toggle": "Mostrar u ocultar terminal",
   "command.fileTree.toggle": "Mostrar u ocultar árbol de archivos",
   "command.review.toggle": "Mostrar u ocultar revisión",
+  "command.side.toggle": "Toggle side panel",
   "command.terminal.new": "Nueva terminal",
   "command.terminal.new.description": "Crear una nueva pestaña de terminal",
   "command.steps.toggle": "Mostrar u ocultar pasos",
@@ -176,6 +178,15 @@ export const dict = {
   "command.model.variant.cycle.description": "Cambiar al siguiente nivel de esfuerzo",
   "command.prompt.mode.shell": "Shell",
   "command.prompt.mode.normal": "Prompt",
+  "composer.permissionMode.title": "Permission mode",
+  "composer.permissionMode.ask": "Ask",
+  "composer.permissionMode.ask.description": "Ask before sensitive operations",
+  "composer.permissionMode.auto": "Auto",
+  "composer.permissionMode.auto.description": "Run normal project operations automatically",
+  "composer.permissionMode.full": "Full access",
+  "composer.permissionMode.full.description": "Broad workspace access for this directory",
+  "command.permissions.mode.cycle": "Cycle permission mode",
+  "command.permissions.mode.cycle.description": "Switch between Ask, Auto, and Full access",
   "command.permissions.autoaccept.enable": "Aceptar permisos automáticamente",
   "command.permissions.autoaccept.disable": "Dejar de aceptar permisos automáticamente",
   "command.workspace.toggle": "Activar o desactivar espacios de trabajo",
@@ -796,6 +807,9 @@ export const dict = {
   "session.followupDock.summary.other": "{{count}} mensajes en cola",
   "session.followupDock.sendNow": "Enviar ahora",
   "session.followupDock.edit": "Editar",
+  "session.followupDock.remove": "Remove",
+  "session.followupDock.moveUp": "Move up",
+  "session.followupDock.moveDown": "Move down",
   "session.followupDock.collapse": "Contraer mensajes en cola",
   "session.followupDock.expand": "Expandir mensajes en cola",
   "session.revertDock.summary.one": "{{count}} mensaje revertido",
@@ -896,6 +910,22 @@ export const dict = {
   "sidebar.project.clearNotifications": "Borrar notificaciones",
   "sidebar.empty.title": "No hay proyectos abiertos",
   "sidebar.empty.description": "Abre un proyecto para empezar",
+  "sidebar.search.placeholder": "Search chats and projects",
+  "sidebar.pinned": "Pinned",
+  "sidebar.projects": "Projects",
+  "sidebar.tabs": "Open tabs",
+  "sidebar.pin.chat": "Pin chat",
+  "sidebar.unpin.chat": "Unpin chat",
+  "sidebar.chat.menu.duplicate": "Duplicate chat",
+  "sidebar.pin.project": "Pin project",
+  "sidebar.unpin.project": "Unpin project",
+  "side.tabs.browser": "Browser",
+  "side.tabs.chat": "Side chat",
+  "side.chat.empty": "No messages yet",
+  "side.chat.reply": "Reply…",
+  "side.browser.url": "Enter URL…",
+  "side.browser.reload": "Reload",
+  "side.browser.openExternal": "Open in browser",
 
   "app.name.desktop": "OpenCode Desktop",
 
@@ -959,6 +989,9 @@ export const dict = {
   "settings.general.row.reasoningSummaries.title": "Mostrar resúmenes de razonamiento",
   "settings.general.row.reasoningSummaries.description":
     "Mostrar resúmenes del razonamiento del modelo en la línea de tiempo",
+  "settings.general.row.queueFollowup.title": "Queue follow-ups",
+  "settings.general.row.queueFollowup.description":
+    "Queue prompts while the agent is working instead of steering the current run",
   "settings.general.row.shellToolPartsExpanded.title": "Expandir partes de la herramienta shell",
   "settings.general.row.shellToolPartsExpanded.description":
     "Mostrar las partes de la herramienta shell expandidas por defecto en la línea de tiempo",
@@ -1263,3 +1296,4 @@ export const dict = {
   "error.childStore.storeCreateFailed": "Error al crear almacén",
   "terminal.connectionLost.abnormalClose": "WebSocket cerrado anormalmente: {{code}}",
 }
+import { dict as featureFallback } from "./fallback"

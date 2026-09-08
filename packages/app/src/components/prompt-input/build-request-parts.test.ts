@@ -3,6 +3,62 @@ import type { Prompt } from "@/context/prompt"
 import { buildRequestParts } from "./build-request-parts"
 
 describe("buildRequestParts", () => {
+  test("keeps internal goal-loop instructions out of the visible transcript", () => {
+    const result = buildRequestParts({
+      prompt: [{ type: "text", content: "Continue the goal", start: 0, end: 17 }],
+      context: [],
+      images: [],
+      text: "Continue the goal",
+      synthetic: true,
+      messageID: "msg_goal",
+      sessionID: "ses_goal",
+      sessionDirectory: "/repo",
+    })
+
+    expect(result.requestParts[0]).toMatchObject({ type: "text", synthetic: true })
+    expect(result.optimisticParts[0]).toMatchObject({ type: "text", synthetic: true })
+  })
+
+  test("keeps pasted text collapsed for optimistic UI while sending the exact full payload", () => {
+    const pasted = "  first line\n\tindented\n" + "x".repeat(15_000)
+    const result = buildRequestParts({
+      prompt: [
+        {
+          type: "pasted_text",
+          id: "paste_1",
+          title: "first line",
+          charCount: pasted.length,
+          lineCount: 3,
+          blob: { id: "blob_1", url: "blob:test" },
+        },
+      ],
+      context: [],
+      images: [],
+      text: "Please inspect this",
+      pastedTexts: [
+        {
+          part: {
+            type: "pasted_text",
+            id: "paste_1",
+            title: "first line",
+            charCount: pasted.length,
+            lineCount: 3,
+            blob: { id: "blob_1", url: "blob:test" },
+          },
+          text: pasted,
+        },
+      ],
+      messageID: "msg_paste",
+      sessionID: "ses_paste",
+      sessionDirectory: "/repo",
+    })
+
+    const part = result.requestParts.find((item) => item.type === "text" && item.synthetic)
+    expect(part?.type).toBe("text")
+    expect(part && part.type === "text" ? part.text : "").toBe(pasted)
+    expect(result.optimisticParts.some((item) => item.type === "text" && item.text.includes("Pasted text"))).toBe(true)
+  })
+
   test("builds typed request and optimistic parts without cast path", () => {
     const prompt: Prompt = [
       { type: "text", content: "hello", start: 0, end: 5 },

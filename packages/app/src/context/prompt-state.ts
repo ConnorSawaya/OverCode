@@ -42,7 +42,16 @@ export interface ImageAttachmentPart {
   blob: BlobReference
 }
 
-export type ContentPart = TextPart | FileAttachmentPart | AgentPart | ImageAttachmentPart
+export interface PastedTextPart {
+  type: "pasted_text"
+  id: string
+  title: string
+  charCount: number
+  lineCount: number
+  blob: BlobReference
+}
+
+export type ContentPart = TextPart | FileAttachmentPart | AgentPart | ImageAttachmentPart | PastedTextPart
 export type Prompt = ContentPart[]
 
 export type PromptModel = {
@@ -104,6 +113,8 @@ function isPartEqual(partA: ContentPart, partB: ContentPart) {
       return partB.type === "agent" && partA.name === partB.name
     case "image":
       return partB.type === "image" && partA.id === partB.id
+    case "pasted_text":
+      return partB.type === "pasted_text" && partA.id === partB.id
   }
 }
 
@@ -124,6 +135,7 @@ function clonePart(part: ContentPart): ContentPart {
   if (part.type === "text") return { ...part }
   if (part.type === "image") return { ...part }
   if (part.type === "agent") return { ...part }
+  if (part.type === "pasted_text") return { ...part }
   return {
     ...part,
     selection: cloneSelection(part.selection),

@@ -1,18 +1,24 @@
 import { ImagePreview } from "@opencode-ai/ui/image-preview"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
-import { ProviderIcon } from "@opencode-ai/ui/provider-icon"
+import { Icon as LegacyIcon } from "@opencode-ai/ui/icon"
 import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
 import { Icon } from "@opencode-ai/ui/v2/icon"
 import { KeybindV2 } from "@opencode-ai/ui/v2/keybind-v2"
+import { MenuV2 } from "@opencode-ai/ui/v2/menu-v2"
 import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
 import type { ReferenceInfo } from "@opencode-ai/sdk/v2/client"
-import { createEffect, createMemo, on, Show } from "solid-js"
+import { createEffect, createMemo, For, on, onCleanup, Show } from "solid-js"
 import { ModelSelectorPopoverV2 } from "@/components/dialog-select-model"
 import { DialogSelectModelUnpaidV2 } from "@/components/dialog-select-model-unpaid-v2"
 import type { PromptInputProps } from "@/components/prompt-input/contracts"
+import { PastedTextViewer } from "@/components/prompt-input/pasted-text-viewer"
 import { normalizePromptHistoryEntry, promptLength, type PromptHistoryComment } from "@/components/prompt-input/history"
 import { createPersistedPromptInputHistory } from "@/components/prompt-input/history-store"
-import { promptDesignPlaceholder, promptPlaceholder } from "@/components/prompt-input/placeholder"
+import {
+  createPromptPlaceholderAnimation,
+  promptDesignPlaceholder,
+  promptPlaceholder,
+} from "@/components/prompt-input/placeholder"
 import { createPromptSubmit } from "@/components/prompt-input/submit"
 import { selectionFromLines, type SelectedLineRange, useFile } from "@/context/file"
 import { useComments } from "@/context/comments"
@@ -20,13 +26,20 @@ import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePermission } from "@/context/permission"
+import { applyPermissionMode, resolvePermissionMode, type PermissionMode } from "@/context/permission-auto-respond"
 import { type ImageAttachmentPart, usePrompt } from "@/context/prompt"
 import { usePlatform } from "@/context/platform"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
+import { useSettings } from "@/context/settings"
 import { createSessionTabs } from "@/pages/session/helpers"
+import { DictationControl } from "./prompt-input/dictation-control"
 import { showToast } from "@/utils/toast"
-import { PromptInputV2, type PromptInputV2Suggestion } from "@opencode-ai/session-ui/v2/prompt-input"
+import {
+  PromptInputV2,
+  type PromptInputV2Prompt,
+  type PromptInputV2Suggestion,
+} from "@opencode-ai/session-ui/v2/prompt-input"
 import {
   createPromptInputV2Controller,
   createPromptInputV2State,
@@ -37,14 +50,17 @@ export type PromptInputV2ComposerProps = {
   class?: string
   controller: PromptInputV2ComposerController
   borderUnderlay?: boolean
+  sessionID?: string
 }
 
 export type PromptInputV2ControllerProps = Omit<PromptInputProps, "class" | "submission">
 export type PromptInputV2ComposerController = PromptInputV2Interaction & {
   readonly model: PromptInputProps["controls"]["model"]
+  readonly working: () => boolean
 }
 
 export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
+  const settings = useSettings()
   const dialog = useDialog()
   const command = useCommand()
   const language = useLanguage()
@@ -55,6 +71,8 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
         controller={props.controller}
         borderUnderlay={props.borderUnderlay}
         class={props.class}
+        working={props.controller.working}
+        frameEffects={settings.general.composerEffects()}
         variantControlVisible={!props.controller.model.loading}
         attachKeybind={command.keybindParts("file.attach")}
         attachShortcut={command.keybind("file.attach")}
@@ -65,7 +83,6 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
             title={language.t("command.model.choose")}
             keybind={command.keybindParts("model.choose")}
             model={props.controller.model.selection}
-            providerID={props.controller.model.selection.current()?.provider?.id}
             modelName={props.controller.model.selection.current()?.name ?? language.t("dialog.model.select.title")}
             onClose={props.controller.restoreFocus}
             onUnpaidClick={() =>
@@ -73,6 +90,8 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
             }
           />
         }
+        permissionControl={<PromptInputV2PermissionControl sessionID={props.sessionID} />}
+        voiceControl={<DictationControl controller={props.controller} sessionID={props.sessionID} />}
       />
     </div>
   )
@@ -141,6 +160,10 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
     promptDesignPlaceholder(mode(), placeholder(), (key, params) =>
       language.t(key as Parameters<typeof language.t>[0], params as never),
     )
+  const animatedPlaceholder = createPromptPlaceholderAnimation({
+    enabled: () => mode() === "normal" && commentCount() === 0 && blank(),
+    fallback: designPlaceholder,
+  })
 
   const historyComments = () => {
     const byID = new Map(comments.all().map((item) => [`${item.file}\n${item.id}`, item] as const))
@@ -199,6 +222,7 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
     prompt,
     info,
     imageAttachments: attachments,
+    loadPastedText: (part) => fetch(part.blob.url).then((response) => response.text()),
     commentCount,
     autoAccept: accepting,
     mode,
@@ -216,6 +240,7 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
     onNewSessionWorktreeReset: props.onNewSessionWorktreeReset,
     shouldQueue: props.shouldQueue,
     onQueue: props.onQueue,
+    onGoal: props.onGoal,
     onAbort: props.onAbort,
     onSubmit: props.onSubmit,
     model: props.controls.model.selection,
@@ -348,6 +373,13 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
     },
     openAttachment: (attachment) =>
       dialog.show(() => <ImagePreview src={attachment.blob.url} alt={attachment.filename} />),
+    openPastedText: (attachment) => dialog.show(() => <PastedTextViewer attachment={attachment} />),
+    onPastedTextError: (error) =>
+      showToast({
+        variant: "error",
+        title: language.t("common.requestFailed"),
+        description: error instanceof Error ? error.message : String(error),
+      }),
     openContext(key) {
       const item = controller.contextItem(key)
       if (item) openComment(item, props, sync, layout, files, comments)
@@ -381,9 +413,10 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
       readClipboardImage: platform.readClipboardImage,
       getPathForFile: platform.getPathForFile,
       store: platform.draftStore?.putBlob,
+      loadText: (blob) => fetch(blob.url).then((response) => response.text()),
     },
     view: {
-      placeholder: designPlaceholder,
+      placeholder: animatedPlaceholder,
       get agent() {
         return props.controls.agents.visible && props.controls.agents.options.length > 0
           ? {
@@ -409,6 +442,7 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
     },
   })
   Object.defineProperty(controller, "model", { get: () => props.controls.model })
+  Object.defineProperty(controller, "working", { get: () => working })
 
   command.register("prompt-input", () => [
     {
@@ -468,13 +502,86 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
   return controller as PromptInputV2ComposerController
 }
 
+export function PromptInputV2PermissionControl(props: { sessionID?: string }) {
+  const permissionModes = ["ask", "auto", "full"] as const
+  const language = useLanguage()
+  const permission = usePermission()
+  const sdk = useSDK()
+  const directory = createMemo(() => sdk().directory)
+  const mode = createMemo(() =>
+    resolvePermissionMode({
+      directoryAuto: permission.isAutoAcceptingDirectory(directory()),
+      sessionAuto: props.sessionID ? permission.isAutoAccepting(props.sessionID, directory()) : false,
+    }),
+  )
+  const label = (value: PermissionMode) => {
+    if (value === "auto") return language.t("composer.permissionMode.auto")
+    if (value === "full") return language.t("composer.permissionMode.full")
+    return language.t("composer.permissionMode.ask")
+  }
+  const description = (value: PermissionMode) => {
+    if (value === "auto") return language.t("composer.permissionMode.auto.description")
+    if (value === "full") return language.t("composer.permissionMode.full.description")
+    return language.t("composer.permissionMode.ask.description")
+  }
+  const setMode = (value: string) => {
+    if (value !== "ask" && value !== "auto" && value !== "full") return
+    applyPermissionMode(permission, directory(), props.sessionID, value)
+  }
+
+  return (
+    <TooltipV2 placement="top" gutter={4} value={language.t("composer.permissionMode.title")}>
+      <MenuV2 gutter={6} modal={false} placement="top-start">
+        <MenuV2.Trigger
+          as={ButtonV2}
+          data-action="prompt-permission"
+          variant="ghost-muted"
+          size="normal"
+          class="min-w-0 max-w-[220px] justify-start gap-1 px-1! ![font-weight:440]"
+          style={{
+            height: "28px",
+            color: mode() === "full" ? "var(--v2-text-text-accent)" : undefined,
+          }}
+          aria-label={language.t("composer.permissionMode.title")}
+        >
+          <LegacyIcon name="shield" size="small" class="size-4 shrink-0" />
+          <span class="truncate capitalize leading-5">{label(mode())}</span>
+          <span class="-ms-0.5 -me-1 flex shrink-0 opacity-70">
+            <Icon name="chevron-down" />
+          </span>
+        </MenuV2.Trigger>
+        <MenuV2.Portal>
+          <MenuV2.Content class="permission-mode-menu" style={{ "min-width": "310px" }}>
+            <MenuV2.RadioGroup value={mode()} onChange={setMode}>
+              <For each={permissionModes}>
+                {(value) => (
+                  <MenuV2.RadioItem
+                    value={value}
+                    closeOnSelect
+                    class="permission-mode-item"
+                    style={{ height: "auto", "min-height": "44px", "align-items": "center" }}
+                  >
+                    <div class="flex min-w-0 flex-col gap-0.5 py-1">
+                      <span class="truncate capitalize leading-4">{label(value)}</span>
+                      <span class="truncate text-v2-text-text-muted leading-4">{description(value)}</span>
+                    </div>
+                  </MenuV2.RadioItem>
+                )}
+              </For>
+            </MenuV2.RadioGroup>
+          </MenuV2.Content>
+        </MenuV2.Portal>
+      </MenuV2>
+    </TooltipV2>
+  )
+}
+
 function PromptInputV2ModelControl(props: {
   loading: boolean
   paid: boolean
   title: string
   keybind: string[]
   model: PromptInputV2ComposerController["model"]["selection"]
-  providerID?: string
   modelName: string
   onClose: () => void
   onUnpaidClick: () => void
@@ -482,15 +589,6 @@ function PromptInputV2ModelControl(props: {
   const shouldAnimate = createMemo<boolean>((previous) => previous ?? props.loading)
   const content = () => (
     <>
-      <Show when={props.providerID}>
-        {(providerID) => (
-          <ProviderIcon
-            id={providerID()}
-            class="size-4 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity duration-150"
-            style={{ "will-change": "opacity", transform: "translateZ(0)" }}
-          />
-        )}
-      </Show>
       <span class="truncate leading-4">{props.modelName}</span>
       <span class="-ml-0.5 -mr-1 flex shrink-0">
         <Icon name="chevron-down" />
@@ -517,7 +615,7 @@ function PromptInputV2ModelControl(props: {
               data-control-type="dialog"
               variant="ghost-muted"
               size="normal"
-              class="min-w-0 max-w-[220px] justify-start ![font-weight:440] group"
+              class="min-w-0 max-w-[260px] justify-start gap-1 px-1! ![font-weight:440] group"
               classList={{ "animate-in fade-in": shouldAnimate() }}
               style={{ height: "28px" }}
               onClick={props.onUnpaidClick}
@@ -534,7 +632,7 @@ function PromptInputV2ModelControl(props: {
                 variant="ghost-muted"
                 size="normal"
                 style={{ height: "28px" }}
-                class="min-w-0 max-w-[220px] justify-start ![font-weight:440] group"
+                class="min-w-0 max-w-[260px] justify-start gap-1 px-1! ![font-weight:440] group"
                 classList={{ "animate-in fade-in": shouldAnimate() }}
                 data-action="prompt-model"
                 data-control-type="popover"

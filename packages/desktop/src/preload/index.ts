@@ -56,6 +56,42 @@ const api: ElectronAPI = {
     check: () => ipcRenderer.invoke("updater-check"),
     install: () => ipcRenderer.invoke("updater-install"),
   },
+  speech: {
+    isAvailable: () => ipcRenderer.invoke("speech-is-available"),
+    prepare: () => ipcRenderer.invoke("speech-prepare"),
+    transcribe: (request) => ipcRenderer.invoke("speech-transcribe", request),
+    cancel: (captureID) => ipcRenderer.invoke("speech-cancel", captureID),
+    onProgress: (cb) => {
+      const handler = (_event: unknown, progress: Parameters<typeof cb>[0]) => cb(progress)
+      ipcRenderer.on("speech-progress", handler)
+      return () => ipcRenderer.removeListener("speech-progress", handler)
+    },
+  },
+  browser: {
+    computer: {
+      status: () => ipcRenderer.invoke("computer-status"),
+      control: (sessionID, controller) => ipcRenderer.invoke("computer-control", sessionID, controller),
+      frame: (sessionID, display) => ipcRenderer.invoke("computer-frame", sessionID, display),
+      onEvent: (cb) => {
+        const handler = (_event: unknown, status: Parameters<typeof cb>[0]) => cb(status)
+        ipcRenderer.on("computer-event", handler)
+        return () => ipcRenderer.removeListener("computer-event", handler)
+      },
+    },
+    snapshot: (sessionID) => ipcRenderer.invoke("browser-snapshot", sessionID),
+    listChromeProfiles: () => ipcRenderer.invoke("browser-list-chrome-profiles"),
+    importChromeProfile: (sessionID, profileID) => ipcRenderer.invoke("browser-import-chrome-profile", sessionID, profileID),
+    attach: (sessionID, bounds) => ipcRenderer.invoke("browser-attach", sessionID, bounds),
+    resize: (sessionID, bounds) => ipcRenderer.invoke("browser-resize", sessionID, bounds),
+    detach: (sessionID) => ipcRenderer.invoke("browser-detach", sessionID),
+    action: (input) => ipcRenderer.invoke("browser-action", input),
+    control: (sessionID, controller) => ipcRenderer.invoke("browser-control", sessionID, controller),
+    onEvent: (cb) => {
+      const handler = (_event: unknown, value: Parameters<typeof cb>[0]) => cb(value)
+      ipcRenderer.on("browser-event", handler)
+      return () => ipcRenderer.removeListener("browser-event", handler)
+    },
+  },
   consumeInitialDeepLinks: () => ipcRenderer.invoke("consume-initial-deep-links"),
   getDefaultServerUrl: () => ipcRenderer.invoke("get-default-server-url"),
   setDefaultServerUrl: (url) => ipcRenderer.invoke("set-default-server-url", url),
@@ -80,6 +116,8 @@ const api: ElectronAPI = {
   draftBlobGet: (id) => ipcRenderer.invoke("draft-blob-get", id),
 
   getWindowID: () => ipcRenderer.invoke("get-window-id"),
+  openQuickChat: (options) => ipcRenderer.invoke("open-quick-chat", options),
+  quickStartDirectory: () => ipcRenderer.invoke("quick-start-directory"),
   onMenuCommand: (cb) => {
     const handler = (_: unknown, id: string) => cb(id)
     ipcRenderer.on("menu-command", handler)
@@ -108,6 +146,12 @@ const api: ElectronAPI = {
     const handler = (_: unknown, fullscreen: boolean) => cb(fullscreen)
     ipcRenderer.on("window-fullscreen-changed", handler)
     return () => ipcRenderer.removeListener("window-fullscreen-changed", handler)
+  },
+  getWindowMaximized: () => ipcRenderer.invoke("get-window-maximized"),
+  onWindowMaximizedChanged: (cb) => {
+    const handler = (_: unknown, maximized: boolean) => cb(maximized)
+    ipcRenderer.on("window-maximized-changed", handler)
+    return () => ipcRenderer.removeListener("window-maximized-changed", handler)
   },
   setWindowFocus: () => ipcRenderer.invoke("set-window-focus"),
   showWindow: () => ipcRenderer.invoke("show-window"),

@@ -10,6 +10,7 @@ import type {
   PromptInputV2HistoryEntry,
   PromptInputV2Option,
   PromptInputV2PersistedState,
+  PromptInputV2PastedText,
   PromptInputV2Suggestion,
 } from "./types"
 import {
@@ -18,6 +19,7 @@ import {
   type PromptInputV2InteractionCommand,
   type PromptInputV2InteractionEvent,
 } from "./machine"
+import { releaseLocalPastedTextBlob } from "./pasted-text"
 
 export type PromptInputV2SelectControl = {
   options: Accessor<PromptInputV2Option[]>
@@ -62,6 +64,8 @@ export function createPromptInputV2Controller(input: {
   context: Accessor<PromptInputV2Suggestion[]>
   searchContextFiles: (query: string) => PromptInputV2Suggestion[] | Promise<PromptInputV2Suggestion[]>
   openAttachment?: (attachment: PromptInputV2Attachment) => void
+  openPastedText?: (attachment: PromptInputV2PastedText) => void
+  onPastedTextError?: (error: unknown) => void
   openContext?: (key: string) => void
   onContextRemove?: (item: PromptInputV2Comment) => void
   onEditor?: (element: HTMLElement) => void
@@ -77,7 +81,7 @@ export function createPromptInputV2Controller(input: {
     createEffect(on(input.identity, () => setState(reconcile(createPromptInputV2InteractionState())), { defer: true }))
   }
   function addPart(part: PromptInputV2PersistedState["prompt"][number]) {
-    if (part.type === "image") return false
+    if (part.type === "image" || part.type === "pasted_text") return false
     if (part.type === "file" || part.type === "agent") {
       draft.addMention(part)
       return true
@@ -167,7 +171,10 @@ export function createPromptInputV2Controller(input: {
       if (!action || state.popover.type !== "command-menu") result.commands.forEach(execute)
       if (action && event.item.kind === "command" && state.popover.type !== "command-menu") {
         draft.setPrompt(
-          draft.state.prompt.filter((part): part is PromptInputV2Attachment => part.type === "image"),
+          draft.state.prompt.filter(
+            (part): part is PromptInputV2Attachment | PromptInputV2PastedText =>
+              part.type === "image" || part.type === "pasted_text",
+          ),
           0,
         )
       }
@@ -311,6 +318,9 @@ export function createPromptInputV2Controller(input: {
     attachments(): PromptInputV2Attachment[] {
       return draft.state.prompt.filter((part): part is PromptInputV2Attachment => part.type === "image")
     },
+    pastedTexts(): PromptInputV2PastedText[] {
+      return draft.state.prompt.filter((part): part is PromptInputV2PastedText => part.type === "pasted_text")
+    },
     toggleContext(id: string) {
       dispatch({ type: "context.active", id })
       input.openContext?.(id)
@@ -327,9 +337,47 @@ export function createPromptInputV2Controller(input: {
     removeAttachment(id: string) {
       draft.removeAttachment(id)
     },
+    removePastedText(id: string) {
+      const attachment = draft.state.prompt.find(
+        (part): part is PromptInputV2PastedText => part.type === "pasted_text" && part.id === id,
+      )
+      if (attachment) releaseLocalPastedTextBlob(attachment.blob)
+      draft.removePastedText(id)
+    },
+    openPastedText(attachment: PromptInputV2PastedText) {
+      input.openPastedText?.(attachment)
+    },
+    async movePastedText(id: string) {
+      const attachment = draft.state.prompt.find(
+        (part): part is PromptInputV2PastedText => part.type === "pasted_text" && part.id === id,
+      )
+      if (!attachment) return
+      try {
+        const text = await (input.attachments?.loadText
+          ? input.attachments.loadText(attachment.blob)
+          : fetch(attachment.blob.url).then((response) => response.text()))
+        releaseLocalPastedTextBlob(attachment.blob)
+        draft.removePastedText(id)
+        draft.addText(text)
+        restoreFocus(draft.state.cursor)
+      } catch (error) {
+        input.onPastedTextError?.(error)
+      }
+    },
+    async copyPastedText(attachment: PromptInputV2PastedText) {
+      try {
+        const text = await (input.attachments?.loadText
+          ? input.attachments.loadText(attachment.blob)
+          : fetch(attachment.blob.url).then((response) => response.text()))
+        await navigator.clipboard.writeText(text)
+      } catch (error) {
+        input.onPastedTextError?.(error)
+      }
+    },
     canSubmit() {
       const persisted = draft.state
       if (persisted.prompt.some((part) => part.type === "image")) return true
+      if (persisted.prompt.some((part) => part.type === "pasted_text")) return true
       if (persisted.context.items.some((item) => !!item.comment?.trim())) return true
       return persisted.prompt.some((part) => "content" in part && !!part.content.trim())
     },
@@ -373,10 +421,7 @@ export function createPromptInputV2Controller(input: {
     },
     onPaste(event: ClipboardEvent) {
       const clipboard = event.clipboardData
-      if (
-        attachments &&
-        (Array.from(clipboard?.items ?? []).some((item) => item.kind === "file") || !clipboard?.getData("text/plain"))
-      ) {
+      if (attachments) {
         void attachments.handlePaste(event)
         return
       }

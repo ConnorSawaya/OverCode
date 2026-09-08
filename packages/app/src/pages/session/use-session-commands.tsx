@@ -13,12 +13,12 @@ import { useSync } from "@/context/sync"
 import { useTerminal } from "@/context/terminal"
 import { showToast } from "@/utils/toast"
 import { downloadSessionExport, fetchSessionExport, sessionExportFilename } from "@/utils/session-export"
+import { applyPermissionMode, cyclePermissionMode, resolvePermissionMode } from "@/context/permission-auto-respond"
 import { findLast } from "@opencode-ai/core/util/array"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { extractPromptFromParts } from "@/utils/prompt"
 import { Message, Part, UserMessage } from "@opencode-ai/sdk/v2"
 import { useSessionLayout } from "@/pages/session/session-layout"
-import { useSessionArchive } from "@/pages/session/session-archive"
 import { createSessionOwnership } from "./session-ownership"
 import { useLocal } from "@/context/local"
 
@@ -53,7 +53,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const navigate = useNavigate()
   const { params, sessionKey, tabs, view } = useSessionLayout()
   const sessionOwnership = createSessionOwnership(sessionKey)
-  const sessionArchive = useSessionArchive()
   const openDialog = async <T,>(load: () => Promise<T>, show: (value: T) => void) => {
     const owner = sessionOwnership.capture()
     const value = await load()
@@ -91,7 +90,14 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   })
   const activeFileTab = tabState.activeFileTab
   const closableTab = tabState.closableTab
-  const shown = settings.visibility.fileTree
+
+  // Opening the file tree from its toggle also enables the visibility
+  // preference, otherwise the toggle appears to do nothing on setups where
+  // "show file tree" is off. Closing keeps the preference.
+  const toggleFileTree = () => {
+    if (!layout.fileTree.opened()) settings.general.setShowFileTree(true)
+    layout.fileTree.toggle()
+  }
 
   const messages = () => {
     const id = params.id
@@ -133,6 +139,11 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const navigateMessageByOffset = actions.navigateMessageByOffset
   const setActiveMessage = actions.setActiveMessage
   const focusInput = actions.focusInput
+  const insertGoalCommand = () => {
+    const value = "/goal "
+    prompt.set([{ type: "text", content: value, start: 0, end: value.length }], value.length)
+    focusInput()
+  }
 
   const sessionCommand = withCategory(language.t("command.category.session"))
   const fileCommand = withCategory(language.t("command.category.file"))
@@ -298,6 +309,27 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     view().terminal.open()
   }
 
+  const openSidePanelPicker = () => {
+    void import("@/components/dialog-select-side-panel").then((x) =>
+      dialog.show(() => (
+        <x.DialogSelectSidePanel
+          onSelect={(choice) => {
+            if (choice === "files") {
+              view().sidePanel.close()
+              settings.general.setShowFileTree(true)
+              layout.fileTree.open()
+              layout.fileTree.setTab("all")
+              return
+            }
+
+            layout.fileTree.close()
+            view().sidePanel.open(choice)
+          }}
+        />
+      )),
+    )
+  }
+
   const closeTerminal = () => {
     const id = terminal.active()
     if (!id) return
@@ -328,6 +360,27 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       description: active
         ? language.t("toast.permissions.autoaccept.on.description")
         : language.t("toast.permissions.autoaccept.off.description"),
+    })
+  }
+
+  const cyclePermissionModeCommand = () => {
+    const dir = sdk().directory
+    const id = params.id
+    const next = cyclePermissionMode(
+      resolvePermissionMode({
+        directoryAuto: permission.isAutoAcceptingDirectory(dir),
+        sessionAuto: id ? permission.isAutoAccepting(id, dir) : false,
+      }),
+    )
+    applyPermissionMode(permission, dir, id, next)
+    const label = {
+      ask: () => language.t("composer.permissionMode.ask"),
+      auto: () => language.t("composer.permissionMode.auto"),
+      full: () => language.t("composer.permissionMode.full"),
+    }[next]()
+    showToast({
+      title: language.t("command.permissions.mode.cycle"),
+      description: label,
     })
   }
 
@@ -460,6 +513,13 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       },
     }),
     sessionCommand({
+      id: "session.goal",
+      title: language.t("command.session.goal"),
+      description: language.t("command.session.goal.description"),
+      slash: "goal",
+      onSelect: insertGoalCommand,
+    }),
+    sessionCommand({
       id: "session.undo",
       title: language.t("command.session.undo"),
       description: language.t("command.session.undo.description"),
@@ -498,16 +558,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       slash: "export",
       disabled: !params.id,
       onSelect: exportSession,
-    }),
-    sessionCommand({
-      id: "session.archive",
-      title: language.t("command.session.archive"),
-      keybind: "mod+shift+backspace",
-      disabled: !params.id,
-      onSelect: () => {
-        const id = params.id
-        if (id) void sessionArchive.archive(id)
-      },
     }),
   ]
 
@@ -565,16 +615,18 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       keybind: "mod+shift+r",
       onSelect: () => view().reviewPanel.toggle(),
     }),
-    ...(shown()
-      ? [
-          viewCommand({
-            id: "fileTree.toggle",
-            title: language.t("command.fileTree.toggle"),
-            keybind: "mod+\\",
-            onSelect: () => layout.fileTree.toggle(),
-          }),
-        ]
-      : []),
+    viewCommand({
+      id: "side.toggle",
+      title: language.t("command.side.toggle"),
+      slash: "side",
+      onSelect: openSidePanelPicker,
+    }),
+    viewCommand({
+      id: "fileTree.toggle",
+      title: language.t("command.fileTree.toggle"),
+      keybind: "mod+\\",
+      onSelect: toggleFileTree,
+    }),
     viewCommand({
       id: "input.focus",
       title: language.t("command.input.focus"),
@@ -640,6 +692,13 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       keybind: "mod+shift+a",
       disabled: false,
       onSelect: toggleAutoAccept,
+    }),
+    permissionsCommand({
+      id: "permissions.mode.cycle",
+      title: language.t("command.permissions.mode.cycle"),
+      description: language.t("command.permissions.mode.cycle.description"),
+      disabled: false,
+      onSelect: cyclePermissionModeCommand,
     }),
   ]
 

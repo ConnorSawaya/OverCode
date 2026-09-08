@@ -1,4 +1,5 @@
 import type { AgentPart as MessageAgentPart, FilePart, Part, TextPart } from "@opencode-ai/sdk/v2"
+import { LOCAL_FILE_REFERENCE_MIME } from "@opencode-ai/core/file"
 import type { AgentPart, FileAttachmentPart, ImageAttachmentPart, Prompt } from "@/context/prompt"
 import { createLegacyBlobReference } from "@/utils/draft-store"
 
@@ -9,6 +10,8 @@ type Inline =
       end: number
       value: string
       path: string
+      filename?: string
+      mime?: string
       selection?: {
         startLine: number
         endLine: number
@@ -91,12 +94,17 @@ export function extractPromptFromParts(parts: Part[], opts?: { directory?: strin
         if (!value.startsWith("@") && filePart.source && "path" in filePart.source) {
           path = filePart.source.path
         }
+        if (filePart.mime === LOCAL_FILE_REFERENCE_MIME && filePart.source && "path" in filePart.source) {
+          path = filePart.source.path
+        }
         inline.push({
           type: "file",
           start,
           end,
           value,
           path: toRelative(path),
+          ...(filePart.filename ? { filename: filePart.filename } : {}),
+          ...(filePart.mime === LOCAL_FILE_REFERENCE_MIME ? { mime: filePart.mime } : {}),
           selection: selectionFromFileUrl(filePart.url),
         })
         continue
@@ -156,6 +164,8 @@ export function extractPromptFromParts(parts: Part[], opts?: { directory?: strin
       start: position,
       end: position + content.length,
       selection: item.selection,
+      ...(item.filename ? { filename: item.filename } : {}),
+      ...(item.mime ? { mime: item.mime } : {}),
     }
     result.push(attachment)
     position += content.length

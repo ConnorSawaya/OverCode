@@ -555,6 +555,31 @@ describe("applyDirectoryEvent", () => {
     expect(store.question[sessionID]?.map((x) => x.id)).toEqual(["q_1", "q_3"])
   })
 
+  test("routes permission replies to one of three independent sessions", () => {
+    const [store, setStore] = createStore(
+      baseState({
+        permission: {
+          "chat-a": [permissionRequest("perm-a", "chat-a")],
+          "chat-b": [permissionRequest("perm-b", "chat-b")],
+          "chat-c": [permissionRequest("perm-c", "chat-c")],
+        },
+      }),
+    )
+
+    applyDirectoryEvent({
+      event: { type: "permission.replied", properties: { sessionID: "chat-b", requestID: "perm-b" } },
+      store,
+      setStore,
+      push() {},
+      directory: "/tmp",
+      loadLsp() {},
+    })
+
+    expect(store.permission["chat-a"]?.map((x) => x.id)).toEqual(["perm-a"])
+    expect(store.permission["chat-b"]).toEqual([])
+    expect(store.permission["chat-c"]?.map((x) => x.id)).toEqual(["perm-c"])
+  })
+
   test("updates vcs branch in store and cache", () => {
     const [store, setStore] = createStore(baseState({ vcs: { branch: "main", default_branch: "main" } }))
     const [cacheStore, setCacheStore] = createStore({

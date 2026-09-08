@@ -360,6 +360,33 @@ export const SettingsGeneral: Component = () => {
         </SettingsRow>
 
         <SettingsRow
+          title={language.t("settings.general.row.composerEffects.title")}
+          description={language.t("settings.general.row.composerEffects.description")}
+        >
+          <div data-action="settings-composer-effects">
+            <Switch
+              hideLabel
+              checked={settings.general.composerEffects()}
+              onChange={(checked) => settings.general.setComposerEffects(checked)}
+            >
+              {language.t("settings.general.row.composerEffects.title")}
+            </Switch>
+          </div>
+        </SettingsRow>
+
+        <SettingsRow
+          title={language.t("settings.general.row.queueFollowup.title")}
+          description={language.t("settings.general.row.queueFollowup.description")}
+        >
+          <div data-action="settings-feed-queue-followup">
+            <Switch
+              checked={settings.general.followup() === "queue"}
+              onChange={(checked) => settings.general.setFollowup(checked ? "queue" : "steer")}
+            />
+          </div>
+        </SettingsRow>
+
+        <SettingsRow
           title={language.t("settings.general.row.shellToolPartsExpanded.title")}
           description={language.t("settings.general.row.shellToolPartsExpanded.description")}
         >

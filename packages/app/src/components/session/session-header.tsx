@@ -485,7 +485,10 @@ export function SessionHeader() {
                         <Button
                           variant="ghost"
                           class="titlebar-icon w-8 h-6 p-0 box-border"
-                          onClick={() => layout.fileTree.toggle()}
+                          onClick={() => {
+                            if (!layout.fileTree.opened()) settings.general.setShowFileTree(true)
+                            layout.fileTree.toggle()
+                          }}
                           aria-label={language.t("command.fileTree.toggle")}
                           aria-expanded={layout.fileTree.opened()}
                           aria-controls="file-tree-panel"

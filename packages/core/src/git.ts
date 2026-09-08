@@ -182,7 +182,22 @@ const layer = Layer.effect(
       locks.withLock(repository.gitDirectory)(effect)
 
     const discover = Effect.fn("Git.repo.discover")(function* (input: AbsolutePath) {
-      const dotgit = yield* fs.up({ targets: [".git"], start: input }).pipe(
+      // Match Git's GIT_CEILING_DIRECTORIES behavior for callers that need
+      // discovery bounded to an isolated tree (notably test sandboxes). This
+      // still searches the starting directory and the ceiling itself, while
+      // preventing an unrelated repository above the boundary from claiming
+      // a non-repository directory.
+      const rawCeiling = process.env.GIT_CEILING_DIRECTORIES
+      const ceilings = rawCeiling
+        ?.split(process.platform === "win32" ? ";" : ":")
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .map((item) => path.resolve(item))
+      const ceiling = ceilings?.find((candidate) => {
+        const relative = path.relative(candidate, input)
+        return relative === "" || (!relative.startsWith(".." + path.sep) && !path.isAbsolute(relative))
+      })
+      const dotgit = yield* fs.up({ targets: [".git"], start: input, stop: ceiling }).pipe(
         Effect.map((matches) => matches[0]),
         Effect.catch(() => Effect.succeed(undefined)),
       )

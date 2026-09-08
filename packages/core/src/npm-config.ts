@@ -16,7 +16,12 @@ export const load = (dir: string) =>
         npmPath,
         cwd: dir,
         env: { ...process.env },
-        argv: [process.execPath, process.execPath],
+        // npm's config loader otherwise walks upward until it finds the
+        // workspace's package.json/node_modules and can skip a standalone
+        // project's `.npmrc` when `dir` is a temporary or otherwise package-
+        // free directory. Pin the config prefix to the directory we were
+        // asked to inspect so project-local registries and flags are honored.
+        argv: [process.execPath, process.execPath, "--prefix", dir],
         execPath: process.execPath,
         platform: process.platform,
         definitions,

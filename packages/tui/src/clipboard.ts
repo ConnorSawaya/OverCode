@@ -13,7 +13,7 @@ function command(command: string, args: string[] = [], input?: string) {
     child.on("error", reject)
     child.stdout?.on("data", (chunk: Buffer) => output.push(chunk))
     child.on("close", (code) => {
-      if (code === 0) return resolve(Buffer.concat(output))
+      if (code === 0) return resolve(Buffer.concat(output as unknown as Uint8Array<ArrayBufferLike>[]))
       reject(new Error(`${command} exited with code ${code}`))
     })
     if (input !== undefined) child.stdin?.end(input)

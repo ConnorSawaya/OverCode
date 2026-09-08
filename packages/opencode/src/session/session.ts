@@ -47,6 +47,7 @@ import { SessionMessage } from "@opencode-ai/schema/session-message"
 
 const parentTitlePrefix = "New session - "
 const childTitlePrefix = "Child session - "
+export const AUTO_TITLE_METADATA_KEY = "opencode.autoTitle"
 
 export function isDefaultTitle(title: string) {
   return new RegExp(
@@ -605,25 +606,21 @@ const layer: Layer.Layer<
 
     const remove: Interface["remove"] = Effect.fnUntraced(function* (sessionID: SessionID) {
       const session = yield* get(sessionID)
-      try {
-        // `remove` needs to work in all cases, such as broken sessions that
-        // run cleanup without instance state.
-        const hasInstance = yield* InstanceState.directory.pipe(
-          Effect.as(true),
-          Effect.catchCause(() => Effect.succeed(false)),
-        )
+      // `remove` needs to work in all cases, such as broken sessions that
+      // run cleanup without instance state.
+      const hasInstance = yield* InstanceState.directory.pipe(
+        Effect.as(true),
+        Effect.catchCause(() => Effect.succeed(false)),
+      )
 
-        if (hasInstance) yield* cancelBackgroundJobs(background, sessionID)
-        const kids = yield* children(sessionID)
-        for (const child of kids) {
-          yield* remove(child.id)
-        }
-
-        yield* events.publish(SessionV1.Event.Deleted, { sessionID, info: session })
-        yield* events.remove(sessionID)
-      } catch (error) {
-        yield* Effect.logError("failed to remove session", { sessionID, error })
+      if (hasInstance) yield* cancelBackgroundJobs(background, sessionID)
+      const kids = yield* children(sessionID)
+      for (const child of kids) {
+        yield* remove(child.id)
       }
+
+      yield* events.publish(SessionV1.Event.Deleted, { sessionID, info: session })
+      yield* events.remove(sessionID)
     })
 
     const updateMessage = <T extends SessionV1.Info>(msg: T): Effect.Effect<T> =>
@@ -751,7 +748,10 @@ const layer: Layer.Layer<
     })
 
     const setTitle = Effect.fn("Session.setTitle")(function* (input: { sessionID: SessionID; title: string }) {
-      yield* patch(input.sessionID, { title: input.title }).pipe(Effect.orDie)
+      const current = yield* get(input.sessionID).pipe(Effect.orDie)
+      const metadata = { ...(current.metadata ?? {}) }
+      delete metadata[AUTO_TITLE_METADATA_KEY]
+      yield* patch(input.sessionID, { title: input.title, metadata }).pipe(Effect.orDie)
     })
 
     const setArchived = Effect.fn("Session.setArchived")(function* (input: { sessionID: SessionID; time?: number }) {

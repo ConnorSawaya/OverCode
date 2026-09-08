@@ -10,10 +10,12 @@ import { type Session } from "@opencode-ai/sdk/v2/client"
 import {
   childSessionOnPath,
   closeHomeProject,
+  collectSessionDescendants,
   compareSessionTime,
   displayName,
   effectiveWorkspaceOrder,
   errorMessage,
+  filterSessionsByQuery,
   hasProjectPermissions,
   homeProjectNavigation,
   homeProjectDirectories,
@@ -109,6 +111,28 @@ describe("layout deep links", () => {
 
     expect(drainPendingDeepLinks(target)).toEqual(["opencode://open-project?directory=/a"])
     expect(drainPendingDeepLinks(target)).toEqual([])
+  })
+})
+
+describe("codex sidebar panel filter", () => {
+  const sessions = [
+    session({ id: "a", directory: "/tmp/demo", title: "Fix ball physics" }),
+    session({ id: "b", directory: "/tmp/demo", title: "Refactor intake" }),
+    session({ id: "c", directory: "/tmp/demo", title: "" }),
+  ]
+
+  test("returns everything without a query", () => {
+    expect(filterSessionsByQuery(sessions, "")).toEqual(sessions)
+    expect(filterSessionsByQuery(sessions, "   ")).toEqual(sessions)
+  })
+
+  test("matches titles case-insensitively", () => {
+    expect(filterSessionsByQuery(sessions, "BALL").map((item) => item.id)).toEqual(["a"])
+    expect(filterSessionsByQuery(sessions, "fix").map((item) => item.id)).toEqual(["a"])
+  })
+
+  test("returns empty when nothing matches", () => {
+    expect(filterSessionsByQuery(sessions, "zzz")).toEqual([])
   })
 })
 
@@ -343,5 +367,27 @@ describe("layout workspace helpers", () => {
     expect(errorMessage({ data: { message: "boom" } }, "fallback")).toBe("boom")
     expect(errorMessage(new Error("broken"), "fallback")).toBe("broken")
     expect(errorMessage("unknown", "fallback")).toBe("fallback")
+  })
+})
+
+describe("collectSessionDescendants", () => {
+  const sessions = [
+    { id: "root" },
+    { id: "child", parentID: "root" },
+    { id: "leaf", parentID: "child" },
+    { id: "other" },
+  ]
+
+  test("collects the root and its whole subtree", () => {
+    expect([...collectSessionDescendants(sessions, "root")].sort()).toEqual(["child", "leaf", "root"])
+  })
+
+  test("collects only the subtree below the target", () => {
+    expect([...collectSessionDescendants(sessions, "child")].sort()).toEqual(["child", "leaf"])
+  })
+
+  test("returns just the id for leaf and unknown sessions", () => {
+    expect([...collectSessionDescendants(sessions, "leaf")]).toEqual(["leaf"])
+    expect([...collectSessionDescendants(sessions, "missing")]).toEqual(["missing"])
   })
 })

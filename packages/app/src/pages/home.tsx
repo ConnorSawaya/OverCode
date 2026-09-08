@@ -14,6 +14,10 @@ export function NewHome() {
   const sessions = createHomeSessionsController(home)
   const search = createHomeSessionSearchController(home, sessions)
   const scroll = createHomeScrollController(sessions.data.groups)
+  // The persistent shell sidebar owns project navigation on desktop once projects
+  // exist. The native pane stays for mobile (no shell sidebar there) and for
+  // onboarding while there is nothing to navigate yet.
+  const shellOwnsProjects = () => projects.project.list().length > 0
   return (
     <div
       class={`
@@ -32,10 +36,13 @@ export function NewHome() {
         <div
           class={`
             mx-auto grid min-h-full w-full max-w-[1080px] grid-rows-[auto_minmax(0,1fr)_auto] gap-4 px-3
-            lg:grid-cols-[280px_minmax(0,720px)] lg:grid-rows-1 lg:gap-8 lg:px-6
+            ${shellOwnsProjects() ? "lg:grid-cols-[minmax(0,720px)]" : "lg:grid-cols-[280px_minmax(0,720px)]"}
+            lg:grid-rows-1 lg:gap-8 lg:px-6
           `}
         >
-          <HomeProjects projects={projects} scroll={scroll} />
+          <div class={shellOwnsProjects() ? "contents lg:hidden" : "contents"}>
+            <HomeProjects projects={projects} scroll={scroll} />
+          </div>
           <HomeSessions sessions={sessions} search={search} scroll={scroll} />
           <HomeUtilityNav
             class="flex lg:hidden"

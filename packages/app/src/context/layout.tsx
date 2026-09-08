@@ -8,6 +8,7 @@ import { useServerSDK } from "./server-sdk"
 import { RECENTLY_CLOSED_DISPLAY_LIMIT, ServerConnection, useServer } from "./server"
 import { usePlatform } from "./platform"
 import { Project } from "@opencode-ai/sdk/v2"
+import { base64Encode } from "@opencode-ai/core/util/encode"
 import { normalizeProjectInfo } from "./global-sync/utils"
 import { Persist, persisted, removePersisted } from "@/utils/persist"
 import { pathKey } from "@/utils/path-key"
@@ -16,7 +17,7 @@ import { same } from "@/utils/same"
 import { createScrollPersistence, type SessionScroll } from "./layout-scroll"
 import { createPathHelpers } from "./file/path"
 import type { ProjectAvatarVariant } from "@opencode-ai/ui/v2/project-avatar-v2"
-import { migrateLegacySessionStateKeys, ServerScope, SessionStateKey } from "@/utils/server-scope"
+import { migrateLegacySessionStateKeys, ServerScope, SessionRouteKey, SessionStateKey } from "@/utils/server-scope"
 import { createSessionKeyReader, ensureSessionKey, pruneSessionKeys } from "./layout-helpers"
 import { requireServerKey } from "@/utils/session-route"
 import { type DraftTab, useTabs } from "./tabs"
@@ -27,10 +28,13 @@ export { createSessionKeyReader, ensureSessionKey, pruneSessionKeys }
 export type { ProjectAvatarVariant }
 
 const AVATAR_COLOR_KEYS = ["pink", "mint", "orange", "purple", "cyan", "lime"] as const
-const DEFAULT_SIDEBAR_WIDTH = 344
+const LEGACY_DEFAULT_SIDEBAR_WIDTH = 260
+const PREVIOUS_DEFAULT_SIDEBAR_WIDTH = 343
+const DEFAULT_SIDEBAR_WIDTH = 280
 const DEFAULT_FILE_TREE_WIDTH = 200
 const DEFAULT_SESSION_WIDTH = 600
 const DEFAULT_TERMINAL_HEIGHT = 280
+const DEFAULT_SIDE_PANEL_WIDTH = 400
 const DEFAULT_REVIEW_PANEL_OPENED = false
 export type AvatarColorKey = (typeof AVATAR_COLOR_KEYS)[number]
 
@@ -88,6 +92,13 @@ export type HomeProjectSelection = { server: ServerConnection.Key; directory?: s
 export type ReviewDiffStyle = "unified" | "split"
 export type ReviewChangeMode = "git" | "branch" | "turn"
 export type ReviewPanelSource = "context-button" | "other"
+export type SidePanelTab = "chat" | "browser"
+export type SidePanelDraft = {
+  text: string
+  attachments: { path: string; name: string }[]
+}
+
+const EMPTY_SIDE_PANEL_DRAFT: SidePanelDraft = { text: "", attachments: [] }
 
 export type LayoutRoute =
   | { type: "home" }
@@ -186,12 +197,21 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       const sidebar = value.sidebar
       const migratedSidebar = (() => {
         if (!isRecord(sidebar)) return sidebar
-        if (typeof sidebar.workspaces !== "boolean") return sidebar
-        return {
-          ...sidebar,
-          workspaces: {},
-          workspacesDefault: sidebar.workspaces,
+        const width = typeof sidebar.width === "number" ? sidebar.width : DEFAULT_SIDEBAR_WIDTH
+        const migratedWidth =
+          width === LEGACY_DEFAULT_SIDEBAR_WIDTH || width === PREVIOUS_DEFAULT_SIDEBAR_WIDTH
+            ? DEFAULT_SIDEBAR_WIDTH
+            : width
+        const legacyWorkspaces = typeof sidebar.workspaces === "boolean"
+        if (!legacyWorkspaces && migratedWidth === sidebar.width) return sidebar
+
+        const next = { ...sidebar }
+        if (migratedWidth !== sidebar.width) next.width = migratedWidth
+        if (legacyWorkspaces) {
+          next.workspaces = {}
+          next.workspacesDefault = sidebar.workspaces
         }
+        return next
       })()
 
       const review = value.review
@@ -272,7 +292,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       { ...target, migrate },
       createStore({
         sidebar: {
-          opened: false,
+          opened: true,
           width: DEFAULT_SIDEBAR_WIDTH,
           workspaces: {} as Record<string, boolean>,
           workspacesDefault: false,
@@ -286,9 +306,16 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           panelOpened: DEFAULT_REVIEW_PANEL_OPENED,
         },
         fileTree: {
-          opened: false,
+          opened: true,
           width: DEFAULT_FILE_TREE_WIDTH,
           tab: "changes" as "changes" | "all",
+        },
+        sidePanel: {
+          opened: false,
+          width: DEFAULT_SIDE_PANEL_WIDTH,
+          tab: "chat" as SidePanelTab,
+          chatSessionID: undefined as string | undefined,
+          drafts: {} as Record<string, SidePanelDraft | undefined>,
         },
         session: {
           width: DEFAULT_SESSION_WIDTH,
@@ -388,6 +415,40 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
 
       usage.pruned = true
       prune(sessionKey)
+    }
+
+    function discardSessions(input: { scope: ServerScope; directory: string; sessionIDs: Iterable<string> }) {
+      const removed = new Set(input.sessionIDs)
+      if (removed.size === 0) return
+      const dir = base64Encode(input.directory)
+      const keys = [...removed].map((sessionID) =>
+        SessionStateKey.from(input.scope, SessionRouteKey.fromRoute(dir, sessionID)),
+      )
+
+      batch(() => {
+        setStore(
+          produce((draft) => {
+            for (const key of keys) {
+              delete draft.sessionView[key]
+              delete draft.sessionTabs[key]
+            }
+            for (const sessionID of removed) delete draft.sidePanel?.drafts?.[sessionID]
+            if (draft.sidePanel?.chatSessionID && removed.has(draft.sidePanel.chatSessionID)) {
+              draft.sidePanel.chatSessionID = undefined
+            }
+          }),
+        )
+        setEphemeral(
+          "sessionTabPreview",
+          produce((draft) => {
+            for (const key of keys) delete draft[key]
+          }),
+        )
+      })
+
+      scroll.drop(keys)
+      dropSessionState(keys)
+      for (const key of keys) usage.used.delete(key)
     }
 
     const scroll = createScrollPersistence({
@@ -614,6 +675,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
     return {
       route,
       ready,
+      discardSessions,
       home: {
         selection: createMemo(() => store.home.selection),
         setSelection(selection: HomeProjectSelection) {
@@ -820,6 +882,10 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         const terminalOpened = createMemo(() => store.terminal?.opened ?? false)
         const reviewPanelOpened = createMemo(() => store.review?.panelOpened ?? DEFAULT_REVIEW_PANEL_OPENED)
         const reviewPanelSource = createMemo(() => (reviewPanelOpened() ? ephemeral.reviewPanelSource : "other"))
+        const sidePanelOpened = createMemo(() => store.sidePanel?.opened ?? false)
+        const sidePanelTab = createMemo(() => store.sidePanel?.tab ?? ("chat" as SidePanelTab))
+        const sidePanelWidth = createMemo(() => store.sidePanel?.width ?? DEFAULT_SIDE_PANEL_WIDTH)
+        const sidePanelChatSession = createMemo(() => store.sidePanel?.chatSessionID)
 
         function setTerminalOpened(next: boolean) {
           const current = store.terminal
@@ -853,6 +919,56 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
             setStore("review", "panelOpened", next)
             setEphemeral("reviewPanelSource", nextSource)
           })
+        }
+
+        function setSidePanelOpened(next: boolean, tab?: SidePanelTab) {
+          const current = store.sidePanel
+          if (!current) {
+            setStore("sidePanel", {
+              opened: next,
+              width: DEFAULT_SIDE_PANEL_WIDTH,
+              tab: tab ?? "chat",
+              chatSessionID: undefined,
+              drafts: {},
+            })
+            return
+          }
+
+          batch(() => {
+            if ((current.opened ?? false) !== next) setStore("sidePanel", "opened", next)
+            if (tab && current.tab !== tab) setStore("sidePanel", "tab", tab)
+          })
+        }
+
+        function setSidePanelChatSession(sessionID: string | undefined) {
+          const current = store.sidePanel
+          if (!current) {
+            setStore("sidePanel", {
+              opened: true,
+              width: DEFAULT_SIDE_PANEL_WIDTH,
+              tab: "chat" as SidePanelTab,
+              chatSessionID: sessionID,
+              drafts: {},
+            })
+            return
+          }
+          if (current.chatSessionID !== sessionID) setStore("sidePanel", "chatSessionID", sessionID)
+        }
+
+        function setSidePanelDraft(sessionID: string, draft: SidePanelDraft) {
+          const current = store.sidePanel
+          if (!current) {
+            setStore("sidePanel", {
+              opened: true,
+              width: DEFAULT_SIDE_PANEL_WIDTH,
+              tab: "chat" as SidePanelTab,
+              chatSessionID: sessionID,
+              drafts: { [sessionID]: draft },
+            })
+            return
+          }
+          if (!current.drafts) setStore("sidePanel", "drafts", {})
+          setStore("sidePanel", "drafts", sessionID, draft)
         }
 
         return {
@@ -897,6 +1013,47 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
             },
             toggle() {
               setReviewPanelOpened(!reviewPanelOpened(), "other")
+            },
+          },
+          sidePanel: {
+            opened: sidePanelOpened,
+            tab: sidePanelTab,
+            width: sidePanelWidth,
+            chatSession: sidePanelChatSession,
+            draft(sessionID: string) {
+              return store.sidePanel?.drafts?.[sessionID] ?? EMPTY_SIDE_PANEL_DRAFT
+            },
+            setDraft(sessionID: string, draft: SidePanelDraft) {
+              setSidePanelDraft(sessionID, draft)
+            },
+            open(tab: SidePanelTab = "chat") {
+              setSidePanelOpened(true, tab)
+            },
+            close() {
+              setSidePanelOpened(false)
+            },
+            toggle(tab?: SidePanelTab) {
+              setSidePanelOpened(!sidePanelOpened(), tab ?? sidePanelTab())
+            },
+            setTab(tab: SidePanelTab) {
+              setSidePanelOpened(true, tab)
+            },
+            setChatSession(sessionID: string | undefined) {
+              setSidePanelChatSession(sessionID)
+            },
+            resize(width: number) {
+              const current = store.sidePanel
+              if (!current) {
+                setStore("sidePanel", {
+                  opened: true,
+                  width,
+                  tab: "chat" as SidePanelTab,
+                  chatSessionID: undefined,
+                  drafts: {},
+                })
+                return
+              }
+              setStore("sidePanel", "width", width)
             },
           },
           review: {

@@ -1,4 +1,5 @@
 export const dict = {
+  ...featureFallback,
   "desktop.menu.app": "OpenCode",
   "desktop.menu.file": "Datoteka",
   "desktop.menu.edit": "Uredi",
@@ -156,6 +157,7 @@ export const dict = {
   "command.terminal.toggle": "Prikaži/sakrij terminal",
   "command.fileTree.toggle": "Prikaži/sakrij stablo datoteka",
   "command.review.toggle": "Prikaži/sakrij pregled",
+  "command.side.toggle": "Toggle side panel",
   "command.terminal.new": "Novi terminal",
   "command.terminal.new.description": "Kreiraj novu karticu terminala",
   "command.steps.toggle": "Prikaži/sakrij korake",
@@ -176,6 +178,15 @@ export const dict = {
   "command.model.variant.cycle.description": "Prebaci na sljedeći nivo",
   "command.prompt.mode.shell": "Shell",
   "command.prompt.mode.normal": "Prompt",
+  "composer.permissionMode.title": "Permission mode",
+  "composer.permissionMode.ask": "Ask",
+  "composer.permissionMode.ask.description": "Ask before sensitive operations",
+  "composer.permissionMode.auto": "Auto",
+  "composer.permissionMode.auto.description": "Run normal project operations automatically",
+  "composer.permissionMode.full": "Full access",
+  "composer.permissionMode.full.description": "Broad workspace access for this directory",
+  "command.permissions.mode.cycle": "Cycle permission mode",
+  "command.permissions.mode.cycle.description": "Switch between Ask, Auto, and Full access",
   "command.permissions.autoaccept.enable": "Automatski prihvati dozvole",
   "command.permissions.autoaccept.disable": "Zaustavi automatsko prihvatanje dozvola",
   "command.workspace.toggle": "Prikaži/sakrij radne prostore",
@@ -793,6 +804,9 @@ export const dict = {
   "session.followupDock.summary.other": "{{count}} poruka na čekanju",
   "session.followupDock.sendNow": "Pošalji sada",
   "session.followupDock.edit": "Uredi",
+  "session.followupDock.remove": "Remove",
+  "session.followupDock.moveUp": "Move up",
+  "session.followupDock.moveDown": "Move down",
   "session.followupDock.collapse": "Sažmi poruke na čekanju",
   "session.followupDock.expand": "Proširi poruke na čekanju",
   "session.revertDock.summary.one": "{{count}} vraćena poruka",
@@ -891,6 +905,22 @@ export const dict = {
   "sidebar.project.clearNotifications": "Očisti obavijesti",
   "sidebar.empty.title": "Nema otvorenih projekata",
   "sidebar.empty.description": "Otvori projekat za početak",
+  "sidebar.search.placeholder": "Search chats and projects",
+  "sidebar.pinned": "Pinned",
+  "sidebar.projects": "Projects",
+  "sidebar.tabs": "Open tabs",
+  "sidebar.pin.chat": "Pin chat",
+  "sidebar.unpin.chat": "Unpin chat",
+  "sidebar.chat.menu.duplicate": "Duplicate chat",
+  "sidebar.pin.project": "Pin project",
+  "sidebar.unpin.project": "Unpin project",
+  "side.tabs.browser": "Browser",
+  "side.tabs.chat": "Side chat",
+  "side.chat.empty": "No messages yet",
+  "side.chat.reply": "Reply…",
+  "side.browser.url": "Enter URL…",
+  "side.browser.reload": "Reload",
+  "side.browser.openExternal": "Open in browser",
 
   "app.name.desktop": "OpenCode Desktop",
 
@@ -951,6 +981,9 @@ export const dict = {
   "settings.general.row.showCustomAgents.description": "Prikaži izbor agenta u uređivaču poruke",
   "settings.general.row.reasoningSummaries.title": "Prikaži sažetke rasuđivanja",
   "settings.general.row.reasoningSummaries.description": "Prikaži sažetke rasuđivanja modela na vremenskoj traci",
+  "settings.general.row.queueFollowup.title": "Queue follow-ups",
+  "settings.general.row.queueFollowup.description":
+    "Queue prompts while the agent is working instead of steering the current run",
 
   "settings.general.row.shellToolPartsExpanded.title": "Proširi dijelove shell alata",
   "settings.general.row.shellToolPartsExpanded.description":
@@ -1255,3 +1288,4 @@ export const dict = {
   "error.childStore.storeCreateFailed": "Nije uspjelo kreiranje skladišta",
   "terminal.connectionLost.abnormalClose": "WebSocket zatvoren nenormalno: {{code}}",
 }
+import { dict as featureFallback } from "./fallback"

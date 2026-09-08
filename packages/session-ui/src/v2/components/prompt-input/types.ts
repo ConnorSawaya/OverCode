@@ -34,11 +34,21 @@ export type PromptInputV2Attachment = {
   blob: { id: string; url: string }
 }
 
+export type PromptInputV2PastedText = {
+  type: "pasted_text"
+  id: string
+  title: string
+  charCount: number
+  lineCount: number
+  blob: { id: string; url: string }
+}
+
 export type PromptInputV2Prompt = (
   | PromptInputV2TextPart
   | PromptInputV2FilePart
   | PromptInputV2AgentPart
   | PromptInputV2Attachment
+  | PromptInputV2PastedText
 )[]
 
 export type PromptInputV2Model = {

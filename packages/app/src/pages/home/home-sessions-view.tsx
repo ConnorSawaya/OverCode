@@ -7,6 +7,7 @@ import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
 import { IconButtonV2 } from "@opencode-ai/ui/v2/icon-button-v2"
 import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
 import { useLanguage } from "@/context/language"
+import { usePins } from "@/context/pins"
 import { ServerConnection } from "@/context/server"
 import { SessionTabAvatarView } from "@/pages/layout/session-tab-avatar"
 import { sessionTitle } from "@/utils/session-title"
@@ -19,7 +20,6 @@ import {
   type OpenSessionOptions,
 } from "./home-sessions-controller"
 
-const SHOW_HOME_SESSION_ARCHIVE = false
 const HOME_SECTION_LABEL = "text-v2-text-text-muted [font-weight:440]"
 const HOME_SESSION_SEARCH_RESULTS_ID = "home-session-search-results"
 
@@ -53,7 +53,6 @@ export type HomeSessionsViewProps = {
   isOpenTab: (record: HomeSessionRecord) => boolean
   onCreateSession: () => void
   onOpenSession: (session: Session, options?: OpenSessionOptions) => void
-  onArchiveSession: (session: Session) => Promise<void>
   onSetHoverTarget: (element: HTMLElement) => void
   onSetThumbTrack: (element: HTMLDivElement) => void
   onSetContent: (element: HTMLDivElement) => void
@@ -417,6 +416,13 @@ function HomeSessionGroupHeader(props: {
 function HomeSessionRow(props: HomeSessionsViewProps & { record: HomeSessionRecord }) {
   const title = createMemo(() => sessionTitle(props.record.session.title) || props.record.session.id)
   const showProjectName = () => props.showProjectName() && props.record.projectName
+  const pins = usePins()
+  const pinned = createMemo(() =>
+    pins.isChatPinned({ server: props.server(), sessionID: props.record.session.id }),
+  )
+  const pinLabel = createMemo(() =>
+    pinned() ? props.language.t("sidebar.unpin.chat") : props.language.t("sidebar.pin.chat"),
+  )
 
   return (
     <div
@@ -453,29 +459,28 @@ function HomeSessionRow(props: HomeSessionsViewProps & { record: HomeSessionReco
           <HomeSessionProjectName name={props.record.projectName} />
         </Show>
       </button>
-      <Show when={SHOW_HOME_SESSION_ARCHIVE}>
-        <div
-          class={`
-            hover-reveal absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-1
-            group-hover/session:opacity-100 focus-within:opacity-100
-          `}
-        >
-          <TooltipV2 class="flex shrink-0 items-center" placement="bottom" value={props.language.t("common.archive")}>
-            <IconButtonV2
-              data-action="home-session-archive"
-              variant="ghost-muted"
-              size="large"
-              icon={<IconV2 name="archive" />}
-              aria-label={props.language.t("common.archive")}
-              onClick={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                void props.onArchiveSession(props.record.session)
-              }}
-            />
-          </TooltipV2>
-        </div>
-      </Show>
+      <div
+        class={`
+          hover-reveal absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-1
+          group-hover/session:opacity-100 focus-within:opacity-100
+        `}
+      >
+        <TooltipV2 class="flex shrink-0 items-center" placement="bottom" value={pinLabel()}>
+          <IconButtonV2
+            data-action="home-session-pin"
+            variant="ghost-muted"
+            size="large"
+            icon={<IconV2 name="pin" />}
+            aria-label={pinLabel()}
+            aria-pressed={pinned()}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              pins.toggleChat({ server: props.server(), sessionID: props.record.session.id })
+            }}
+          />
+        </TooltipV2>
+      </div>
     </div>
   )
 }

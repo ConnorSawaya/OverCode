@@ -7,6 +7,7 @@ import {
   maximumSunsetTimeout,
   newLayoutDesignsDefault,
   nextSunsetCheckDelay,
+  normalizeFollowupMode,
   resolveNewLayoutDesigns,
   shouldDisplayTabsToast,
   shouldEnableNewLayout,
@@ -92,5 +93,17 @@ describe("layout transition", () => {
     expect(shouldEnableNewLayout("1.17.20", "1.17.21")).toBe(false)
     expect(shouldEnableNewLayout(undefined, "1.17.19")).toBe(false)
     expect(shouldEnableNewLayout("dev", "1.17.20")).toBe(false)
+  })
+})
+
+describe("followup mode", () => {
+  test("keeps an explicit queue preference", () => {
+    expect(normalizeFollowupMode("queue")).toBe("queue")
+  })
+
+  test("falls back to steer for anything else", () => {
+    expect(normalizeFollowupMode("steer")).toBe("steer")
+    expect(normalizeFollowupMode(undefined)).toBe("steer")
+    expect(normalizeFollowupMode("bogus")).toBe("steer")
   })
 })

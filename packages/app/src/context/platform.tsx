@@ -6,6 +6,8 @@ import { ServerConnection } from "./server"
 import type { WslServersPlatform } from "../wsl/types"
 import type { UpdaterPlatform } from "../updater"
 import type { DraftStore } from "@/utils/draft-store"
+import type { BrowserPlatform } from "./browser"
+import type { SpeechPlatform } from "@/utils/speech-types"
 
 type PickerPaths = string | string[] | null
 type OpenDirectoryPickerOptions = { title?: string; multiple?: boolean }
@@ -14,11 +16,19 @@ type OpenAttachmentPickerOptions = {
   multiple?: boolean
   accept?: string[]
   extensions?: string[]
+  /** Allow selecting files whose extension is not in the normal attachment list. */
+  allowAll?: boolean
   defaultPath?: string
 }
 type SaveFilePickerOptions = { title?: string; defaultPath?: string }
 type PlatformName = "web" | "desktop"
 type DesktopOS = "macos" | "windows" | "linux"
+
+export type QuickChatOptions = {
+  directory?: string
+  sessionID?: string
+  serverKey?: ServerConnection.Key
+}
 
 export type FatalRendererErrorLog = {
   error: string
@@ -29,6 +39,8 @@ export type FatalRendererErrorLog = {
 }
 
 type PlatformBase = {
+  /** Persistent local workspace for chats without a selected project. */
+  quickStartDirectory?(): Promise<string>
   /** App version */
   version?: string
 
@@ -70,6 +82,13 @@ type PlatformBase = {
 
   /** Stable platform window identity for window-scoped persistence */
   windowID?: string
+
+  /** Open the compact desktop quick-chat window. */
+  openQuickChat?(options?: QuickChatOptions): Promise<void>
+
+  /** Session-owned Chromium browser control surface (desktop only). */
+  browser?: BrowserPlatform
+  speech?: SpeechPlatform
 
   /** Application-global desktop updater */
   updater?: UpdaterPlatform

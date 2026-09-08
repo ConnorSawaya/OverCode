@@ -26,7 +26,6 @@ export function HomeSessions(props: {
       isOpenTab={props.sessions.tab.isOpen}
       onCreateSession={props.sessions.session.create}
       onOpenSession={props.sessions.session.open}
-      onArchiveSession={props.sessions.session.archive}
       onSetHoverTarget={props.scroll.viewport.setHoverTarget}
       onSetThumbTrack={props.scroll.viewport.setThumbTrack}
       onSetContent={props.scroll.header.setContent}

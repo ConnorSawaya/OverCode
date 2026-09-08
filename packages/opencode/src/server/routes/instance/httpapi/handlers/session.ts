@@ -175,7 +175,22 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       return yield* create({ payload })
     })
 
+    const cancelTree = Effect.fn("SessionHttpApi.cancelTree")(function* (rootID: SessionID) {
+      const pending = [rootID]
+      const order: SessionID[] = []
+      while (pending.length > 0) {
+        const sessionID = pending.pop()
+        if (!sessionID) continue
+        order.push(sessionID)
+        const kids = yield* session.children(sessionID)
+        pending.push(...kids.map((child) => child.id))
+      }
+      for (const sessionID of order.reverse()) yield* promptSvc.cancel(sessionID)
+    })
+
     const remove = Effect.fn("SessionHttpApi.remove")(function* (ctx: { params: { sessionID: SessionID } }) {
+      yield* requireSession(ctx.params.sessionID)
+      yield* cancelTree(ctx.params.sessionID)
       yield* SessionError.mapStorageNotFound(session.remove(ctx.params.sessionID))
       return true
     })
@@ -328,6 +343,25 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       return HttpApiSchema.NoContent.make()
     })
 
+    const pending = Effect.fn("SessionHttpApi.pending")(function* (ctx: { params: { sessionID: SessionID } }) {
+      yield* requireSession(ctx.params.sessionID)
+      return yield* promptSvc.pending(ctx.params.sessionID)
+    })
+
+    const cancelPending = Effect.fn("SessionHttpApi.cancelPending")(function* (ctx: {
+      params: { sessionID: SessionID; messageID: MessageID }
+    }) {
+      yield* requireSession(ctx.params.sessionID)
+      return yield* promptSvc.cancelPending(ctx.params)
+    })
+
+    const promotePending = Effect.fn("SessionHttpApi.promotePending")(function* (ctx: {
+      params: { sessionID: SessionID; messageID: MessageID }
+    }) {
+      yield* requireSession(ctx.params.sessionID)
+      return yield* promptSvc.promotePending(ctx.params)
+    })
+
     const command = Effect.fn("SessionHttpApi.command")(function* (ctx: {
       params: { sessionID: SessionID }
       payload: typeof CommandPayload.Type
@@ -430,6 +464,9 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       .handle("summarize", summarize)
       .handle("prompt", prompt)
       .handle("promptAsync", promptAsync)
+      .handle("pending", pending)
+      .handle("cancelPending", cancelPending)
+      .handle("promotePending", promotePending)
       .handle("command", command)
       .handle("shell", shell)
       .handle("revert", revert)

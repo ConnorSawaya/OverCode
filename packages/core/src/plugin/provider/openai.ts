@@ -91,6 +91,7 @@ const browser = {
       }
     }),
   refresh: (value) => refresh(browserMethodID, value),
+  label: chatgptAccountLabel,
 } satisfies IntegrationOAuthMethodRegistration
 
 const headless = {
@@ -149,6 +150,7 @@ const headless = {
       }
     }),
   refresh: (value) => refresh(headlessMethodID, value),
+  label: chatgptAccountLabel,
 } satisfies IntegrationOAuthMethodRegistration
 
 export const OpenAIPlugin = define({
@@ -274,6 +276,12 @@ function authorizeURL(redirect: string, pkce: Pkce, state: string) {
 
 function extractAccountID(tokens: TokenResponse) {
   return claim(tokens.id_token) ?? claim(tokens.access_token)
+}
+
+function chatgptAccountLabel(credential: { metadata?: Record<string, unknown> }) {
+  const accountID = credential.metadata?.accountID
+  if (typeof accountID !== "string" || !accountID) return
+  return `ChatGPT · ${accountID.slice(-8)}`
 }
 
 function claim(token: string) {

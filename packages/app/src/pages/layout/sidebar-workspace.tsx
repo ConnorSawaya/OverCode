@@ -41,7 +41,6 @@ export type WorkspaceSidebarContext = {
   sidebarHovering: Accessor<boolean>
   clearHoverProjectSoon: () => void
   prefetchSession: (session: Session, priority?: "high" | "low") => void
-  archiveSession: (session: Session) => Promise<void>
   workspaceName: (directory: string, projectId?: string, branch?: string) => string | undefined
   renameWorkspace: (directory: string, next: string, projectId?: string, branch?: string) => void
   editorOpen: (id: string) => boolean
@@ -55,6 +54,20 @@ export type WorkspaceSidebarContext = {
   showResetWorkspaceDialog: (root: string, directory: string) => void
   showDeleteWorkspaceDialog: (root: string, directory: string) => void
   setScrollContainerRef: (el: HTMLDivElement | undefined, mobile?: boolean) => void
+}
+
+// Minimal capabilities needed to render session lists (used by WorkspaceSessionList
+// and reused by the new-shell Codex sidebar host without the full legacy context).
+export type SessionListSidebarContext = Pick<
+  WorkspaceSidebarContext,
+  "navList" | "sidebarExpanded" | "clearHoverProjectSoon" | "prefetchSession"
+> & {
+  // New shells can select a session tab directly instead of relying on the
+  // legacy directory-based route and its server inference.
+  openSession?: (session: Session) => void
+  // The new shell owns the active tab, so session rows cannot rely on the
+  // legacy router's `.active` class to identify the current conversation.
+  currentSessionID?: Accessor<string | undefined>
 }
 
 export const WorkspaceDragOverlay = (props: {
@@ -236,10 +249,11 @@ const WorkspaceActions = (props: {
   </div>
 )
 
-const WorkspaceSessionList = (props: {
+export const WorkspaceSessionList = (props: {
   slug: Accessor<string>
   mobile?: boolean
-  ctx: WorkspaceSidebarContext
+  dense?: boolean
+  ctx: SessionListSidebarContext
   showNew: Accessor<boolean>
   loading: Accessor<boolean>
   sessions: Accessor<Session[]>
@@ -247,11 +261,12 @@ const WorkspaceSessionList = (props: {
   loadMore: () => Promise<void>
   language: ReturnType<typeof useLanguage>
 }): JSX.Element => (
-  <nav class="flex flex-col gap-1">
+  <nav classList={{ "flex flex-col": true, "gap-0.5": props.dense, "gap-1": !props.dense }}>
     <Show when={props.showNew()}>
       <NewSessionItem
         slug={props.slug()}
         mobile={props.mobile}
+        dense={props.dense}
         sidebarExpanded={props.ctx.sidebarExpanded}
         clearHoverProjectSoon={props.ctx.clearHoverProjectSoon}
       />
@@ -267,11 +282,13 @@ const WorkspaceSessionList = (props: {
           navList={props.ctx.navList}
           slug={props.slug()}
           mobile={props.mobile}
+          dense={props.dense}
           showChild
           sidebarExpanded={props.ctx.sidebarExpanded}
           clearHoverProjectSoon={props.ctx.clearHoverProjectSoon}
           prefetchSession={props.ctx.prefetchSession}
-          archiveSession={props.ctx.archiveSession}
+          openSession={props.ctx.openSession}
+          currentSessionID={props.ctx.currentSessionID}
         />
       )}
     </For>
@@ -279,8 +296,8 @@ const WorkspaceSessionList = (props: {
       <div class="relative w-full py-1">
         <Button
           variant="ghost"
-          class="flex w-full text-left justify-start text-14-regular text-text-weak pl-2 pr-10"
-          size="large"
+          class="flex w-full text-left justify-start text-13-regular text-text-weak pl-2 pr-10"
+          size={props.dense ? "normal" : "large"}
           onClick={(e: MouseEvent) => {
             void props.loadMore()
             ;(e.currentTarget as HTMLButtonElement).blur()

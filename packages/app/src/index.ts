@@ -1,4 +1,5 @@
 export { AppBaseProviders, AppInterface } from "./app"
+export type { SpeechPlatform, SpeechProgress, SpeechRequest } from "./utils/speech-types"
 export { useLayout } from "./context/layout"
 export { useServerSDK } from "./context/server-sdk"
 export { useServerSync } from "./context/server-sync"
@@ -12,6 +13,19 @@ export { loadLocaleDict, normalizeLocale, type Locale, useLanguage } from "./con
 export { useWslServers } from "./wsl/context"
 export { type DisplayBackend, type FatalRendererErrorLog, type Platform, PlatformProvider } from "./context/platform"
 export { type UpdaterPlatform, type UpdaterState } from "./updater"
+export type {
+  BrowserAction,
+  BrowserBounds,
+  BrowserBookmark,
+  BrowserController,
+  BrowserEvent,
+  BrowserHistoryItem,
+  BrowserProfileCandidate,
+  BrowserPlatform,
+  BrowserSnapshot,
+  BrowserStatus,
+  BrowserTab,
+} from "./context/browser"
 export {
   type WslDistroProbe,
   type WslInstalledDistro,

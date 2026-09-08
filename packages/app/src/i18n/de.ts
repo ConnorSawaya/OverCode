@@ -3,6 +3,7 @@ import { dict as en } from "./en"
 type Keys = keyof typeof en
 
 export const dict = {
+  ...featureFallback,
   "command.category.suggested": "Vorgeschlagen",
   "command.category.view": "Ansicht",
   "command.category.project": "Projekt",
@@ -53,6 +54,7 @@ export const dict = {
   "command.terminal.toggle": "Terminal umschalten",
   "command.fileTree.toggle": "Dateibaum umschalten",
   "command.review.toggle": "Überprüfung umschalten",
+  "command.side.toggle": "Toggle side panel",
   "command.terminal.new": "Neues Terminal",
   "command.terminal.new.description": "Neuen Terminal-Tab erstellen",
   "command.steps.toggle": "Schritte umschalten",
@@ -73,6 +75,15 @@ export const dict = {
   "command.model.variant.cycle.description": "Zum nächsten Aufwandslevel wechseln",
   "command.prompt.mode.shell": "Shell",
   "command.prompt.mode.normal": "Prompt",
+  "composer.permissionMode.title": "Permission mode",
+  "composer.permissionMode.ask": "Ask",
+  "composer.permissionMode.ask.description": "Ask before sensitive operations",
+  "composer.permissionMode.auto": "Auto",
+  "composer.permissionMode.auto.description": "Run normal project operations automatically",
+  "composer.permissionMode.full": "Full access",
+  "composer.permissionMode.full.description": "Broad workspace access for this directory",
+  "command.permissions.mode.cycle": "Cycle permission mode",
+  "command.permissions.mode.cycle.description": "Switch between Ask, Auto, and Full access",
   "command.permissions.autoaccept.enable": "Berechtigungen automatisch akzeptieren",
   "command.permissions.autoaccept.disable": "Automatische Akzeptanz von Berechtigungen stoppen",
   "command.workspace.toggle": "Arbeitsbereiche umschalten",
@@ -628,6 +639,9 @@ export const dict = {
   "session.followupDock.summary.other": "{{count}} Nachrichten in der Warteschlange",
   "session.followupDock.sendNow": "Jetzt senden",
   "session.followupDock.edit": "Bearbeiten",
+  "session.followupDock.remove": "Remove",
+  "session.followupDock.moveUp": "Move up",
+  "session.followupDock.moveDown": "Move down",
   "session.followupDock.collapse": "Warteschlange einklappen",
   "session.followupDock.expand": "Warteschlange ausklappen",
   "session.revertDock.summary.one": "{{count}} zurückgesetzte Nachricht",
@@ -721,6 +735,22 @@ export const dict = {
   "sidebar.project.clearNotifications": "Benachrichtigungen löschen",
   "sidebar.empty.title": "Keine Projekte geöffnet",
   "sidebar.empty.description": "Öffnen Sie ein Projekt, um loszulegen",
+  "sidebar.search.placeholder": "Search chats and projects",
+  "sidebar.pinned": "Pinned",
+  "sidebar.projects": "Projects",
+  "sidebar.tabs": "Open tabs",
+  "sidebar.pin.chat": "Pin chat",
+  "sidebar.unpin.chat": "Unpin chat",
+  "sidebar.chat.menu.duplicate": "Duplicate chat",
+  "sidebar.pin.project": "Pin project",
+  "sidebar.unpin.project": "Unpin project",
+  "side.tabs.browser": "Browser",
+  "side.tabs.chat": "Side chat",
+  "side.chat.empty": "No messages yet",
+  "side.chat.reply": "Reply…",
+  "side.browser.url": "Enter URL…",
+  "side.browser.reload": "Reload",
+  "side.browser.openExternal": "Open in browser",
   "app.name.desktop": "OpenCode Desktop",
   "settings.section.desktop": "Desktop",
   "settings.section.server": "Server",
@@ -782,6 +812,9 @@ export const dict = {
   "settings.general.row.reasoningSummaries.title": "Reasoning-Zusammenfassungen anzeigen",
   "settings.general.row.reasoningSummaries.description":
     "Zusammenfassungen des Modell-Reasonings in der Timeline anzeigen",
+  "settings.general.row.queueFollowup.title": "Queue follow-ups",
+  "settings.general.row.queueFollowup.description":
+    "Queue prompts while the agent is working instead of steering the current run",
   "settings.general.row.shellToolPartsExpanded.title": "Shell-Tool-Abschnitte ausklappen",
   "settings.general.row.shellToolPartsExpanded.description":
     "Shell-Tool-Abschnitte standardmäßig in der Timeline ausgeklappt anzeigen",
@@ -1183,3 +1216,4 @@ export const dict = {
   "help.tabs.worktrees":
     "Das neue Design unterstützt Git-Worktrees noch nicht. Diese Funktion folgt in Kürze. Wenn Sie das bisherige Layout vorerst weiterverwenden möchten, können Sie in den Einstellungen zwischen den Layouts wechseln. Beachten Sie jedoch, dass das neue Layout in einigen Wochen dauerhaft verwendet wird.",
 } satisfies Partial<Record<Keys, string>>
+import { dict as featureFallback } from "./fallback"

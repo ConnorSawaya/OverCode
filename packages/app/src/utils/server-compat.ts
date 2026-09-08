@@ -15,12 +15,20 @@ import type {
   SessionShellInput,
   SessionShellOutput,
 } from "@opencode-ai/client/promise"
+import { normalizeSessionPendingList, type SessionPendingPrompt } from "./session-pending"
 
 type LegacyClient = OpencodeClient
 type LegacyFor = (directory?: string) => LegacyClient
-type CompatibleSessionApi = Omit<
+export type CompatiblePendingInput = { sessionID: string; messageID?: string; directory?: string }
+export type CompatiblePendingApi = {
+  list: (input: Omit<CompatiblePendingInput, "messageID">) => Promise<SessionPendingPrompt[]>
+  cancel: (input: Required<Pick<CompatiblePendingInput, "sessionID" | "messageID">> & LegacyLocation) => Promise<void>
+  promote: (input: Required<Pick<CompatiblePendingInput, "sessionID" | "messageID">> & LegacyLocation) => Promise<void>
+}
+
+export type CompatibleSessionApi = Omit<
   SessionApi,
-  "prompt" | "command" | "shell" | "compact" | "rename" | "archive" | "remove"
+  "prompt" | "command" | "shell" | "compact" | "rename" | "archive" | "remove" | "pending"
 > & {
   prompt: (input: SessionPromptInput & LegacyPrompt) => Promise<SessionPromptOutput>
   command: (input: SessionCommandInput) => Promise<SessionCommandOutput>
@@ -29,6 +37,7 @@ type CompatibleSessionApi = Omit<
   rename: (input: Parameters<SessionApi["rename"]>[0] & LegacyLocation) => ReturnType<SessionApi["rename"]>
   // archive: (input: Parameters<SessionApi["archive"]>[0] & LegacyLocation) => ReturnType<SessionApi["archive"]>
   remove: (input: Parameters<SessionApi["remove"]>[0] & LegacyLocation) => ReturnType<SessionApi["remove"]>
+  pending: CompatiblePendingApi
 }
 type CompatiblePermissionApi = Omit<ServerApi["permission"], "reply"> & {
   reply: (
@@ -51,6 +60,7 @@ type CompatibleInput = {
   current: ServerApi
   legacy: LegacyFor
   directory?: string
+  request: (input: { path: string; method: "DELETE" | "POST"; directory?: string }) => Promise<unknown>
 }
 
 function mime(uri: string) {
@@ -85,9 +95,39 @@ function sessionInfo(session: Session): SessionInfo {
 
 export function createCompatibleApi(input: CompatibleInput): CompatibleApi {
   const v1 = createV1Api(input)
+  const current: CompatibleApi = {
+    ...input.current,
+    session: {
+      ...input.current.session,
+      remove: async (value) => {
+        await input.request({
+          path: `/api/session/${encodeURIComponent(value.sessionID)}`,
+          method: "DELETE",
+          directory: value.directory,
+        })
+      },
+      pending: {
+        list: async (value) => normalizeSessionPendingList(await input.current.session.pending.list(value)),
+        cancel: async (value) => {
+          await input.request({
+            path: `/api/session/${encodeURIComponent(value.sessionID)}/pending/${encodeURIComponent(value.messageID)}`,
+            method: "DELETE",
+            directory: value.directory,
+          })
+        },
+        promote: async (value) => {
+          await input.request({
+            path: `/api/session/${encodeURIComponent(value.sessionID)}/pending/${encodeURIComponent(value.messageID)}/promote`,
+            method: "POST",
+            directory: value.directory,
+          })
+        },
+      },
+    },
+  }
   return lazyApi(
-    input.protocol.then((protocol) => (protocol === "v1" ? v1 : input.current)),
-    input.current,
+    input.protocol.then((protocol) => (protocol === "v1" ? v1 : current)),
+    current,
   )
 }
 
@@ -189,6 +229,29 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
       async remove(value: Parameters<ServerApi["session"]["remove"]>[0] & LegacyLocation) {
         await legacy(value).session.delete(value)
       },
+      pending: {
+        async list(value) {
+          const result = await legacy(value).session.pending({
+            sessionID: value.sessionID,
+            directory: directory(value),
+          })
+          return normalizeSessionPendingList(result.data ?? [])
+        },
+        async cancel(value) {
+          await legacy(value).session.cancelPending({
+            sessionID: value.sessionID,
+            messageID: value.messageID,
+            directory: directory(value),
+          })
+        },
+        async promote(value) {
+          await legacy(value).session.promotePending({
+            sessionID: value.sessionID,
+            messageID: value.messageID,
+            directory: directory(value),
+          })
+        },
+      },
       async fork(value: Parameters<ServerApi["session"]["fork"]>[0]) {
         const result = await legacy().session.fork(value)
         if (!result.data) throw new Error("Failed to fork session")
@@ -204,6 +267,7 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
           agent: value.agent,
           model: value.model,
           variant: value.variant,
+          delivery: value.delivery ?? undefined,
           parts: value.legacyParts ?? [
             { type: "text", text: value.text },
             ...(value.files ?? []).map((file) => ({

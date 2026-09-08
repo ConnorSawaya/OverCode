@@ -198,13 +198,16 @@ export const read = Effect.fn("ReadTool.read")(function* (
         }
         if (total > MAX_MEDIA_INGEST_BYTES)
           return yield* Effect.fail(new MediaIngestLimitError({ resource, maximumBytes: MAX_MEDIA_INGEST_BYTES }))
+        const mediaBytes = new Uint8Array(total)
+        let mediaOffset = 0
+        for (const chunk of chunks) {
+          mediaBytes.set(chunk, mediaOffset)
+          mediaOffset += chunk.length
+        }
         return {
           uri: pathToFileURL(real).href,
           name: path.basename(real),
-          content: Buffer.concat(
-            chunks.map((chunk) => Buffer.from(chunk)),
-            total,
-          ).toString("base64"),
+          content: Buffer.from(mediaBytes).toString("base64"),
           encoding: "base64" as const,
           mime,
         }

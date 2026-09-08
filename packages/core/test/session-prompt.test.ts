@@ -536,6 +536,56 @@ describe("SessionV2.prompt", () => {
     }),
   )
 
+  it.effect("keeps pending work, promotion, and cancellation isolated across three sessions", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const { db } = yield* Database.Service
+      const session = yield* SessionV2.Service
+      const second = SessionV2.ID.make("ses_pending_second")
+      const third = SessionV2.ID.make("ses_pending_third")
+      yield* db
+        .insert(SessionTable)
+        .values(
+          [second, third].map((id) => ({
+            id,
+            project_id: Project.ID.global,
+            slug: id,
+            directory: "/project",
+            title: id,
+            version: "test",
+          })),
+        )
+        .run()
+        .pipe(Effect.orDie)
+
+      const [firstPrompt, secondPrompt, thirdPrompt] = yield* Effect.all(
+        [sessionID, second, third].map((id) =>
+          session.prompt({
+            sessionID: id,
+            prompt: Prompt.make({ text: `queued:${id}` }),
+            delivery: "queue",
+            resume: false,
+          }),
+        ),
+        { concurrency: "unbounded" },
+      )
+      wakeCalls.length = 0
+      interruptCalls.length = 0
+
+      yield* session.cancelPending({ sessionID: second, messageID: secondPrompt.id })
+      yield* session.promotePending({ sessionID: third, messageID: thirdPrompt.id })
+      yield* session.interrupt(sessionID)
+
+      expect(yield* session.pending(sessionID)).toMatchObject([
+        { id: firstPrompt.id, sessionID, delivery: "queue" },
+      ])
+      expect(yield* session.pending(second)).toEqual([])
+      expect(yield* session.pending(third)).toMatchObject([{ id: thirdPrompt.id, sessionID: third, delivery: "steer" }])
+      expect(wakeCalls).toEqual([third])
+      expect(interruptCalls).toEqual([sessionID])
+    }),
+  )
+
   it.effect("starts execution by default after recording the prompt", () =>
     Effect.gen(function* () {
       yield* setup

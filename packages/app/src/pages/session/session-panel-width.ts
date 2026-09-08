@@ -6,6 +6,10 @@ export const SESSION_PANEL_WIDTH_MIN = 450
 export const REVIEW_PANE_WIDTH_MIN = 480
 export const REVIEW_PANE_WIDTH_MIN_SPLIT = 800
 
+export function sessionPanelAvailableWidth(input: { rowWidth: number; gap: number; sidePanelWidth?: number }) {
+  return Math.max(0, input.rowWidth - input.gap - (input.sidePanelWidth ?? 0))
+}
+
 export function sessionPanelWidthMax(input: { available: number; split: boolean }) {
   const pane = input.split ? REVIEW_PANE_WIDTH_MIN_SPLIT : REVIEW_PANE_WIDTH_MIN
   return Math.max(SESSION_PANEL_WIDTH_MIN, input.available - pane)

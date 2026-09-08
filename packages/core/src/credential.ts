@@ -24,6 +24,7 @@ export class Info extends Schema.Class<Info>("Credential.Info")({
   id: ID,
   integrationID: Integration.ID,
   label: Schema.String,
+  active: Schema.Boolean,
   value: Value,
 }) {}
 
@@ -34,14 +35,14 @@ export interface Interface {
   readonly list: (integrationID: Integration.ID) => Effect.Effect<Info[]>
   /** Returns one stored credential by ID. */
   readonly get: (id: ID) => Effect.Effect<Info | undefined>
-  /** Replaces any credential for an integration and returns the new record. */
+  /** Stores a credential for an integration and makes it the active connection. */
   readonly create: (input: {
     readonly integrationID: Integration.ID
     readonly value: Value
     readonly label?: string
   }) => Effect.Effect<Info>
-  /** Updates the label or secret value of a stored credential. */
-  readonly update: (id: ID, updates: Partial<Pick<Info, "label" | "value">>) => Effect.Effect<void>
+  /** Updates the label, secret value, or active state of a stored credential. */
+  readonly update: (id: ID, updates: Partial<Pick<Info, "label" | "value" | "active">>) => Effect.Effect<void>
   /** Removes a stored credential. */
   readonly remove: (id: ID) => Effect.Effect<void>
 }
@@ -59,6 +60,7 @@ const layer = Layer.effect(
         id: row.id,
         integrationID: row.integration_id,
         label: row.label,
+        active: row.active === true,
         value: decode(row.value),
       })
     }
@@ -96,13 +98,15 @@ const layer = Layer.effect(
           id: ID.create(),
           integrationID: input.integrationID,
           label: input.label ?? "default",
+          active: true,
           value: input.value,
         })
         yield* db
           .transaction((tx) =>
             Effect.gen(function* () {
               yield* tx
-                .delete(CredentialTable)
+                .update(CredentialTable)
+                .set({ active: false })
                 .where(eq(CredentialTable.integration_id, credential.integrationID))
                 .run()
               yield* tx
@@ -111,6 +115,7 @@ const layer = Layer.effect(
                   id: credential.id,
                   integration_id: credential.integrationID,
                   label: credential.label,
+                  active: credential.active,
                   value: credential.value,
                 })
                 .run()
@@ -120,12 +125,32 @@ const layer = Layer.effect(
         return credential
       }),
       update: Effect.fn("Credential.update")(function* (id, updates) {
-        if (!updates.label && !updates.value) return
-        yield* db
-          .update(CredentialTable)
-          .set({ label: updates.label, value: updates.value })
+        if (updates.label === undefined && updates.value === undefined && updates.active === undefined) return
+        const current = yield* db
+          .select({ integrationID: CredentialTable.integration_id })
+          .from(CredentialTable)
           .where(eq(CredentialTable.id, id))
-          .run()
+          .get()
+          .pipe(Effect.orDie)
+        if (!current) return
+
+        yield* db
+          .transaction((tx) =>
+            Effect.gen(function* () {
+              if (updates.active === true && current.integrationID) {
+                yield* tx
+                  .update(CredentialTable)
+                  .set({ active: false })
+                  .where(eq(CredentialTable.integration_id, current.integrationID))
+                  .run()
+              }
+              yield* tx
+                .update(CredentialTable)
+                .set({ label: updates.label, value: updates.value, active: updates.active })
+                .where(eq(CredentialTable.id, id))
+                .run()
+            }),
+          )
           .pipe(Effect.orDie)
       }),
       remove: Effect.fn("Credential.remove")(function* (id) {

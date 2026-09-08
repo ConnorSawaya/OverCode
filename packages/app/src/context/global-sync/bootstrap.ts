@@ -204,7 +204,7 @@ function warmSessions(input: {
   ids: string[]
   store: Store<State>
   setStore: SetStoreFunction<State>
-  api: SessionApi
+  api: Pick<SessionApi, "get">
 }) {
   const known = new Set(input.store.session.map((item) => item.id))
   const ids = [...new Set(input.ids)].filter((id) => !!id && !known.has(id))
@@ -340,7 +340,7 @@ export async function bootstrapDirectory(input: {
     readonly project: ProjectApi
     readonly question: QuestionApi
     readonly reference: ReferenceListApi
-    readonly session: SessionApi
+    readonly session: Pick<SessionApi, "get">
     readonly vcs: VcsApi
   }
   store: Store<State>

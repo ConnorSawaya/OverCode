@@ -3,6 +3,7 @@ import { dict as en } from "./en"
 type Keys = keyof typeof en
 
 export const dict = {
+  ...featureFallback,
   "desktop.menu.app": "OpenCode",
   "desktop.menu.file": "Dosya",
   "desktop.menu.edit": "Düzen",
@@ -160,6 +161,7 @@ export const dict = {
   "command.terminal.toggle": "Terminali aç/kapat",
   "command.fileTree.toggle": "Dosya ağacını aç/kapat",
   "command.review.toggle": "İncelemeyi aç/kapat",
+  "command.side.toggle": "Toggle side panel",
   "command.terminal.new": "Yeni terminal",
   "command.terminal.new.description": "Yeni bir terminal sekmesi oluştur",
   "command.steps.toggle": "Adımları aç/kapat",
@@ -180,6 +182,15 @@ export const dict = {
   "command.model.variant.cycle.description": "Sonraki efor seviyesine geç",
   "command.prompt.mode.shell": "Kabuk",
   "command.prompt.mode.normal": "İstem",
+  "composer.permissionMode.title": "Permission mode",
+  "composer.permissionMode.ask": "Ask",
+  "composer.permissionMode.ask.description": "Ask before sensitive operations",
+  "composer.permissionMode.auto": "Auto",
+  "composer.permissionMode.auto.description": "Run normal project operations automatically",
+  "composer.permissionMode.full": "Full access",
+  "composer.permissionMode.full.description": "Broad workspace access for this directory",
+  "command.permissions.mode.cycle": "Cycle permission mode",
+  "command.permissions.mode.cycle.description": "Switch between Ask, Auto, and Full access",
   "command.permissions.autoaccept.enable": "İzinleri otomatik kabul et",
   "command.permissions.autoaccept.disable": "İzinleri otomatik kabul etmeyi durdur",
   "command.workspace.toggle": "Çalışma alanlarını aç/kapat",
@@ -795,6 +806,9 @@ export const dict = {
   "session.followupDock.summary.other": "{{count}} sıradaki mesaj",
   "session.followupDock.sendNow": "Şimdi gönder",
   "session.followupDock.edit": "Düzenle",
+  "session.followupDock.remove": "Remove",
+  "session.followupDock.moveUp": "Move up",
+  "session.followupDock.moveDown": "Move down",
   "session.followupDock.collapse": "Sıradaki mesajları daralt",
   "session.followupDock.expand": "Sıradaki mesajları genişlet",
   "session.revertDock.summary.one": "{{count}} geri alınan mesaj",
@@ -896,6 +910,22 @@ export const dict = {
   "sidebar.project.clearNotifications": "Bildirimleri temizle",
   "sidebar.empty.title": "Açık proje yok",
   "sidebar.empty.description": "Başlamak için bir proje açın",
+  "sidebar.search.placeholder": "Search chats and projects",
+  "sidebar.pinned": "Pinned",
+  "sidebar.projects": "Projects",
+  "sidebar.tabs": "Open tabs",
+  "sidebar.pin.chat": "Pin chat",
+  "sidebar.unpin.chat": "Unpin chat",
+  "sidebar.chat.menu.duplicate": "Duplicate chat",
+  "sidebar.pin.project": "Pin project",
+  "sidebar.unpin.project": "Unpin project",
+  "side.tabs.browser": "Browser",
+  "side.tabs.chat": "Side chat",
+  "side.chat.empty": "No messages yet",
+  "side.chat.reply": "Reply…",
+  "side.browser.url": "Enter URL…",
+  "side.browser.reload": "Reload",
+  "side.browser.openExternal": "Open in browser",
 
   "app.name.desktop": "OpenCode Masaüstü",
 
@@ -958,6 +988,9 @@ export const dict = {
     "Düzenleyicide ajanlar arasında geçiş yapın. Gizlendiğinde varsayılan olarak Build ajanı kullanılır.",
   "settings.general.row.reasoningSummaries.title": "Akıl yürütme özetlerini göster",
   "settings.general.row.reasoningSummaries.description": "Zaman çizelgesinde model akıl yürütme özetlerini görüntüle",
+  "settings.general.row.queueFollowup.title": "Queue follow-ups",
+  "settings.general.row.queueFollowup.description":
+    "Queue prompts while the agent is working instead of steering the current run",
   "settings.general.row.shellToolPartsExpanded.title": "Kabuk araç bileşenlerini genişlet",
   "settings.general.row.shellToolPartsExpanded.description":
     "Zaman çizelgesinde kabuk araç bileşenlerini varsayılan olarak genişletilmiş göster",
@@ -1258,3 +1291,4 @@ export const dict = {
   "error.childStore.storeCreateFailed": "Depo oluşturulamadı",
   "terminal.connectionLost.abnormalClose": "WebSocket anormal şekilde kapandı: {{code}}",
 } satisfies Partial<Record<Keys, string>>
+import { dict as featureFallback } from "./fallback"

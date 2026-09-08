@@ -59,6 +59,7 @@ import type {
 } from "@opencode-ai/client/promise"
 import { toggleMcp } from "./global-sync/mcp"
 import { createServerSession, type ServerSession } from "./server-session"
+import type { CompatibleApi } from "@/utils/server-compat"
 
 type GlobalStore = {
   ready: boolean
@@ -179,7 +180,7 @@ export function seedActiveSessionStatuses(
 function makeQueryOptionsApi(
   scope: ServerScope,
   serverSDK: () => OpencodeClient,
-  serverAPI: ServerApi,
+  serverAPI: CompatibleApi,
   sdkFor: (dir: PathKey) => OpencodeClient,
   protocol: Promise<"v1" | "v2">,
 ) {
@@ -245,7 +246,10 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
           const statuses = (await serverSDK.client.session.status()).data ?? {}
           seedActiveSessionStatuses(session, statuses)
           for (const sessionID of Object.keys(statuses)) {
-            void session.resolve(sessionID).catch(() => undefined)
+            void session
+              .resolve(sessionID)
+              .then(() => session.pending.sync(sessionID, { force: true }))
+              .catch(() => undefined)
           }
           return Object.fromEntries(
             Object.entries(statuses).flatMap(([sessionID, status]) =>
@@ -256,7 +260,10 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
         const active = await serverSDK.api.session.active()
         seedActiveSessionStatuses(session, active)
         for (const sessionID of Object.keys(active)) {
-          void session.resolve(sessionID).catch(() => undefined)
+          void session
+            .resolve(sessionID)
+            .then(() => session.pending.sync(sessionID, { force: true }))
+            .catch(() => undefined)
         }
         return active
       },
@@ -387,7 +394,7 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     },
   })
 
-  async function loadSessions(directory: string, options?: { limit?: number }) {
+  async function loadSessions(directory: string, options?: { limit?: number; exact?: boolean }) {
     const key = directoryKey(directory)
     const pending = sessionLoads.get(key)
     if (pending) {
@@ -398,8 +405,10 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     children.pin(key)
     const [store, setStore] = children.child(directory, { bootstrap: false })
     const meta = sessionMeta.get(key)
-    const retainedLimit = Math.max(store.limit, options?.limit ?? 0, meta?.limit ?? 0)
-    if (meta && meta.limit >= retainedLimit) {
+    const retainedLimit = options?.exact
+      ? (options.limit ?? store.limit)
+      : Math.max(store.limit, options?.limit ?? 0, meta?.limit ?? 0)
+    if (!options?.exact && meta && meta.limit >= retainedLimit) {
       const next = trimSessions(store.session, {
         limit: retainedLimit,
         permission: session.data.permission,
@@ -411,7 +420,9 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
       return
     }
 
-    const limit = Math.max(retainedLimit + SESSION_RECENT_LIMIT, SESSION_RECENT_LIMIT)
+    const limit = options?.exact
+      ? Math.max(retainedLimit, 1)
+      : Math.max(retainedLimit + SESSION_RECENT_LIMIT, SESSION_RECENT_LIMIT)
     const promise = queryClient
       .fetchQuery({
         ...queryOptionsApi.sessions(key),
@@ -427,7 +438,9 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
                 .filter((s) => !!s?.id)
                 .filter((s) => !s.time?.archived)
                 .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-              const limit = Math.max(store.limit, options?.limit ?? 0, sessionMeta.get(key)?.limit ?? 0)
+              const limit = options?.exact
+                ? (options.limit ?? store.limit)
+                : Math.max(store.limit, options?.limit ?? 0, sessionMeta.get(key)?.limit ?? 0)
               const childSessions = store.session.filter((s) => !!s.parentID)
               const next = trimSessions([...nonArchived, ...childSessions], {
                 limit,
@@ -445,6 +458,7 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
                 )
                 setStore("session", reconcile(next, { key: "id" }))
               })
+              for (const info of next) void session.pending.sync(info.id, { force: true }).catch(() => {})
               sessionMeta.set(key, { limit })
             })
             .catch((err) => {
@@ -537,6 +551,20 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
 
     if (event.current) session.applyV2(event.current)
     session.apply(event)
+    if (eventType === "server.connected") {
+      const tracked = new Set([
+        ...Object.keys(session.data.pending_prompt),
+        ...Object.entries(session.data.session_status)
+          .filter(([, status]) => status.type !== "idle")
+          .map(([sessionID]) => sessionID),
+      ])
+      for (const sessionID of tracked) {
+        void session
+          .resolve(sessionID)
+          .then(() => session.pending.sync(sessionID, { force: true }))
+          .catch(() => {})
+      }
+    }
     if (event.type === "session.created" || event.type === "session.updated" || event.type === "session.deleted") {
       homeSessions.apply(event)
     }

@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process"
+import { prepareQuickStart } from "./quick-start"
 import { stat } from "node:fs/promises"
 import { basename, join } from "node:path"
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron"
@@ -6,7 +7,7 @@ import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 import type { DesktopMenuAction } from "@opencode-ai/app/desktop-menu"
 import { parseDesktopNativeBundle, type DesktopNativeBundle } from "@opencode-ai/app/i18n/desktop-native"
 
-import type { FatalRendererError, ServerReadyData, TitlebarTheme } from "../preload/types"
+import type { FatalRendererError, QuickChatOptions, ServerReadyData, TitlebarTheme } from "../preload/types"
 import { runDesktopMenuAction } from "./desktop-menu-actions"
 import { setForceFocus } from "./debug"
 import { assertAttachmentBudget, createPickedFileAuthorizations } from "./attachment-picker"
@@ -16,14 +17,18 @@ import {
   getWindowID,
   openExternalURL,
   openLocalFileURL,
+  createQuickChatWindow,
   setPinchZoomEnabled,
   setTitlebar,
   updateTitlebar,
 } from "./windows"
 import type { UpdaterController } from "./updater-controller"
+import { BrowserManager } from "./browser"
 import { createUpdaterSubscriptions } from "./updater-subscriptions"
 import { createDesktopDraftStore } from "./draft-store"
 import { nativeT } from "./native-translations"
+import { createLocalSpeech, isLocalSpeechAvailable } from "./speech-local"
+import type { SpeechRequest } from "@opencode-ai/app"
 
 const pickerFilters = (ext?: string[]) => {
   if (!ext || ext.length === 0) return undefined
@@ -52,14 +57,26 @@ type Deps = {
   exportDebugLogs: () => Promise<string>
   recordFatalRendererError: (error: FatalRendererError) => Promise<void> | void
   setNativeTranslations: (bundle: DesktopNativeBundle) => void
+  browser: BrowserManager
 }
 
 export function registerIpcHandlers(deps: Deps) {
+  ipcMain.handle("quick-start-directory", () => prepareQuickStart(app.getPath("documents")))
   const drafts = createDesktopDraftStore(join(app.getPath("userData"), "drafts.sqlite"))
   const updaterSubscriptions = createUpdaterSubscriptions()
+  const speechOwners = new Set<number>()
+  const speech = createLocalSpeech(join(app.getPath("userData"), "speech"), (progress) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (speechOwners.has(win.webContents.id) && !win.webContents.isDestroyed())
+        win.webContents.send("speech-progress", progress)
+    }
+  })
   app.once("will-quit", updaterSubscriptions.clear)
   app.on("before-quit", () => drafts.flush())
   app.once("will-quit", () => drafts.close())
+  app.once("will-quit", () => {
+    speech.dispose()
+  })
   app.on("browser-window-created", (_event, win) => win.on("session-end", () => drafts.flush()))
 
   ipcMain.handle("kill-sidecar", () => deps.killSidecar())
@@ -94,6 +111,92 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("updater-unsubscribe", (event) => updaterSubscriptions.delete(event.sender.id))
   ipcMain.handle("updater-check", () => deps.updater.check())
   ipcMain.handle("updater-install", () => deps.updater.install())
+  ipcMain.handle("speech-is-available", () => isLocalSpeechAvailable())
+  ipcMain.handle("speech-prepare", (event) => {
+    const owner = event.sender.id
+    if (!speechOwners.has(owner)) {
+      speechOwners.add(owner)
+      event.sender.once("destroyed", () => {
+        speechOwners.delete(owner)
+        speech.cancel(owner)
+      })
+    }
+    return speech.prepare()
+  })
+  ipcMain.handle("speech-transcribe", (event, request: SpeechRequest) => speech.transcribe(event.sender.id, request))
+  ipcMain.handle("speech-cancel", (event, captureID: string) => {
+    if (typeof captureID !== "string" || !/^[\w-]{1,100}$/.test(captureID)) return
+    speech.cancel(event.sender.id, captureID)
+  })
+  ipcMain.handle("browser-snapshot", (event: IpcMainInvokeEvent, sessionID: string) => {
+    validateBrowserSessionID(sessionID)
+    return deps.browser.snapshot(sessionID)
+  })
+  const computerSender = (event: IpcMainInvokeEvent) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || win.webContents !== event.sender || event.senderFrame !== event.sender.mainFrame)
+      throw Error("Invalid computer control sender")
+    return win
+  }
+  const computerWindows = new Map<number, string>()
+  ipcMain.handle("computer-status", (event) => { computerSender(event); return deps.browser.computer.status() })
+  ipcMain.handle("computer-control", (event, sessionID: string, controller: "off" | "user" | "agent") => {
+    const win = computerSender(event)
+    validateBrowserSessionID(sessionID)
+    const status = deps.browser.computer.control(sessionID, controller)
+    if (controller !== "off") {
+      if (!computerWindows.has(win.id)) win.once("closed", () => {
+        deps.browser.computer.release(computerWindows.get(win.id))
+        computerWindows.delete(win.id)
+      })
+      computerWindows.set(win.id, sessionID)
+    }
+    return status
+  })
+  ipcMain.handle("computer-frame", (event, sessionID: string, display?: number) => {
+    computerSender(event)
+    validateBrowserSessionID(sessionID)
+    return deps.browser.computer.frame(sessionID, display)
+  })
+  ipcMain.handle("browser-list-chrome-profiles", () => deps.browser.listChromeProfiles())
+  ipcMain.handle("browser-import-chrome-profile", (event: IpcMainInvokeEvent, sessionID: string, profileID: string) => {
+    validateBrowserSessionID(sessionID)
+    if (typeof profileID !== "string" || !/^[\w-]{1,100}$/.test(profileID)) throw new Error("Invalid browser profile")
+    return deps.browser.importChromeProfile(sessionID, profileID)
+  })
+  ipcMain.handle("browser-attach", (event: IpcMainInvokeEvent, sessionID: string, bounds: unknown) => {
+    validateBrowserSessionID(sessionID)
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) throw new Error("Browser window not found")
+    return deps.browser.attach(win, sessionID, validateBrowserBounds(bounds))
+  })
+  ipcMain.handle("browser-resize", (event: IpcMainInvokeEvent, sessionID: string, bounds: unknown) => {
+    validateBrowserSessionID(sessionID)
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) throw new Error("Browser window not found")
+    deps.browser.resize(win, sessionID, validateBrowserBounds(bounds))
+  })
+  ipcMain.handle("browser-detach", (event: IpcMainInvokeEvent, sessionID?: string) => {
+    if (sessionID) validateBrowserSessionID(sessionID)
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return
+    deps.browser.detach(win, sessionID)
+  })
+  ipcMain.handle(
+    "browser-action",
+    (event: IpcMainInvokeEvent, input: { sessionID: string; action: string; [key: string]: unknown }) => {
+      validateBrowserSessionID(input?.sessionID)
+      const win = BrowserWindow.fromWebContents(event.sender)
+      if (!win) throw new Error("Browser window not found")
+      return deps.browser.userAction(input as never)
+    },
+  )
+  ipcMain.handle("browser-control", (_event: IpcMainInvokeEvent, sessionID: string, controller: string) => {
+    validateBrowserSessionID(sessionID)
+    if (controller !== "agent" && controller !== "user" && controller !== "none")
+      throw new Error("Invalid browser controller")
+    return deps.browser.setController(sessionID, controller)
+  })
   ipcMain.handle("set-background-color", (_event: IpcMainInvokeEvent, color: string) => deps.setBackgroundColor(color))
   ipcMain.handle("export-debug-logs", () => deps.exportDebugLogs())
   ipcMain.handle("set-force-focus", (event: IpcMainInvokeEvent, enabled: boolean) =>
@@ -166,13 +269,13 @@ export function registerIpcHandlers(deps: Deps) {
     "open-file-picker",
     async (
       event: IpcMainInvokeEvent,
-      opts?: { multiple?: boolean; title?: string; defaultPath?: string; extensions?: string[] },
+      opts?: { multiple?: boolean; title?: string; defaultPath?: string; extensions?: string[]; allowAll?: boolean },
     ) => {
       const result = await dialog.showOpenDialog({
         properties: ["openFile", ...(opts?.multiple ? ["multiSelections" as const] : [])],
         title: opts?.title ?? nativeT("desktop.dialog.chooseFile"),
         defaultPath: opts?.defaultPath,
-        filters: pickerFilters(opts?.extensions),
+        filters: opts?.allowAll ? undefined : pickerFilters(opts?.extensions),
       })
       if (result.canceled) return null
       const files = await Promise.all(
@@ -251,6 +354,10 @@ export function registerIpcHandlers(deps: Deps) {
     return id
   })
 
+  ipcMain.handle("open-quick-chat", (event: IpcMainInvokeEvent, options?: QuickChatOptions) => {
+    createQuickChatWindow(options, BrowserWindow.fromWebContents(event.sender))
+  })
+
   ipcMain.handle("get-window-focused", (event: IpcMainInvokeEvent) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     return win?.isFocused() ?? false
@@ -259,6 +366,10 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("get-window-fullscreen", (event: IpcMainInvokeEvent) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     return win?.isFullScreen() ?? false
+  })
+  ipcMain.handle("get-window-maximized", (event: IpcMainInvokeEvent) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    return win?.isMaximized() ?? false
   })
 
   ipcMain.handle("set-window-focus", (event: IpcMainInvokeEvent) => {
@@ -297,6 +408,25 @@ export function registerIpcHandlers(deps: Deps) {
       relaunch: deps.relaunch,
     })
   })
+}
+
+function validateBrowserSessionID(value: unknown): asserts value is string {
+  if (typeof value !== "string" || value.length < 1 || value.length > 200) throw new Error("Invalid browser session ID")
+}
+
+function validateBrowserBounds(value: unknown) {
+  if (!value || typeof value !== "object") throw new Error("Invalid browser bounds")
+  const input = value as Record<string, unknown>
+  const valid = [input.x, input.y, input.width, input.height].every(
+    (item) => typeof item === "number" && Number.isFinite(item),
+  )
+  if (!valid) throw new Error("Invalid browser bounds")
+  return {
+    x: Math.max(0, Math.round(input.x as number)),
+    y: Math.max(0, Math.round(input.y as number)),
+    width: Math.max(1, Math.round(input.width as number)),
+    height: Math.max(1, Math.round(input.height as number)),
+  }
 }
 
 export function sendMenuCommand(win: BrowserWindow, id: string) {

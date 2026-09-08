@@ -27,7 +27,6 @@ import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
 import { Dialog } from "@opencode-ai/ui/dialog"
 import { getFilename } from "@opencode-ai/core/util/path"
 import { Session } from "@opencode-ai/sdk/v2/client"
-import { usePlatform } from "@/context/platform"
 import { useSettings } from "@/context/settings"
 import { createStore, produce, reconcile } from "solid-js/store"
 import { DragDropProvider, DragDropSensors, DragOverlay, SortableProvider, closestCenter } from "@thisbeyond/solid-dnd"
@@ -40,6 +39,8 @@ import { clearWorkspaceTerminals } from "@/context/terminal"
 import { pickSessionCacheEvictions } from "@/context/global-sync/session-cache"
 import { useNotification } from "@/context/notification"
 import { usePermission } from "@/context/permission"
+import { usePins } from "@/context/pins"
+import { usePlatform } from "@/context/platform"
 import { Binary } from "@opencode-ai/core/util/binary"
 import { retry } from "@opencode-ai/core/util/retry"
 import { playSoundById } from "@/utils/sound"
@@ -81,6 +82,7 @@ import {
   type WorkspaceSidebarContext,
 } from "./layout/sidebar-workspace"
 import { ProjectDragOverlay, SortableProject, type ProjectSidebarContext } from "./layout/sidebar-project"
+import { CodexSidebarPanel } from "./layout/sidebar-codex-panel"
 import { SidebarContent } from "./layout/sidebar-shell"
 
 export default function LegacyLayout(props: ParentProps) {
@@ -115,6 +117,7 @@ export default function LegacyLayout(props: ParentProps) {
   const server = useServer()
   const notification = useNotification()
   const permission = usePermission()
+  const pins = usePins()
   const navigate = useNavigate()
   const providers = useProviders(() => undefined)
   const dialog = useDialog()
@@ -868,33 +871,6 @@ export default function LegacyLayout(props: ParentProps) {
     }
   }
 
-  async function archiveSession(session: Session) {
-    if ((await serverSDK().protocol) !== "v1") return
-    const [store, setStore] = serverSync().child(session.directory)
-    const sessions = store.session ?? []
-    const index = sessions.findIndex((s) => s.id === session.id)
-    const nextSession = sessions[index + 1] ?? sessions[index - 1]
-
-    await serverSDK().client.session.update({
-      sessionID: session.id,
-      directory: session.directory,
-      time: { archived: Date.now() },
-    })
-    setStore(
-      produce((draft) => {
-        const match = Binary.search(draft.session, session.id, (s) => s.id)
-        if (match.found) draft.session.splice(match.index, 1)
-      }),
-    )
-    if (session.id === params.id) {
-      if (nextSession) {
-        navigate(`/${params.dir}/session/${nextSession.id}`)
-      } else {
-        navigate(`/${params.dir}/session`)
-      }
-    }
-  }
-
   command.register("layout", () => {
     const commands: CommandOption[] = [
       {
@@ -1310,6 +1286,7 @@ export default function LegacyLayout(props: ParentProps) {
   }
 
   function closeProject(directory: string) {
+    pins.unpinProject(directory)
     const list = layout.projects.list()
     const key = pathKey(directory)
     const index = list.findIndex((x) => pathKey(x.worktree) === key)
@@ -1866,7 +1843,6 @@ export default function LegacyLayout(props: ParentProps) {
     sidebarHovering,
     clearHoverProjectSoon,
     prefetchSession,
-    archiveSession,
     workspaceName,
     renameWorkspace,
     editorOpen,
@@ -1912,7 +1888,6 @@ export default function LegacyLayout(props: ParentProps) {
       sidebarExpanded,
       clearHoverProjectSoon,
       prefetchSession,
-      archiveSession,
     },
   }
 
@@ -2237,11 +2212,21 @@ export default function LegacyLayout(props: ParentProps) {
       settingsLabel={() => language.t("sidebar.settings")}
       settingsKeybind={() => command.keybind("settings.open")}
       onOpenSettings={openSettings}
-      helpLabel={() => language.t("sidebar.help")}
-      onOpenHelp={() => platform.openExternal("https://opencode.ai/desktop-feedback")}
-      renderPanel={() =>
-        mobile ? <SidebarPanel project={currentProject} mobile /> : <SidebarPanel project={currentProject} merged />
-      }
+      renderPanel={() => {
+        if (mobile) return <SidebarPanel project={currentProject} mobile />
+        return (
+            <CodexSidebarPanel
+              projects={projects}
+              currentProject={currentProject}
+              sortNow={sortNow}
+              wsCtx={workspaceSidebarCtx}
+              navigateToProject={(directory) => void navigateToProject(directory)}
+              navigateToNewSession={(directory) => navigateWithSidebarReset(`/${base64Encode(directory)}/session`)}
+              closeProject={closeProject}
+              showEditProjectDialog={(project) => showEditProjectDialog(server.current!, project)}
+            />
+          )
+      }}
     />
   )
 
@@ -2343,7 +2328,7 @@ export default function LegacyLayout(props: ParentProps) {
                 "absolute inset-0": true,
                 "xl:inset-y-0 xl:end-0 xl:start-[var(--main-left)]": true,
                 "z-20": true,
-                "transition-[inset-inline-start] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[inset-inline-start] motion-reduce:transition-none":
+                "transition-[left,right,inset-inline-start] duration-[260ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none":
                   !state.sizing,
               }}
               style={{

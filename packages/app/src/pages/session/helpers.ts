@@ -166,6 +166,17 @@ export const getTabReorderIndex = (tabs: readonly string[], from: string, to: st
   return toIndex
 }
 
+export const moveFollowupItem = <T extends { id: string }>(items: T[], id: string, delta: -1 | 1) => {
+  const list = [...items]
+  const index = list.findIndex((entry) => entry.id === id)
+  const next = index + delta
+  if (index === -1 || next < 0 || next >= list.length) return list
+  const [item] = list.splice(index, 1)
+  if (!item) return list
+  list.splice(next, 0, item)
+  return list
+}
+
 export const createSizing = () => {
   const [state, setState] = createStore({ active: false })
   let t: number | undefined

@@ -29,7 +29,7 @@ export const make = Effect.gen(function* () {
   ) {
     const photon = yield* loadPhoton
     const decoded = yield* Effect.try({
-      try: () => photon.PhotonImage.new_from_byteslice(Buffer.from(content.content, "base64")),
+      try: () => photon.PhotonImage.new_from_byteslice(Uint8Array.from(Buffer.from(content.content, "base64"))),
       catch: () => new DecodeError({ resource }),
     })
     try {

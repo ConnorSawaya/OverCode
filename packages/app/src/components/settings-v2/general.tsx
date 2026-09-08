@@ -26,6 +26,8 @@ import {
   type SoundSettingsController,
 } from "./general-controllers"
 import "./settings-v2.css"
+import { DictationSettings } from "./dictation"
+import { BackgroundSetting } from "./background-setting"
 
 const schemeOptions: ("system" | "light" | "dark")[] = ["system", "light", "dark"]
 const fontSettings = {
@@ -168,6 +170,8 @@ const AppearanceSection: Component<{ controller: AppearanceSettingsController }>
             onSelect={props.controller.theme.select}
           />
         </SettingsRowV2>
+
+        <BackgroundSetting />
 
         <FontSetting kind="ui" fonts={props.controller.fonts} />
         <FontSetting kind="code" fonts={props.controller.fonts} />
@@ -344,6 +348,47 @@ export const SettingsGeneralV2: Component<{
             />
           </div>
         </SettingsRowV2>
+
+        <SettingsRowV2
+          title={language.t("settings.general.row.composerEffects.title")}
+          description={language.t("settings.general.row.composerEffects.description")}
+        >
+          <div data-action="settings-composer-effects">
+            <Switch
+              hideLabel
+              checked={settings.general.composerEffects()}
+              onChange={(checked) => settings.general.setComposerEffects(checked)}
+            >
+              {language.t("settings.general.row.composerEffects.title")}
+            </Switch>
+          </div>
+        </SettingsRowV2>
+
+        <SettingsRowV2
+          title={language.t("settings.general.row.queueFollowup.title")}
+          description={language.t("settings.general.row.queueFollowup.description")}
+        >
+          <div data-action="settings-feed-queue-followup">
+            <Switch
+              checked={settings.general.followup() === "queue"}
+              onChange={(checked) => settings.general.setFollowup(checked ? "queue" : "steer")}
+            />
+          </div>
+        </SettingsRowV2>
+
+        <Show when={desktop() && platform.openQuickChat}>
+          <SettingsRowV2
+            title={language.t("settings.general.row.quickChat.title")}
+            description={language.t("settings.general.row.quickChat.description")}
+          >
+            <div data-action="settings-quick-chat">
+              <Switch
+                checked={settings.general.quickChatEnabled()}
+                onChange={(checked) => settings.general.setQuickChatEnabled(checked)}
+              />
+            </div>
+          </SettingsRowV2>
+        </Show>
 
         <SettingsRowV2
           title={language.t("settings.general.row.shellToolPartsExpanded.title")}
@@ -551,6 +596,9 @@ export const SettingsGeneralV2: Component<{
         </Show>
 
         <GeneralSection />
+        <Show when={desktop() && platform.speech}>
+          <DictationSettings />
+        </Show>
 
         <AppearanceSection controller={appearance} />
 

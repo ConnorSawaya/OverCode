@@ -10,7 +10,13 @@ import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { useLocal, type ModelSelection } from "@/context/local"
 import { usePermission } from "@/context/permission"
-import { type ContextItem, type ImageAttachmentPart, type Prompt, type usePrompt } from "@/context/prompt"
+import {
+  type ContextItem,
+  type ImageAttachmentPart,
+  type PastedTextPart,
+  type Prompt,
+  type usePrompt,
+} from "@/context/prompt"
 import { useSDK, type DirectorySDK } from "@/context/sdk"
 import { useSync, type DirectorySync } from "@/context/sync"
 import { Identifier } from "@/utils/id"
@@ -23,6 +29,7 @@ import { createPromptSubmissionState } from "./submission-state"
 import { normalizeSessionInfo } from "@/utils/session"
 import { Event } from "@opencode-ai/schema/event"
 import { blobDataUrl } from "@/utils/draft-store"
+import { parseGoalCommand } from "@/pages/session/session-goal"
 
 type PendingPrompt = {
   abort: AbortController
@@ -34,6 +41,8 @@ const pending = new Map<string, PendingPrompt>()
 export type FollowupDraft = {
   sessionID: string
   sessionDirectory: string
+  goalID?: string
+  synthetic?: boolean
   prompt: Prompt
   context: (ContextItem & { key: string })[]
   agent: string
@@ -47,24 +56,38 @@ type FollowupSendInput = {
   sync: DirectorySync
   draft: FollowupDraft
   messageID?: string
+  delivery?: "steer" | "queue"
   optimisticBusy?: boolean
   before?: () => Promise<boolean> | boolean
+  loadPastedText?: (part: PastedTextPart) => Promise<string>
 }
 
 const draftText = (prompt: Prompt) => prompt.map((part) => ("content" in part ? part.content : "")).join("")
 
 const draftImages = (prompt: Prompt) => prompt.filter((part): part is ImageAttachmentPart => part.type === "image")
+const draftPastedTexts = (prompt: Prompt) =>
+  prompt.filter((part): part is PastedTextPart => part.type === "pasted_text")
 
 export async function sendFollowupDraft(input: FollowupSendInput) {
   const text = draftText(input.draft.prompt)
   const images = draftImages(input.draft.prompt)
+  const pastedTextParts = draftPastedTexts(input.draft.prompt)
+  const pastedTexts = await Promise.all(
+    pastedTextParts.map(async (part) => ({
+      part,
+      text: await (input.loadPastedText
+        ? input.loadPastedText(part)
+        : fetch(part.blob.url).then((response) => response.text())),
+    })),
+  )
+  const queued = input.delivery === "queue"
   const setBusy = () => {
-    if (!input.optimisticBusy) return
+    if (!input.optimisticBusy || queued) return
     input.serverSync.session.set("session_status", input.draft.sessionID, { type: "busy" })
   }
 
   const setIdle = () => {
-    if (!input.optimisticBusy) return
+    if (!input.optimisticBusy || queued) return
     input.serverSync.session.set("session_status", input.draft.sessionID, { type: "idle" })
   }
 
@@ -76,7 +99,7 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
 
   const [head, ...tail] = text.split(" ")
   const cmd = head?.startsWith("/") ? head.slice(1) : undefined
-  if (cmd && input.sync.data.command.find((item) => item.name === cmd)) {
+  if (cmd && pastedTextParts.length === 0 && input.sync.data.command.find((item) => item.name === cmd)) {
     setBusy()
     try {
       if (!(await wait())) {
@@ -125,6 +148,8 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
     sessionID: input.draft.sessionID,
     messageID,
     sessionDirectory: input.draft.sessionDirectory,
+    synthetic: input.draft.synthetic,
+    pastedTexts,
   })
 
   const message: Message = {
@@ -151,16 +176,17 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
       messageID,
     })
 
-  batch(() => {
-    setBusy()
-    add()
-  })
+  if (!queued)
+    batch(() => {
+      setBusy()
+      add()
+    })
 
   try {
     if (!(await wait())) {
       batch(() => {
         setIdle()
-        remove()
+        if (!queued) remove()
       })
       return false
     }
@@ -171,6 +197,7 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
       agent: input.draft.agent,
       model: input.draft.model,
       variant: input.draft.variant,
+      delivery: input.delivery,
       legacyParts: requestParts,
       text: requestParts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n"),
       files: requestParts.flatMap((part) => {
@@ -197,11 +224,12 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
           : [],
       ),
     })
+    if (queued) await input.serverSync.session.pending.sync(input.draft.sessionID, { force: true })
     return true
   } catch (err) {
     batch(() => {
       setIdle()
-      remove()
+      if (!queued) remove()
     })
     throw err
   }
@@ -225,10 +253,12 @@ type PromptSubmitInput = {
   newSessionWorktree?: Accessor<string | undefined>
   onNewSessionWorktreeReset?: () => void
   shouldQueue?: Accessor<boolean>
-  onQueue?: (draft: FollowupDraft) => void
+  onQueue?: (draft: FollowupDraft) => Promise<boolean> | boolean
+  onGoal?: (title: string, session: { id: string; directory: string }) => Promise<boolean> | boolean
   onAbort?: () => void
   onSubmit?: () => void
   model?: ModelSelection
+  loadPastedText?: (part: PastedTextPart) => Promise<string>
 }
 
 export function createPromptSubmit(input: PromptSubmitInput) {
@@ -328,9 +358,10 @@ export function createPromptSubmit(input: PromptSubmitInput) {
     const context = submission.context
     const text = currentPrompt.map((part) => ("content" in part ? part.content : "")).join("")
     const images = input.imageAttachments().slice()
+    const pastedTextParts = currentPrompt.filter((part): part is PastedTextPart => part.type === "pasted_text")
     const mode = input.mode()
 
-    if (text.trim().length === 0 && images.length === 0 && input.commentCount() === 0) {
+    if (text.trim().length === 0 && images.length === 0 && pastedTextParts.length === 0 && input.commentCount() === 0) {
       if (input.working()) void abort()
       return
     }
@@ -479,8 +510,24 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       return true
     }
 
+    const goalTitle = pastedTextParts.length === 0 ? parseGoalCommand(text) : undefined
+    if (goalTitle !== undefined && input.onGoal) {
+      const handled = await input.onGoal(goalTitle, { id: session.id, directory: sessionDirectory })
+      if (handled === false) {
+        restoreInput()
+        return
+      }
+      clearContext(submission.target())
+      clearInput()
+      return
+    }
+
     if (!isNewSession && mode === "normal" && input.shouldQueue?.()) {
-      input.onQueue?.(draft)
+      const admitted = await input.onQueue?.(draft)
+      if (admitted === false) {
+        restoreInput()
+        return
+      }
       clearContext(submission.target())
       clearInput()
       return
@@ -488,7 +535,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
 
     input.onSubmit?.()
 
-    if (mode === "shell") {
+    if (mode === "shell" && pastedTextParts.length === 0) {
       clearInput()
       const eventID = Event.ID.create()
       sdk()
@@ -509,7 +556,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       return
     }
 
-    if (text.startsWith("/")) {
+    if (text.startsWith("/") && pastedTextParts.length === 0) {
       const [cmdName, ...args] = text.split(" ")
       const commandName = cmdName.slice(1)
       const customCommand = sync().data.command.find((c) => c.name === commandName)
@@ -616,7 +663,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       return true
     }
 
-    void sendFollowupDraft({
+    await sendFollowupDraft({
       api: sdk().api.session,
       sync: sync(),
       serverSync: serverSync(),
@@ -624,6 +671,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       messageID,
       optimisticBusy: sessionDirectory === projectDirectory,
       before: waitForWorktree,
+      loadPastedText: input.loadPastedText,
     }).catch((err) => {
       pending.delete(pendingKey(session.id))
       if (sessionDirectory === projectDirectory) {

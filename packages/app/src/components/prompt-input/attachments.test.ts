@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { LOCAL_FILE_REFERENCE_MIME } from "@opencode-ai/core/file"
 import { attachmentMime, pickAttachmentFiles } from "./files"
 import { pasteMode } from "./paste"
 
@@ -18,20 +19,32 @@ describe("attachmentMime", () => {
     expect(await attachmentMime(file)).toBe("text/plain")
   })
 
-  test("rejects binary files", async () => {
+  test("marks binary files as local references instead of rejecting them", async () => {
     const file = new File([Uint8Array.of(0, 255, 1, 2)], "blob.bin", { type: "application/octet-stream" })
-    expect(await attachmentMime(file)).toBeUndefined()
+    expect(await attachmentMime(file)).toBe(LOCAL_FILE_REFERENCE_MIME)
+  })
+
+  test("marks common office files as local references", async () => {
+    const file = new File([Uint8Array.of(80, 75, 3, 4)], "report.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    })
+    expect(await attachmentMime(file)).toBe(LOCAL_FILE_REFERENCE_MIME)
   })
 })
 
 describe("pickAttachmentFiles", () => {
   test("reads the current project directory for every native picker invocation", async () => {
     const paths: string[] = []
+    const allFiles: boolean[] = []
     const files: File[] = []
     const file = new File(["hello"], "hello.txt", { type: "text/plain" })
     let directory = "C:\\Projects\\LoremIpsum"
-    const picker = async (options?: { defaultPath?: string }, onFile?: (file: File) => Promise<unknown>) => {
+    const picker = async (
+      options?: { defaultPath?: string; allowAll?: boolean },
+      onFile?: (file: File) => Promise<unknown>,
+    ) => {
       paths.push(options?.defaultPath ?? "")
+      allFiles.push(options?.allowAll ?? false)
       await onFile?.(file)
     }
 
@@ -54,6 +67,7 @@ describe("pickAttachmentFiles", () => {
     await Promise.resolve()
     expect(files).toEqual([file, file])
     expect(paths).toEqual(["C:\\Projects\\LoremIpsum", "C:\\Projects\\DolorSit"])
+    expect(allFiles).toEqual([true, true])
   })
 
   test("uses the browser file input when no native picker exists", async () => {
@@ -103,6 +117,6 @@ describe("pasteMode", () => {
   })
 
   test("uses manual paste for large text", () => {
-    expect(pasteMode("x".repeat(8000))).toBe("manual")
+    expect(pasteMode("x".repeat(12_000))).toBe("manual")
   })
 })

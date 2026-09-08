@@ -3,9 +3,20 @@ import {
   clampSessionPanelWidth,
   REVIEW_PANE_WIDTH_MIN,
   REVIEW_PANE_WIDTH_MIN_SPLIT,
+  sessionPanelAvailableWidth,
   SESSION_PANEL_WIDTH_MIN,
   sessionPanelWidthMax,
 } from "./session-panel-width"
+
+describe("sessionPanelAvailableWidth", () => {
+  test("reserves the side panel and each flex gap", () => {
+    expect(sessionPanelAvailableWidth({ rowWidth: 1600, gap: 16, sidePanelWidth: 400 })).toBe(1184)
+  })
+
+  test("does not return a negative available width", () => {
+    expect(sessionPanelAvailableWidth({ rowWidth: 300, gap: 8, sidePanelWidth: 400 })).toBe(0)
+  })
+})
 
 describe("sessionPanelWidthMax", () => {
   test("reserves the unified review pane minimum", () => {

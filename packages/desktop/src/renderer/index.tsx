@@ -26,7 +26,7 @@ import { t } from "./i18n"
 import { initializationData } from "./initialization"
 import { DesktopFirstLaunchOnboarding } from "./onboarding"
 import { resetZoom, setPinchZoomEnabled, webviewZoom, zoomIn, zoomOut } from "./webview-zoom"
-import { windowFullscreen } from "./window-fullscreen"
+import { windowFullscreen, windowMaximized } from "./window-fullscreen"
 import { availableStartupServer, readyWslConnections } from "./wsl/connections"
 import "./styles.css"
 import { Splash } from "@opencode-ai/ui/logo"
@@ -36,6 +36,7 @@ const root = document.getElementById("root")
 if (import.meta.env.DEV && !(root instanceof HTMLElement)) {
   throw new Error(t("desktop.error.dev.rootNotFound"))
 }
+document.documentElement.dataset.desktopShell = "true"
 
 if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
@@ -77,6 +78,15 @@ const emitDeepLinks = (urls: string[]) => {
   window.dispatchEvent(new CustomEvent(deepLinkEvent, { detail: { urls } }))
 }
 
+const isQuickChatWindow = new URLSearchParams(location.search).get("window") === "quick-chat"
+if (isQuickChatWindow) document.documentElement.dataset.opencodeWindow = "quick-chat"
+
+function base64Encode(value: string) {
+  const bytes = new TextEncoder().encode(value)
+  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("")
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
+}
+
 const listenForDeepLinks = () => {
   void window.api.consumeInitialDeepLinks().then((urls) => emitDeepLinks(urls))
   return window.api.onDeepLink((urls) => emitDeepLinks(urls))
@@ -102,9 +112,31 @@ function setLastActiveUrl(windowID: string, value: string) {
   } catch {}
 }
 
+function mainInitialUrl(windowID: string) {
+  const value = getLastActiveUrl(windowID)
+  return value === "/quick-chat" || value.startsWith("/quick-chat?") ? "/" : value
+}
+
+function quickChatInitialUrl() {
+  const params = new URLSearchParams(location.search)
+  const directory = params.get("directory")
+  const sessionID = params.get("sessionID")
+  const serverKey = params.get("server")
+  if (sessionID && serverKey) {
+    return `/server/${base64Encode(serverKey)}/session/${encodeURIComponent(sessionID)}`
+  }
+  if (sessionID && directory) {
+    return `/${base64Encode(directory)}/session/${encodeURIComponent(sessionID)}`
+  }
+  const query = new URLSearchParams()
+  if (directory) query.set("directory", directory)
+  if (serverKey) query.set("server", serverKey)
+  return `/quick-chat${query.size ? `?${query.toString()}` : ""}`
+}
+
 function DesktopMemoryRouter(props: BaseRouterProps & { windowID: string }) {
   const history = createMemoryHistory()
-  const initialUrl = getLastActiveUrl(props.windowID)
+  const initialUrl = isQuickChatWindow ? quickChatInitialUrl() : mainInitialUrl(props.windowID)
   if (initialUrl !== "/") history.set({ value: initialUrl, replace: true, scroll: false })
   onCleanup(history.listen((value) => setLastActiveUrl(props.windowID, value)))
   return <MemoryRouter {...props} history={history} />
@@ -169,6 +201,8 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
     platform: "desktop",
     os,
     version: pkg.version,
+    speech: window.api.speech,
+    quickStartDirectory: window.api.quickStartDirectory,
     windowID: windowState.id,
 
     async openDirectoryPickerDialog(opts) {
@@ -183,7 +217,8 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
         multiple: opts?.multiple ?? false,
         title: opts?.title,
         defaultPath: opts?.defaultPath,
-        extensions: opts?.extensions ?? ACCEPTED_FILE_EXTENSIONS,
+        extensions: opts?.allowAll ? undefined : (opts?.extensions ?? ACCEPTED_FILE_EXTENSIONS),
+        allowAll: opts?.allowAll,
       })
       if (!result) return
       try {
@@ -207,6 +242,12 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
         defaultPath: opts?.defaultPath,
       })
     },
+
+    openQuickChat(options) {
+      return window.api.openQuickChat(options)
+    },
+
+    browser: window.api.browser,
 
     openExternal(url: string) {
       window.api.openExternal(url)
@@ -428,6 +469,7 @@ function DesktopRoot(props: { windowState: DesktopWindowState }) {
     <PlatformProvider value={platform}>
       <AppBaseProviders
         locale={locale.latest}
+        defaultTheme="opencode-codex"
         onNativeTranslations={(bundle) => void window.api.setNativeTranslations(bundle).catch(() => undefined)}
       >
         <Show when={true}>{(_) => <App />}</Show>
@@ -446,7 +488,14 @@ render(() => {
 
   return (
     <Show when={windowState.latest} fallback={<LoadingSplash />} keyed>
-      {(state) => <DesktopRoot windowState={state} />}
+      {(state) => (
+        <div
+          data-component="desktop-window-shell"
+          data-edge-to-edge={windowFullscreen() || windowMaximized() ? "true" : undefined}
+        >
+          <DesktopRoot windowState={state} />
+        </div>
+      )}
     </Show>
   )
 }, root!)

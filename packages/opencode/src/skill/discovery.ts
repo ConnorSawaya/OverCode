@@ -20,6 +20,29 @@ class Index extends Schema.Class<Index>("Index")({
   skills: Schema.Array(IndexSkill),
 }) {}
 
+const GithubTree = Schema.Struct({
+  sha: Schema.String,
+  truncated: Schema.Boolean,
+  tree: Schema.Array(Schema.Struct({ path: Schema.String, type: Schema.String, mode: Schema.String, size: Schema.optional(Schema.Number) })),
+})
+
+export function githubSkillSource(value: string) {
+  const url = new URL(value)
+  if (url.hostname !== "github.com") return undefined
+  const match = url.pathname.match(/^\/([^/]+)\/([^/]+)\/(?:tree|blob)\/([^/]+)\/(.+?)\/?$/)
+  if (!match) throw new Error("Choose a GitHub skill folder, for example /owner/repo/tree/main/skills/name")
+  const [, owner, repo, ref, raw] = match
+  const folder = raw.replace(/\/SKILL\.md$/, "")
+  if (![owner, repo, ref, ...folder.split("/")].every((part) => /^[a-zA-Z0-9_.-]+$/.test(part) && part !== "." && part !== "..")) {
+    throw new Error("Unsupported GitHub skill path")
+  }
+  return { owner, repo, ref, folder }
+}
+
+export function safeSkillPath(value: string) {
+  return value.length > 0 && value.split("/").every((part) => part.length > 0 && part !== "." && part !== ".." && !/[\\:\x00-\x1f]/.test(part))
+}
+
 export interface Interface {
   readonly pull: (url: string) => Effect.Effect<string[]>
 }
@@ -47,6 +70,30 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | Path.Path | HttpClient
     })
 
     const pull = Effect.fn("Discovery.pull")(function* (url: string) {
+      const github = githubSkillSource(url)
+      if (github) {
+        const tree = yield* HttpClientRequest.get(`https://api.github.com/repos/${github.owner}/${github.repo}/git/trees/${github.ref}?recursive=1`).pipe(
+          HttpClientRequest.setHeader("User-Agent", "OpenCode"),
+          http.execute,
+          Effect.flatMap(HttpClientResponse.schemaBodyJson(GithubTree)),
+          Effect.orDie,
+        )
+        if (tree.truncated) return yield* Effect.die("Repository is too large; add a local skills folder instead")
+        const files = tree.tree.filter((item) => item.type === "blob" && item.path.startsWith(`${github.folder}/`))
+        if (!files.some((item) => item.path === `${github.folder}/SKILL.md`)) return yield* Effect.die("The selected folder has no SKILL.md")
+        if (files.length > 256 || files.reduce((sum, item) => sum + (item.size ?? 0), 0) > 20_000_000) return yield* Effect.die("Skill exceeds the download limit; add a local folder instead")
+        if (files.some((item) => !safeSkillPath(item.path) || item.mode === "120000")) return yield* Effect.die("Skill contains unsupported file paths or symbolic links")
+        const root = path.join(cache, "github", github.owner, github.repo, tree.sha, github.folder)
+        // Fetch support files first. SKILL.md is the install-complete marker.
+        for (const item of files.toSorted((a, b) => Number(a.path.endsWith("/SKILL.md")) - Number(b.path.endsWith("/SKILL.md")))) {
+          const ok = yield* download(
+            `https://raw.githubusercontent.com/${github.owner}/${github.repo}/${tree.sha}/${item.path.split("/").map(encodeURIComponent).join("/")}`,
+            path.join(root, item.path.slice(github.folder.length + 1)),
+          )
+          if (!ok) return yield* Effect.die("Skill download failed; retry the source")
+        }
+        return [root]
+      }
       const base = url.endsWith("/") ? url : `${url}/`
       const index = new URL("index.json", base).href
       const host = base.slice(0, -1)
@@ -70,7 +117,7 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | Path.Path | HttpClient
         (skill) => Effect.logWarning("skill entry missing SKILL.md", { url: index, skill: skill.name }),
         { discard: true },
       )
-      const list = data.skills.filter((skill) => skill.files.includes("SKILL.md"))
+      const list = data.skills.filter((skill) => safeSkillPath(skill.name) && skill.files.includes("SKILL.md") && skill.files.every(safeSkillPath))
 
       const dirs = yield* Effect.forEach(
         list,

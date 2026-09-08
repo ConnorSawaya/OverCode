@@ -12,14 +12,14 @@ export const collectBoundedResponseBody = (
     const declaredSize =
       parsedSize !== undefined && Number.isSafeInteger(parsedSize) && parsedSize >= 0 ? parsedSize : undefined
     if (declaredSize !== undefined && declaredSize > maximumBytes) return yield* Effect.fail(tooLarge())
-    let body = Buffer.allocUnsafe(Math.min(maximumBytes, declaredSize || 64 * 1024))
+    let body = new Uint8Array(Math.min(maximumBytes, declaredSize || 64 * 1024))
     let size = 0
     yield* Stream.runForEach(response.stream, (chunk) => {
       if (chunk.byteLength === 0) return Effect.void
       if (size + chunk.byteLength > maximumBytes) return Effect.fail(tooLarge())
       if (size + chunk.byteLength > body.byteLength) {
-        const grown = Buffer.allocUnsafe(Math.min(maximumBytes, Math.max(size + chunk.byteLength, body.byteLength * 2)))
-        body.copy(grown, 0, 0, size)
+        const grown = new Uint8Array(Math.min(maximumBytes, Math.max(size + chunk.byteLength, body.byteLength * 2)))
+        grown.set(body.subarray(0, size))
         body = grown
       }
       body.set(chunk, size)

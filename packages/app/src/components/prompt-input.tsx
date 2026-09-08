@@ -24,10 +24,13 @@ import {
   ImageAttachmentPart,
   AgentPart,
   FileAttachmentPart,
+  PastedTextPart,
 } from "@/context/prompt"
 import { useLayout } from "@/context/layout"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
+import { useSettings } from "@/context/settings"
+import { PromptFrame } from "@opencode-ai/ui/prompt-frame"
 import { useComments } from "@/context/comments"
 import { Button } from "@opencode-ai/ui/button"
 import { DockShellForm, DockTray } from "@opencode-ai/ui/dock-surface"
@@ -53,7 +56,7 @@ import { usePlatform } from "@/context/platform"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { createTextFragment, getCursorPosition, setCursorPosition, setRangeEdge } from "./prompt-input/editor-dom"
 import { createPromptAttachments } from "./prompt-input/attachments"
-import { ACCEPTED_FILE_TYPES, pickAttachmentFiles } from "./prompt-input/files"
+import { pickAttachmentFiles } from "./prompt-input/files"
 import {
   canNavigateHistoryAtCursor,
   navigatePromptHistory,
@@ -76,8 +79,10 @@ import { createPromptSubmit } from "./prompt-input/submit"
 import { PromptPopover, type AtOption, type SlashCommand } from "./prompt-input/slash-popover"
 import { PromptContextItems } from "./prompt-input/context-items"
 import { PromptImageAttachments } from "./prompt-input/image-attachments"
+import { PastedTextAttachments } from "./prompt-input/pasted-text-attachments"
+import { PastedTextViewer } from "./prompt-input/pasted-text-viewer"
 import { PromptDragOverlay } from "./prompt-input/drag-overlay"
-import { promptPlaceholder } from "./prompt-input/placeholder"
+import { createPromptPlaceholderAnimation, promptPlaceholder } from "./prompt-input/placeholder"
 import { createPromptInputTransientState } from "./prompt-input/transient-state"
 import { showToast } from "@/utils/toast"
 import { ImagePreview } from "@opencode-ai/ui/image-preview"
@@ -126,6 +131,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const command = useCommand()
   const permission = usePermission()
   const language = useLanguage()
+  const settings = useSettings()
   const platform = usePlatform()
   const tabs = () => props.controls.session.tabs
   let editorRef!: HTMLDivElement
@@ -256,6 +262,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const imageAttachments = createMemo(() =>
     prompt.current().filter((part): part is ImageAttachmentPart => part.type === "image"),
   )
+  const pastedTextAttachments = createMemo(() =>
+    prompt.current().filter((part): part is PastedTextPart => part.type === "pasted_text"),
+  )
 
   const [store, setStore] = createPromptInputTransientState(
     () => prompt.capture(),
@@ -281,7 +290,12 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       .current()
       .map((part) => ("content" in part ? part.content : ""))
       .join("")
-    return text.trim().length === 0 && imageAttachments().length === 0 && commentCount() === 0
+    return (
+      text.trim().length === 0 &&
+      imageAttachments().length === 0 &&
+      pastedTextAttachments().length === 0 &&
+      commentCount() === 0
+    )
   })
   const stopping = createMemo(() => working() && blank())
   const tip = () => {
@@ -329,6 +343,10 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       t: (key, params) => language.t(key as Parameters<typeof language.t>[0], params as never),
     }),
   )
+  const animatedPlaceholder = createPromptPlaceholderAnimation({
+    enabled: () => store.mode === "normal" && commentCount() === 0 && blank(),
+    fallback: placeholder,
+  })
 
   const historyComments = () => {
     const byID = new Map(comments.all().map((item) => [`${item.file}\n${item.id}`, item] as const))
@@ -1160,7 +1178,15 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     return true
   }
 
-  const { addAttachment, addAttachments, removeAttachment, handlePaste } = createPromptAttachments({
+  const {
+    addAttachment,
+    addAttachments,
+    removeAttachment,
+    removePastedText,
+    movePastedText,
+    copyPastedText,
+    handlePaste,
+  } = createPromptAttachments({
     prompt,
     editor: () => editorRef,
     isDialogActive: () => !!dialog.active,
@@ -1172,6 +1198,12 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     addPart,
     readClipboardImage: platform.readClipboardImage,
     getPathForFile: platform.getPathForFile,
+    onPastedTextError: (error) =>
+      showToast({
+        variant: "error",
+        title: language.t("common.requestFailed"),
+        description: error instanceof Error ? error.message : String(error),
+      }),
   })
 
   const fileAttachmentInput = () => (
@@ -1179,7 +1211,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       ref={(el) => (fileInputRef = el)}
       type="file"
       multiple
-      accept={ACCEPTED_FILE_TYPES.join(",")}
       class="hidden"
       onChange={(e) => {
         const list = e.currentTarget.files
@@ -1204,6 +1235,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       prompt,
       info,
       imageAttachments,
+      loadPastedText: (part) => fetch(part.blob.url).then((response) => response.text()),
       commentCount,
       autoAccept: () => accepting(),
       mode: () => store.mode,
@@ -1224,6 +1256,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       onNewSessionWorktreeReset: props.onNewSessionWorktreeReset,
       shouldQueue: props.shouldQueue,
       onQueue: props.onQueue,
+      onGoal: props.onGoal,
       onAbort: props.onAbort,
       onSubmit: props.onSubmit,
       model: props.controls.model.selection,
@@ -1386,6 +1419,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
           .join("")
           .trim().length === 0 &&
         imageAttachments().length === 0 &&
+        pastedTextAttachments().length === 0 &&
         commentCount() === 0
       ) {
         return
@@ -1468,6 +1502,12 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
           [props.class ?? ""]: !!props.class,
         }}
       >
+        <PromptFrame
+          enabled={settings.general.composerEffects()}
+          working={working()}
+          agent={props.controls.agents.current}
+          dragging={store.draggingType !== null}
+        />
         <PromptDragOverlay
           type={store.draggingType}
           label={language.t(store.draggingType === "@mention" ? "prompt.dropzone.file.label" : "prompt.dropzone.label")}
@@ -1496,6 +1536,13 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
           fileLabel={language.t("ui.common.file")}
           newLayoutDesigns={false}
         />
+        <PastedTextAttachments
+          attachments={pastedTextAttachments()}
+          onOpen={(attachment) => dialog.show(() => <PastedTextViewer attachment={attachment} />)}
+          onMove={(attachment) => void movePastedText(attachment.id)}
+          onCopy={(attachment) => void copyPastedText(attachment)}
+          onRemove={removePastedText}
+        />
         <div
           class="relative"
           onMouseDown={(e) => {
@@ -1517,7 +1564,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
               ref={bindEditorRef}
               role="textbox"
               aria-multiline="true"
-              aria-label={placeholder()}
+              aria-label={animatedPlaceholder()}
               contenteditable="true"
               autocapitalize={store.mode === "normal" ? "sentences" : "off"}
               autocorrect={store.mode === "normal" ? "on" : "off"}
@@ -1546,7 +1593,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
               classList={{ "font-mono!": store.mode === "shell" }}
               style={{ "padding-bottom": space, display: prompt.dirty() ? "none" : undefined }}
             >
-              {placeholder()}
+              {animatedPlaceholder()}
             </div>
           </div>
 
@@ -1565,7 +1612,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
               ref={fileInputRef}
               type="file"
               multiple
-              accept={ACCEPTED_FILE_TYPES.join(",")}
               class="hidden"
               onChange={(e) => {
                 const list = e.currentTarget.files

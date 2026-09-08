@@ -43,6 +43,8 @@ const icons = {
   "magnifying-glass": `<path d="M13 13L10.6418 10.6418M11.9552 7.47761C11.9552 9.95053 9.95053 11.9552 7.47761 11.9552C5.0047 11.9552 3 9.95053 3 7.47761C3 5.0047 5.0047 3 7.47761 3C9.95053 3 11.9552 5.0047 11.9552 7.47761Z" stroke="currentColor" stroke-linecap="square" vector-effect="non-scaling-stroke"/>`,
   "plus-small": `<path d="M9.99984 5.41699V10.0003M9.99984 10.0003V14.5837M9.99984 10.0003H5.4165M9.99984 10.0003H14.5832" stroke="currentColor" stroke-linecap="square"/>`,
   plus: `<path d="M9.9987 2.20703V9.9987M9.9987 9.9987V17.7904M9.9987 9.9987H2.20703M9.9987 9.9987H17.7904" stroke="currentColor" stroke-linecap="square"/>`,
+  microphone: `<path d="M10 3.75C10 2.64543 9.10457 1.75 8 1.75C6.89543 1.75 6 2.64543 6 3.75V8.25C6 9.35457 6.89543 10.25 8 10.25C9.10457 10.25 10 9.35457 10 8.25V3.75Z" stroke="currentColor"/><path d="M3.75 7.25V8.25C3.75 10.5972 5.65279 12.5 8 12.5C10.3472 12.5 12.25 10.5972 12.25 8.25V7.25M8 12.5V15M5.75 15H10.25" stroke="currentColor" stroke-linecap="round"/>`,
+  waveform: `<path d="M3 8V12M5.4 5.5V14.5M7.8 3V17M10.2 5.5V14.5M12.6 4V16M15 8V12" stroke="currentColor" stroke-linecap="round" stroke-width="1.25"/>`,
   "new-session": `<path d="M12 2H2V18H18V8M6 11.3818V14H8.61818L18 4.61818L15.3818 2L6 11.3818Z" stroke="currentColor"/>`,
   "new-session-active": `<path d="M6 11.3818V14H8.61818L18 4.61818L15.3818 2L6 11.3818Z" fill="currentColor" fill-opacity="0.1"/>
 <path d="M12 2H2V18H18V8M6 11.3818V14H8.61818L18 4.61818L15.3818 2L6 11.3818Z" stroke="currentColor"/>`,
@@ -82,6 +84,7 @@ const icons = {
   copy: `<path d="M6.2513 6.24935V2.91602H17.0846V13.7493H13.7513M13.7513 6.24935V17.0827H2.91797V6.24935H13.7513Z" stroke="currentColor" stroke-linecap="round"/>`,
   check: `<path d="M5 11.9657L8.37838 14.7529L15 5.83398" stroke="currentColor" stroke-linecap="square"/>`,
   photo: `<path d="M16.6665 16.6666L11.6665 11.6666L9.99984 13.3333L6.6665 9.99996L3.08317 13.5833M2.9165 2.91663H17.0832V17.0833H2.9165V2.91663ZM13.3332 7.49996C13.3332 8.30537 12.6803 8.95829 11.8748 8.95829C11.0694 8.95829 10.4165 8.30537 10.4165 7.49996C10.4165 6.69454 11.0694 6.04163 11.8748 6.04163C12.6803 6.04163 13.3332 6.69454 13.3332 7.49996Z" stroke="currentColor" stroke-linecap="square"/>`,
+  pin: `<path d="M7 3.5h6M7 3.5l1.8 7.2M13 3.5l-1.8 7.2M8.8 10.7L10 17M11.2 10.7L10 17" stroke="currentColor" stroke-linecap="square"/>`,
   share: `<path d="M10.0013 12.0846L10.0013 3.33464M13.7513 6.66797L10.0013 2.91797L6.2513 6.66797M17.0846 10.418V17.0846H2.91797V10.418" stroke="currentColor" stroke-linecap="square"/>`,
   shield: `<path d="M7.49935 9.3737L9.16602 11.0404L12.4994 7.70703M9.99935 2.08203L17.0827 4.3737V9.92565C17.0827 14.0694 13.3327 16.2487 9.99935 18.047C6.66602 16.2487 2.91602 14.0694 2.91602 9.92565V4.3737L9.99935 2.08203Z" stroke="currentColor" stroke-linecap="square"/>`,
   download: `<path d="M13.9583 10.6257L10 14.584L6.04167 10.6257M10 2.08398V13.959M16.25 17.9173H3.75" stroke="currentColor" stroke-linecap="square"/>`,

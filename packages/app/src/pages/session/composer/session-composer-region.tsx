@@ -11,6 +11,7 @@ import type { SessionComposerRegionController } from "./session-composer-region-
 export function SessionComposerRegion(props: {
   controller: SessionComposerRegionController
   promptInput: JSX.Element
+  goal?: JSX.Element
 }) {
   const language = useLanguage()
   const controller = props.controller
@@ -25,14 +26,17 @@ export function SessionComposerRegion(props: {
       ref={controller.setDockRef}
       data-component="session-prompt-dock"
       classList={{
-        "w-full shrink-0 flex flex-col justify-center items-center pb-3 pointer-events-none": true,
+        "w-full shrink-0 flex flex-col justify-center items-center pointer-events-none": true,
+        "pb-3": settings.general.newLayoutDesigns(),
         "bg-v2-background-bg-base": settings.general.newLayoutDesigns(),
         "bg-background-stronger": !settings.general.newLayoutDesigns(),
       }}
     >
       <div
         classList={{
-          "w-full px-3 pointer-events-auto": true,
+          "w-full pointer-events-auto": true,
+          "px-4": settings.general.newLayoutDesigns(),
+          "px-3": !settings.general.newLayoutDesigns(),
           "md:max-w-200 md:mx-auto 2xl:max-w-[1000px]": controller.centered(),
         }}
       >
@@ -60,6 +64,7 @@ export function SessionComposerRegion(props: {
         </Show>
 
         <Show when={controller.showComposer()}>
+          {props.goal}
           <Show when={controller.dock()}>
             <div
               classList={{
@@ -137,6 +142,7 @@ export function SessionComposerRegion(props: {
                   sending={controller.followup()!.sending}
                   onSend={controller.followup()!.onSend}
                   onEdit={controller.followup()!.onEdit}
+                  onRemove={controller.followup()!.onRemove}
                 />
               </Show>
               <Show

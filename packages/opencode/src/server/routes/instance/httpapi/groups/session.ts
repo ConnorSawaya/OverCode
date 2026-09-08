@@ -5,6 +5,7 @@ import { SessionV1 } from "@opencode-ai/core/v1/session"
 import { Session } from "@/session/session"
 import { MessageV2 } from "@/session/message-v2"
 import { SessionPrompt } from "@/session/prompt"
+import { SessionPromptQueue } from "@/session/prompt-queue"
 import { SessionRevert } from "@/session/revert"
 import { SessionStatus } from "@/session/status"
 import { SessionSummary } from "@/session/summary"
@@ -94,6 +95,9 @@ export const SessionPaths = {
   summarize: `${root}/:sessionID/summarize`,
   prompt: `${root}/:sessionID/message`,
   promptAsync: `${root}/:sessionID/prompt_async`,
+  pending: `${root}/:sessionID/pending`,
+  pendingItem: `${root}/:sessionID/pending/:messageID`,
+  pendingPromote: `${root}/:sessionID/pending/:messageID/promote`,
   command: `${root}/:sessionID/command`,
   shell: `${root}/:sessionID/shell`,
   revert: `${root}/:sessionID/revert`,
@@ -338,6 +342,42 @@ export const SessionApi = HttpApi.make("session")
             summary: "Send async message",
             description:
               "Create and send a new message to a session asynchronously, starting the session if needed and returning immediately.",
+          }),
+        ),
+        HttpApiEndpoint.get("pending", SessionPaths.pending, {
+          params: { sessionID: SessionID },
+          query: WorkspaceRoutingQuery,
+          success: described(Schema.Array(SessionPromptQueue.Info), "Pending prompts"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.pending",
+            summary: "List pending prompts",
+            description: "List durable queued prompts for this session in execution order.",
+          }),
+        ),
+        HttpApiEndpoint.delete("cancelPending", SessionPaths.pendingItem, {
+          params: { sessionID: SessionID, messageID: MessageID },
+          query: WorkspaceRoutingQuery,
+          success: described(Schema.Boolean, "Pending prompt cancelled"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.cancel_pending",
+            summary: "Cancel pending prompt",
+            description: "Cancel one queued prompt owned by this session.",
+          }),
+        ),
+        HttpApiEndpoint.post("promotePending", SessionPaths.pendingPromote, {
+          params: { sessionID: SessionID, messageID: MessageID },
+          query: WorkspaceRoutingQuery,
+          success: described(Schema.Boolean, "Pending prompt promoted"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.promote_pending",
+            summary: "Run pending prompt now",
+            description: "Promote one queued prompt into this session's active run without affecting other sessions.",
           }),
         ),
         HttpApiEndpoint.post("command", SessionPaths.command, {

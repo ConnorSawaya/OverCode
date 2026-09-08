@@ -2,6 +2,7 @@ import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { PermissionV1 } from "@opencode-ai/core/v1/permission"
 import path from "path"
 import { SessionV1 } from "@opencode-ai/core/v1/session"
+import { LOCAL_FILE_REFERENCE_MIME } from "@opencode-ai/core/file"
 import os from "os"
 import { SessionID, MessageID, PartID } from "./schema"
 import { MessageV2 } from "./message-v2"
@@ -56,6 +57,10 @@ import { SessionTable } from "@opencode-ai/core/session/sql"
 import { SessionReminders } from "./reminders"
 import { SessionTools } from "./tools"
 import { LLMEvent } from "@opencode-ai/llm"
+import { PromptInput } from "./prompt-input"
+import { SessionPromptQueue } from "./prompt-queue"
+
+export { PromptInput } from "./prompt-input"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -102,6 +107,9 @@ function isOrphanedInterruptedTool(part: SessionV1.ToolPart) {
 export interface Interface {
   readonly cancel: (sessionID: SessionID) => Effect.Effect<void>
   readonly prompt: (input: PromptInput) => Effect.Effect<SessionV1.WithParts, Image.Error>
+  readonly pending: (sessionID: SessionID) => Effect.Effect<SessionPromptQueue.Info[]>
+  readonly cancelPending: (input: { sessionID: SessionID; messageID: MessageID }) => Effect.Effect<boolean>
+  readonly promotePending: (input: { sessionID: SessionID; messageID: MessageID }) => Effect.Effect<boolean>
   readonly loop: (input: LoopInput) => Effect.Effect<SessionV1.WithParts>
   readonly shell: (input: ShellInput) => Effect.Effect<SessionV1.WithParts, Session.BusyError>
   readonly command: (input: CommandInput) => Effect.Effect<SessionV1.WithParts, Image.Error>
@@ -197,15 +205,18 @@ const layer = Layer.effect(
       modelID: ModelV2.ID
     }) {
       if (input.session.parentID) return
-      if (!Session.isDefaultTitle(input.session.title)) return
+      const autoTitle = input.session.metadata?.[Session.AUTO_TITLE_METADATA_KEY] === true
+      if (!Session.isDefaultTitle(input.session.title) && !autoTitle) return
 
       const real = (m: SessionV1.WithParts) =>
         m.info.role === "user" && !m.parts.every((p) => "synthetic" in p && p.synthetic)
       const idx = input.history.findIndex(real)
       if (idx === -1) return
-      if (input.history.filter(real).length !== 1) return
 
-      const context = input.history.slice(0, idx + 1)
+      // Keep the title grounded in the whole conversation. The first generated
+      // title uses the first prompt; subsequent prompts refresh it only while
+      // the title is still marked as AI-owned.
+      const context = input.history.filter((message) => message.info.role === "user" || message.info.role === "assistant")
       const firstUser = context[idx]
       if (!firstUser || firstUser.info.role !== "user") return
       const firstInfo = firstUser.info
@@ -247,9 +258,19 @@ const layer = Layer.effect(
         .find((line) => line.length > 0)
       if (!cleaned) return
       const t = cleaned.length > 100 ? cleaned.substring(0, 97) + "..." : cleaned
+      // A manual edit or the rename tool may have supplied a title while the model was running.
+      const current = yield* sessions.get(input.session.id)
+      if (!Session.isDefaultTitle(current.title) && current.metadata?.[Session.AUTO_TITLE_METADATA_KEY] !== true) return
       yield* sessions
         .setTitle({ sessionID: input.session.id, title: t })
         .pipe(Effect.catchCause((cause) => Effect.logError("failed to generate title", { error: Cause.squash(cause) })))
+      const titled = yield* sessions.get(input.session.id)
+      yield* sessions
+        .setMetadata({
+          sessionID: input.session.id,
+          metadata: { ...(titled.metadata ?? {}), [Session.AUTO_TITLE_METADATA_KEY]: true },
+        })
+        .pipe(Effect.catchCause((cause) => Effect.logError("failed to mark AI-generated title", { error: Cause.squash(cause) })))
     })
 
     const handleSubtask = Effect.fn("SessionPrompt.handleSubtask")(function* (input: {
@@ -810,6 +831,20 @@ const layer = Layer.effect(
               const filepath = fileURLToPath(part.url)
               const mime = (yield* fsys.isDir(filepath)) ? "application/x-directory" : part.mime
 
+              if (mime === LOCAL_FILE_REFERENCE_MIME) {
+                const filename = part.filename ?? path.basename(filepath)
+                return [
+                  {
+                    messageID: info.id,
+                    sessionID: input.sessionID,
+                    type: "text",
+                    synthetic: true,
+                    text: `Attached local file "${filename}" is not sent inline because its format may not be supported by the selected model. If you need to inspect it, use the appropriate local-file tool with ${JSON.stringify({ filePath: filepath })}. Keep this path internal unless the user asks for it.`,
+                  },
+                  { ...part, mime, messageID: info.id, sessionID: input.sessionID },
+                ]
+              }
+
               const { read } = yield* registry.named()
               const execRead = (args: Parameters<typeof read.execute>[0], extra?: Tool.Context["extra"]) => {
                 const controller = new AbortController()
@@ -1049,9 +1084,7 @@ const layer = Layer.effect(
       return { info, parts }
     }, Effect.scoped)
 
-    const prompt: (input: PromptInput) => Effect.Effect<SessionV1.WithParts, Image.Error> = Effect.fn(
-      "SessionPrompt.prompt",
-    )(function* (input: PromptInput) {
+    const persistPrompt = Effect.fn("SessionPrompt.persistPrompt")(function* (input: PromptInput) {
       const session = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
       yield* revert.cleanup(session)
       const message = yield* createUserMessage(input)
@@ -1066,7 +1099,26 @@ const layer = Layer.effect(
         yield* sessions.setPermission({ sessionID: session.id, permission: permissions })
       }
 
+      return message
+    })
+    const persistQueuedPrompt = (input: PromptInput & { messageID: MessageID }) =>
+      persistPrompt(input).pipe(Effect.catch(Effect.die))
+
+    const prompt: (input: PromptInput) => Effect.Effect<SessionV1.WithParts, Image.Error> = Effect.fn(
+      "SessionPrompt.prompt",
+    )(function* (input: PromptInput) {
+      if (input.delivery === "queue") {
+        const messageID = input.messageID ?? MessageID.ascending()
+        yield* SessionPromptQueue.enqueue(db, { ...input, messageID, delivery: "queue" })
+        yield* sessions.touch(input.sessionID)
+        yield* loop({ sessionID: input.sessionID })
+        return yield* loop({ sessionID: input.sessionID })
+      }
+
+      const message = yield* persistPrompt(input)
+
       if (input.noReply === true) return message
+      yield* loop({ sessionID: input.sessionID })
       return yield* loop({ sessionID: input.sessionID })
     })
 
@@ -1095,8 +1147,6 @@ const layer = Layer.effect(
 
           const { user: lastUser, assistant: lastAssistant, finished: lastFinished, tasks } = MessageV2.latest(msgs)
 
-          if (!lastUser) throw new Error("No user message found in stream. This should never happen.")
-
           const lastAssistantMsg = msgs.findLast(
             (msg) => msg.info.role === "assistant" && msg.info.id === lastAssistant?.id,
           )
@@ -1107,6 +1157,23 @@ const layer = Layer.effect(
             lastAssistantMsg?.parts.some(
               (part) => part.type === "tool" && !part.metadata?.providerExecuted && !isOrphanedInterruptedTool(part),
             ) ?? false
+
+          const completed =
+            !!lastUser &&
+            !!lastAssistant?.finish &&
+            !["tool-calls", "unknown"].includes(lastAssistant.finish) &&
+            !hasToolCalls &&
+            lastAssistant.parentID === lastUser.id
+
+          if (!lastUser || completed) {
+            const promoted = yield* SessionPromptQueue.promote(db, { sessionID }, persistQueuedPrompt)
+            if (promoted) {
+              step = 0
+              continue
+            }
+          }
+
+          if (!lastUser) throw new Error("No user message found in stream. This should never happen.")
 
           if (
             lastAssistant?.finish &&
@@ -1136,7 +1203,12 @@ const layer = Layer.effect(
               modelID: lastUser.model.modelID,
               providerID: lastUser.model.providerID,
               history: msgs,
-            }).pipe(Effect.ignore, Effect.forkIn(scope))
+            }).pipe(
+              Effect.catchCause((cause) =>
+                Effect.logWarning("failed to generate title", { error: Cause.squash(cause) }),
+              ),
+              Effect.forkIn(scope),
+            )
 
           const model = yield* getModel(lastUser.model.providerID, lastUser.model.modelID, sessionID)
           const task = tasks.pop()
@@ -1331,7 +1403,14 @@ const layer = Layer.effect(
             Effect.ensuring(instruction.clear(handle.message.id)),
             Effect.onInterrupt(() => finalizeInterruptedAssistant),
           )
-          if (outcome === "break") break
+          if (outcome === "break") {
+            const promoted = yield* SessionPromptQueue.promote(db, { sessionID }, persistQueuedPrompt)
+            if (promoted) {
+              step = 0
+              continue
+            }
+            break
+          }
           continue
         }
 
@@ -1344,6 +1423,31 @@ const layer = Layer.effect(
       input: LoopInput,
     ) {
       return yield* state.ensureRunning(input.sessionID, lastAssistant(input.sessionID), runLoop(input.sessionID))
+    })
+
+    const pending = (sessionID: SessionID) => SessionPromptQueue.list(db, sessionID)
+
+    const cancelPending = Effect.fn("SessionPrompt.cancelPending")(function* (input: {
+      sessionID: SessionID
+      messageID: MessageID
+    }) {
+      const removed = yield* SessionPromptQueue.cancel(db, input)
+      if (removed) yield* sessions.touch(input.sessionID)
+      return removed
+    })
+
+    const promotePending = Effect.fn("SessionPrompt.promotePending")(function* (input: {
+      sessionID: SessionID
+      messageID: MessageID
+    }) {
+      const promoted = yield* SessionPromptQueue.promote(db, input, persistQueuedPrompt)
+      if (!promoted) return false
+      yield* loop({ sessionID: input.sessionID }).pipe(
+        Effect.andThen(loop({ sessionID: input.sessionID })),
+        Effect.catchCause((cause) => Effect.logError("queued prompt failed", { sessionID: input.sessionID, cause })),
+        Effect.forkIn(scope, { startImmediately: true }),
+      )
+      return true
     })
 
     const shell: (input: ShellInput) => Effect.Effect<SessionV1.WithParts, Session.BusyError> = Effect.fn(
@@ -1480,9 +1584,25 @@ const layer = Layer.effect(
       return result
     })
 
+    yield* Effect.gen(function* () {
+      const ctx = yield* InstanceState.context
+      const pendingSessions = yield* SessionPromptQueue.sessions(db, ctx.directory)
+      yield* Effect.forEach(
+        pendingSessions,
+        (sessionID) => loop({ sessionID }).pipe(Effect.andThen(loop({ sessionID }))),
+        { concurrency: "unbounded", discard: true },
+      )
+    }).pipe(
+      Effect.catchCause((cause) => Effect.logError("failed to resume queued sessions", { cause })),
+      Effect.forkIn(scope, { startImmediately: true }),
+    )
+
     return Service.of({
       cancel,
       prompt,
+      pending,
+      cancelPending,
+      promotePending,
       loop,
       shell,
       command,
@@ -1495,30 +1615,6 @@ const ModelRef = Schema.Struct({
   providerID: ProviderV2.ID,
   modelID: ModelV2.ID,
 })
-
-export const PromptInput = Schema.Struct({
-  sessionID: SessionID,
-  messageID: Schema.optional(MessageID),
-  model: Schema.optional(ModelRef),
-  agent: Schema.optional(Schema.String),
-  noReply: Schema.optional(Schema.Boolean),
-  tools: Schema.optional(Schema.Record(Schema.String, Schema.Boolean)).annotate({
-    description:
-      "@deprecated tools and permissions have been merged, you can set permissions on the session itself now",
-  }),
-  format: Schema.optional(SessionV1.Format),
-  system: Schema.optional(Schema.String),
-  variant: Schema.optional(Schema.String),
-  parts: Schema.Array(
-    Schema.Union([
-      SessionV1.TextPartInput,
-      SessionV1.FilePartInput,
-      SessionV1.AgentPartInput,
-      SessionV1.SubtaskPartInput,
-    ]).annotate({ discriminator: "type" }),
-  ),
-})
-export type PromptInput = Schema.Schema.Type<typeof PromptInput>
 
 export class LoopInput extends Schema.Class<LoopInput>("SessionPrompt.LoopInput")({
   sessionID: SessionID,

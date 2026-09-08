@@ -34,13 +34,18 @@ export function createPromptInputController(input: {
   const providersQuery = createQuery(() => input.queryOptions.providers(pathKey(sdk().directory)))
 
   return createMemo<PromptInputControls>(() => {
+    const agentOptions = local.agent.list().map((agent) => agent.name)
+    // Keep the primary Build affordance present while the server is still
+    // bootstrapping its agent list. Submission continues to resolve through
+    // the real local agent state.
+    const options = agentOptions.length > 0 ? agentOptions : ["build"]
     return {
       agents: {
         available: sync().data.agent,
-        options: local.agent.list().map((agent) => agent.name),
-        current: local.agent.current()?.name ?? "",
+        options,
+        current: local.agent.current()?.name ?? "build",
         loading: agentsQuery.isLoading,
-        visible: local.agent.visible(),
+        visible: true,
         select: local.agent.set,
       },
       model: {

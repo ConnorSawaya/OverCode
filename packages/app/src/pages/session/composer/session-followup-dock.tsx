@@ -3,6 +3,7 @@ import { createStore } from "solid-js/store"
 import { Button } from "@opencode-ai/ui/button"
 import { DockTray } from "@opencode-ai/ui/dock-surface"
 import { IconButton } from "@opencode-ai/ui/icon-button"
+import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { useLanguage } from "@/context/language"
 
 export function SessionFollowupDock(props: {
@@ -10,6 +11,7 @@ export function SessionFollowupDock(props: {
   sending?: string
   onSend: (id: string) => void
   onEdit: (id: string) => void
+  onRemove: (id: string) => void
 }) {
   const language = useLanguage()
   const [store, setStore] = createStore({
@@ -31,9 +33,10 @@ export function SessionFollowupDock(props: {
       }}
     >
       <div
-        class="pl-3 pr-2 py-2 flex items-center gap-2"
+        class="flex items-center gap-2 px-3 py-2"
         role="button"
         tabIndex={0}
+        aria-expanded={!store.collapsed}
         onClick={toggle}
         onKeyDown={(event) => {
           if (event.key !== "Enter" && event.key !== " ") return
@@ -75,26 +78,43 @@ export function SessionFollowupDock(props: {
         <div class="px-3 pb-7 flex flex-col gap-1.5 max-h-42 overflow-y-auto no-scrollbar">
           <For each={props.items}>
             {(item) => (
-              <div class="flex items-center gap-2 min-w-0 py-1">
-                <span class="min-w-0 flex-1 truncate text-13-regular text-text-strong">{item.text}</span>
-                <Button
-                  size="small"
-                  variant="secondary"
-                  class="shrink-0"
-                  disabled={!!props.sending}
-                  onClick={() => props.onSend(item.id)}
-                >
-                  {language.t("session.followupDock.sendNow")}
-                </Button>
-                <Button
-                  size="small"
-                  variant="ghost"
-                  class="shrink-0"
-                  disabled={!!props.sending}
-                  onClick={() => props.onEdit(item.id)}
-                >
-                  {language.t("session.followupDock.edit")}
-                </Button>
+              <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 py-1">
+                <span class="min-w-0 basis-full truncate text-13-regular text-text-strong md:flex-1 md:basis-auto">
+                  {item.text}
+                </span>
+                <div class="ml-auto flex max-w-full flex-wrap justify-end gap-1">
+                  <Button
+                    size="small"
+                    variant="secondary"
+                    class="shrink-0"
+                    disabled={!!props.sending}
+                    onClick={() => props.onSend(item.id)}
+                  >
+                    {language.t("session.followupDock.sendNow")}
+                  </Button>
+                  <Tooltip value={language.t("session.followupDock.edit")} placement="top">
+                    <IconButton
+                      icon="edit"
+                      size="small"
+                      variant="ghost"
+                      class="shrink-0 rounded-md"
+                      disabled={!!props.sending}
+                      aria-label={language.t("session.followupDock.edit")}
+                      onClick={() => props.onEdit(item.id)}
+                    />
+                  </Tooltip>
+                  <Tooltip value={language.t("session.followupDock.remove")} placement="top">
+                    <IconButton
+                      icon="trash"
+                      size="small"
+                      variant="ghost"
+                      class="shrink-0 rounded-md"
+                      disabled={!!props.sending}
+                      aria-label={language.t("session.followupDock.remove")}
+                      onClick={() => props.onRemove(item.id)}
+                    />
+                  </Tooltip>
+                </div>
               </div>
             )}
           </For>

@@ -48,6 +48,12 @@ function setup(
     current: createApiForServer({ server, fetch: fetcher }),
     legacy: (directory) => createSdkForServer({ server, fetch: fetcher, directory, throwOnError: true }),
     directory: "/repo",
+    request: async ({ path, method, directory }) => {
+      const headers = new Headers()
+      if (directory) headers.set("x-opencode-directory", encodeURIComponent(directory))
+      const response = await fetcher(new URL(path, server.url), { method, headers })
+      if (!response.ok) throw new Error(`Request failed: ${response.status}`)
+    },
   })
   return { api, requests }
 }
@@ -108,6 +114,40 @@ describe("createCompatibleApi", () => {
       ],
     })
     expect(body.parts[2]).not.toHaveProperty("source")
+  })
+
+  test("routes durable V1 queue reads and mutations to the owning session", async () => {
+    const { api, requests } = setup("v1")
+
+    await api.session.pending.list({ sessionID: "ses_1", directory: "/repo" })
+    await api.session.pending.promote({ sessionID: "ses_1", messageID: "msg_1", directory: "/repo" })
+    await api.session.pending.cancel({ sessionID: "ses_1", messageID: "msg_2", directory: "/repo" })
+
+    expect(requests.map((request) => [request.method, new URL(request.url).pathname])).toEqual([
+      ["GET", "/session/ses_1/pending"],
+      ["POST", "/session/ses_1/pending/msg_1/promote"],
+      ["DELETE", "/session/ses_1/pending/msg_2"],
+    ])
+    expect(
+      requests.every((request) => {
+        const url = new URL(request.url)
+        return request.headers.get("x-opencode-directory") === "%2Frepo" || url.searchParams.get("directory") === "/repo"
+      }),
+    ).toBe(true)
+  })
+
+  test("routes current deletion and queue mutations through exact V2 session endpoints", async () => {
+    const { api, requests } = setup("v2")
+
+    await api.session.remove({ sessionID: "ses_1", directory: "/repo" })
+    await api.session.pending.promote({ sessionID: "ses_1", messageID: "msg_1", directory: "/repo" })
+    await api.session.pending.cancel({ sessionID: "ses_1", messageID: "msg_2", directory: "/repo" })
+
+    expect(requests.map((request) => [request.method, new URL(request.url).pathname])).toEqual([
+      ["DELETE", "/api/session/ses_1"],
+      ["POST", "/api/session/ses_1/pending/msg_1/promote"],
+      ["DELETE", "/api/session/ses_1/pending/msg_2"],
+    ])
   })
 
   test("preserves original parts for V1 optimistic reconciliation", async () => {
