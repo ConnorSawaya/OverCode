@@ -22,6 +22,8 @@ function tauriDir(id: string) {
 }
 
 // The Tauri app identifier changes between dev/beta/prod builds.
+// These are the legacy OpenCode identifiers — Overcode only ever reads them,
+// to carry settings forward on first launch after the rebrand.
 const TAURI_APP_IDS: Record<string, string> = {
   dev: "ai.opencode.desktop.dev",
   beta: "ai.opencode.desktop.beta",
@@ -29,6 +31,24 @@ const TAURI_APP_IDS: Record<string, string> = {
 }
 function tauriAppId() {
   return app.isPackaged ? TAURI_APP_IDS[CHANNEL] : "ai.opencode.desktop.dev"
+}
+
+// Legacy OpenCode Electron userData directories, per channel. Same read-only
+// migration source as the Tauri dirs above.
+const LEGACY_APP_IDS: Record<string, string> = {
+  dev: "ai.opencode.desktop.dev",
+  beta: "ai.opencode.desktop.beta",
+  prod: "ai.opencode.desktop",
+}
+function electronUserDataDir(id: string) {
+  switch (process.platform) {
+    case "darwin":
+      return join(homedir(), "Library", "Application Support", id)
+    case "win32":
+      return join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), id)
+    default:
+      return join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), id)
+  }
 }
 
 // Migrate a single Tauri .dat file into the corresponding electron-store.
@@ -72,19 +92,21 @@ export function migrate() {
     return
   }
 
-  const dir = tauriDir(tauriAppId())
-  log.log("tauri migration: starting", { dir })
+  const legacyId = LEGACY_APP_IDS[CHANNEL] ?? LEGACY_APP_IDS.dev
+  const dirs = [...new Set([tauriDir(tauriAppId()), electronUserDataDir(legacyId)])]
+  log.log("tauri migration: starting", { dirs })
 
-  if (!existsSync(dir)) {
-    log.log("tauri migration: no tauri data directory found, nothing to migrate")
-    getStore().set(TAURI_MIGRATED_KEY, true)
-    return
+  let found = false
+  for (const dir of dirs) {
+    if (!existsSync(dir)) continue
+    found = true
+    for (const filename of readdirSync(dir)) {
+      if (!filename.endsWith(".dat")) continue
+      migrateFile(join(dir, filename), filename)
+    }
   }
 
-  for (const filename of readdirSync(dir)) {
-    if (!filename.endsWith(".dat")) continue
-    migrateFile(join(dir, filename), filename)
-  }
+  if (!found) log.log("tauri migration: no legacy data directory found, nothing to migrate")
 
   log.log("tauri migration: complete")
   getStore().set(TAURI_MIGRATED_KEY, true)

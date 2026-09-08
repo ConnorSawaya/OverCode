@@ -9,7 +9,16 @@ import { app } from "electron"
 const execFileAsync = promisify(execFile)
 const root = dirname(fileURLToPath(import.meta.url))
 const stateHome = process.env.XDG_STATE_HOME
-const desktopStateNames = ["ai.opencode.desktop.dev", "ai.opencode.desktop.beta", "ai.opencode.desktop"]
+const desktopStateNames = [
+  "ai.overcode.desktop.dev",
+  "ai.overcode.desktop.beta",
+  "ai.overcode.desktop",
+  // Legacy OpenCode state dirs — still probed so a service started by either
+  // app is reused instead of duplicated.
+  "ai.opencode.desktop.dev",
+  "ai.opencode.desktop.beta",
+  "ai.opencode.desktop",
+]
 
 type Logger = {
   log(message: string, meta?: Record<string, unknown>): void

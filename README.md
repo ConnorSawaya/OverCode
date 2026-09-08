@@ -1,18 +1,11 @@
+<h1 align="center">Overcode</h1>
+<p align="center">The open source AI coding agent, with a custom desktop.</p>
 <p align="center">
-  <a href="https://opencode.ai">
-    <picture>
-      <source srcset="packages/console/app/src/asset/logo-ornate-dark.svg" media="(prefers-color-scheme: dark)">
-      <source srcset="packages/console/app/src/asset/logo-ornate-light.svg" media="(prefers-color-scheme: light)">
-      <img src="packages/console/app/src/asset/logo-ornate-light.svg" alt="OpenCode logo">
-    </picture>
-  </a>
+  <a href="https://github.com/ConnorSawaya/opencode/actions"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/ConnorSawaya/opencode/publish.yml?style=flat-square&branch=dev" /></a>
 </p>
-<p align="center">The open source AI coding agent.</p>
-<p align="center">
-  <a href="https://opencode.ai/discord"><img alt="Discord" src="https://img.shields.io/discord/1391832426048651334?style=flat-square&label=discord" /></a>
-  <a href="https://www.npmjs.com/package/opencode-ai"><img alt="npm" src="https://img.shields.io/npm/v/opencode-ai?style=flat-square" /></a>
-  <a href="https://github.com/anomalyco/opencode/actions/workflows/publish.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/publish.yml?style=flat-square&branch=dev" /></a>
-</p>
+
+> **Overcode is a community fork of [opencode](https://github.com/anomalyco/opencode)**
+> (MIT licensed, © 2025 opencode). It is not built by, or affiliated with, the OpenCode team.
 
 <p align="center">
   <a href="README.md">English</a> |
@@ -64,23 +57,17 @@ nix run nixpkgs#opencode           # or github:anomalyco/opencode for latest dev
 > [!TIP]
 > Remove versions older than 0.1.x before installing.
 
-### Desktop App (BETA)
+### Desktop App (Overcode)
 
-OpenCode is also available as a desktop application. Download directly from the [releases page](https://github.com/anomalyco/opencode/releases) or [opencode.ai/download](https://opencode.ai/download).
+Overcode ships as a desktop application with a custom sidebar, dictation input, and session panels.
+Download it from this repo's [releases page](https://github.com/ConnorSawaya/opencode/releases).
 
 | Platform              | Download                           |
 | --------------------- | ---------------------------------- |
-| macOS (Apple Silicon) | `opencode-desktop-mac-arm64.dmg`   |
-| macOS (Intel)         | `opencode-desktop-mac-x64.dmg`     |
-| Windows               | `opencode-desktop-windows-x64.exe` |
+| macOS (Apple Silicon) | `overcode-desktop-mac-arm64.dmg`   |
+| macOS (Intel)         | `overcode-desktop-mac-x64.dmg`     |
+| Windows               | `overcode-desktop-windows-x64.exe` |
 | Linux                 | `.deb`, `.rpm`, or `.AppImage`     |
-
-```bash
-# macOS (Homebrew)
-brew install --cask opencode-desktop
-# Windows (Scoop)
-scoop bucket add extras; scoop install extras/opencode-desktop
-```
 
 #### Installation Directory
 
@@ -118,12 +105,15 @@ For more info on how to configure OpenCode, [**head over to our docs**](https://
 
 ### Contributing
 
-If you're interested in contributing to OpenCode, please read our [contributing docs](./CONTRIBUTING.md) before submitting a pull request.
+If you're interested in contributing to Overcode, please read our [contributing docs](./CONTRIBUTING.md) before submitting a pull request.
 
-### Building on OpenCode
+### License & Attribution
 
-If you are working on a project that's related to OpenCode and is using "opencode" as part of its name, for example "opencode-dashboard" or "opencode-mobile", please add a note to your README to clarify that it is not built by the OpenCode team and is not affiliated with us in any way.
+Overcode is a fork of [opencode](https://github.com/anomalyco/opencode), licensed under the
+[MIT License](./LICENSE) (© 2025 opencode, © 2026 Overcode).
+Overcode is not affiliated with the OpenCode team — please report Overcode-specific issues
+[here](https://github.com/ConnorSawaya/opencode/issues) instead of upstream.
 
 ---
 
-**Join our community** [Discord](https://discord.gg/opencode) | [X.com](https://x.com/opencode)
+**Overcode** — [repo](https://github.com/ConnorSawaya/opencode) | [issues](https://github.com/ConnorSawaya/opencode/issues)
