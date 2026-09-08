@@ -1,7 +1,7 @@
 <h1 align="center">Overcode</h1>
 <p align="center">The open source AI coding agent, with a custom desktop.</p>
 <p align="center">
-  <a href="https://github.com/ConnorSawaya/opencode/actions"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/ConnorSawaya/opencode/publish.yml?style=flat-square&branch=dev" /></a>
+  <a href="https://github.com/ConnorSawaya/overcode/actions"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/ConnorSawaya/overcode/publish.yml?style=flat-square&branch=dev" /></a>
 </p>
 
 > **Overcode is a community fork of [opencode](https://github.com/anomalyco/opencode)**
@@ -32,7 +32,7 @@
   <a href="README.vi.md">Tiếng Việt</a>
 </p>
 
-[![OpenCode Terminal UI](packages/web/src/assets/lander/screenshot.png)](https://opencode.ai)
+[![Overcode Terminal UI](packages/web/src/assets/lander/screenshot.png)](https://opencode.ai)
 
 ---
 
@@ -60,7 +60,7 @@ nix run nixpkgs#opencode           # or github:anomalyco/opencode for latest dev
 ### Desktop App (Overcode)
 
 Overcode ships as a desktop application with a custom sidebar, dictation input, and session panels.
-Download it from this repo's [releases page](https://github.com/ConnorSawaya/opencode/releases).
+Download it from this repo's [releases page](https://github.com/ConnorSawaya/overcode/releases).
 
 | Platform              | Download                           |
 | --------------------- | ---------------------------------- |
@@ -86,7 +86,7 @@ XDG_BIN_DIR=$HOME/.local/bin curl -fsSL https://opencode.ai/install | bash
 
 ### Agents
 
-OpenCode includes two built-in agents you can switch between with the `Tab` key.
+Overcode includes two built-in agents you can switch between with the `Tab` key.
 
 - **build** - Default, full-access agent for development work
 - **plan** - Read-only agent for analysis and code exploration
@@ -101,7 +101,7 @@ Learn more about [agents](https://opencode.ai/docs/agents).
 
 ### Documentation
 
-For more info on how to configure OpenCode, [**head over to our docs**](https://opencode.ai/docs).
+For more info on how to configure Overcode, [**head over to our docs**](https://opencode.ai/docs).
 
 ### Contributing
 
@@ -112,8 +112,8 @@ If you're interested in contributing to Overcode, please read our [contributing 
 Overcode is a fork of [opencode](https://github.com/anomalyco/opencode), licensed under the
 [MIT License](./LICENSE) (© 2025 opencode, © 2026 Overcode).
 Overcode is not affiliated with the OpenCode team — please report Overcode-specific issues
-[here](https://github.com/ConnorSawaya/opencode/issues) instead of upstream.
+[here](https://github.com/ConnorSawaya/overcode/issues) instead of upstream.
 
 ---
 
-**Overcode** — [repo](https://github.com/ConnorSawaya/opencode) | [issues](https://github.com/ConnorSawaya/opencode/issues)
+**Overcode** — [repo](https://github.com/ConnorSawaya/overcode) | [issues](https://github.com/ConnorSawaya/overcode/issues)
