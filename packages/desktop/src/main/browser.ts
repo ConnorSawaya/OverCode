@@ -12,8 +12,6 @@ import {
   type Session,
 } from "electron"
 import { getStore } from "./store"
-import { ComputerManager } from "./computer"
-import type { ComputerAction } from "@opencode-ai/app/context/computer"
 
 export type BrowserStatus =
   | "not_created"
@@ -328,9 +326,6 @@ const statusLabel = (action: string, target?: string, text?: string) => {
 }
 
 export class BrowserManager {
-  readonly computer = new ComputerManager((status) => {
-    for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.webContents.send("computer-event", status)
-  })
   private readonly browsers = new Map<string, ManagedBrowser>()
   private readonly ownerToBrowser = new Map<string, string>()
   private readonly windows = new Set<BrowserWindow>()
@@ -390,7 +385,6 @@ export class BrowserManager {
   }
 
   async stop() {
-    this.computer.release()
     for (const browser of this.browsers.values()) this.destroyBrowser(browser)
     this.browsers.clear()
     this.ownerToBrowser.clear()
@@ -613,7 +607,6 @@ export class BrowserManager {
   }
 
   async delete(ownerSessionId: string) {
-    this.computer.release(ownerSessionId)
     const browser = this.getByOwner(ownerSessionId, false)
     if (!browser) return
     this.destroyBrowser(browser)
@@ -1258,14 +1251,6 @@ export class BrowserManager {
       const body = req.method === "POST" ? await readBody(req) : {}
       const sessionID = String(body.sessionID ?? url.searchParams.get("sessionId") ?? "")
       if (!sessionID) return json(res, 400, { error: "sessionID is required" })
-      if (url.pathname === "/computer/status" && req.method === "GET") return json(res, 200, this.computer.status())
-      if (url.pathname === "/computer/action" && req.method === "POST") {
-        res.once("close", () => {
-          if (!res.writableEnded) this.computer.cancel(sessionID, typeof body.runID === "string" ? body.runID : undefined)
-        })
-        const result = await this.computer.action({ ...(body as unknown as ComputerAction), sessionID })
-        return json(res, 200, { result })
-      }
       if (url.pathname === "/snapshot" && req.method === "GET") return json(res, 200, this.snapshot(sessionID))
       if (url.pathname === "/control" && req.method === "POST") {
         return json(res, 200, this.setController(sessionID, body.controller as BrowserController))

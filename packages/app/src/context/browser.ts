@@ -1,5 +1,3 @@
-import type { ComputerPlatform } from "./computer"
-
 export type BrowserStatus =
   | "not_created"
   | "starting"
@@ -104,7 +102,6 @@ export type BrowserEvent = {
 export type BrowserBounds = { x: number; y: number; width: number; height: number }
 
 export type BrowserPlatform = {
-  computer: ComputerPlatform
   snapshot: (sessionID: string) => Promise<BrowserSnapshot>
   listChromeProfiles: () => Promise<BrowserProfileCandidate[]>
   importChromeProfile: (sessionID: string, profileID: string) => Promise<BrowserSnapshot>

@@ -1,11 +1,6 @@
 import { dict as en } from "./en"
 
 const keys = [
-  "computer.title", "computer.tab", "computer.description", "computer.share", "computer.connecting",
-  "computer.otherSession", "computer.unavailable", "computer.agent", "computer.user", "computer.allow",
-  "computer.stop", "computer.capturing", "computer.preview", "computer.live", "computer.display",
-  "computer.displayNumber", "computer.agentHelp", "computer.userHelp", "computer.emergency", "computer.working",
-  "computer.connectionError", "computer.controlError", "computer.captureError",
   "side.browser.importSettings", "side.browser.returnAgent",
   "sidebar.quickStart",
   "sidebar.quickStart.help",

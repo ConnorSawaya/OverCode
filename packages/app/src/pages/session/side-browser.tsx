@@ -7,7 +7,6 @@ import { usePlatform } from "@/context/platform"
 import type { BrowserBookmark, BrowserHistoryItem, BrowserProfileCandidate, BrowserSnapshot } from "@/context/browser"
 import { showToast } from "@/utils/toast"
 import { browserAddress } from "./side-panel-url"
-import { ComputerPanel } from "./side-computer"
 
 export function BrowserPanel(props: { sessionID?: string }) {
   const language = useLanguage()
@@ -22,7 +21,6 @@ export function BrowserPanel(props: { sessionID?: string }) {
     importing: false,
     selectedProfile: "",
     importedView: "bookmarks" as "bookmarks" | "history",
-    view: "browser" as "browser" | "computer",
     showImport: false,
   })
   let viewport!: HTMLDivElement
@@ -66,7 +64,6 @@ export function BrowserPanel(props: { sessionID?: string }) {
     ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(timestamp)
     : ""
   const shortcut = (key: string) => {
-    if (state.view !== "browser") return
     if (key === "l") focusAddress()
     if (key === "t" && !controlled()) void action({ action: "newTab" }).then(focusAddress)
     if (key === "w" && !controlled()) void action({ action: "closeTab" })
@@ -100,7 +97,7 @@ export function BrowserPanel(props: { sessionID?: string }) {
   })
   createEffect(() => {
     const sessionID = props.sessionID
-    if (!api || !sessionID || !viewport || state.overlay || state.view !== "browser") return
+    if (!api || !sessionID || !viewport || state.overlay) return
     const bounds = () => {
       const box = viewport.getBoundingClientRect()
       return { x: box.left, y: box.top, width: box.width, height: box.height }
@@ -147,21 +144,11 @@ export function BrowserPanel(props: { sessionID?: string }) {
   return (
     <section data-component="side-browser" class="flex h-full min-h-0 flex-1 flex-col bg-background-base">
       <div class="flex shrink-0 items-center gap-1 border-b border-border-weak-base px-2 py-1.5" aria-label={language.t("side.tabs.browser")}>
-        <For each={["browser", "computer"] as const}>{(view) =>
-          <button type="button" aria-pressed={state.view === view} onClick={() => setState("view", view)}
-            class="rounded-md px-3 py-1.5 text-12-medium text-text-weak hover:text-text-strong focus-visible:outline-2 focus-visible:outline-border-focus"
-            classList={{ "bg-surface-weak !text-text-strong": state.view === view }}>
-            {language.t(view === "browser" ? "side.tabs.browser" : "computer.tab")}
-          </button>}
-        </For>
-        <Show when={state.view === "browser"}>
-          <IconButton icon="settings-gear" variant="ghost" class="ml-auto size-7 rounded-md"
+        <IconButton icon="settings-gear" variant="ghost" class="ml-auto size-7 rounded-md"
             aria-label={language.t("side.browser.importSettings")} aria-expanded={state.showImport}
             onClick={() => setState("showImport", !state.showImport)} />
-        </Show>
       </div>
-      <Show when={state.view === "computer"}><ComputerPanel sessionID={props.sessionID} /></Show>
-      <div style={{ display: state.view === "browser" ? "contents" : "none" }}>
+      <div>
       <div class="flex shrink-0 items-center gap-1 border-b border-border-weak-base px-2 pt-1" role="tablist" aria-label={language.t("side.tabs.browser")}>
         <div class="flex min-w-0 flex-1 gap-1 overflow-x-auto">
           <For each={state.snapshot?.tabs ?? []}>

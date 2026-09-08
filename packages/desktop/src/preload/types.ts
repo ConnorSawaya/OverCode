@@ -1,5 +1,4 @@
 import type { DesktopMenuAction } from "@opencode-ai/app/desktop-menu"
-import type { ComputerPlatform } from "@opencode-ai/app/context/computer"
 import type { WslServersPlatform } from "@opencode-ai/app/wsl/types"
 import type { UpdaterState } from "@opencode-ai/app/updater"
 import type { DesktopNativeBundle } from "@opencode-ai/app/i18n/desktop-native"
@@ -33,7 +32,6 @@ export type UpdaterAPI = {
 export type SpeechAPI = SpeechPlatform
 
 export type BrowserAPI = {
-  computer: ComputerPlatform
   snapshot: (sessionID: string) => Promise<BrowserSnapshot>
   listChromeProfiles: () => Promise<BrowserProfileCandidate[]>
   importChromeProfile: (sessionID: string, profileID: string) => Promise<BrowserSnapshot>

@@ -132,32 +132,6 @@ export function registerIpcHandlers(deps: Deps) {
     validateBrowserSessionID(sessionID)
     return deps.browser.snapshot(sessionID)
   })
-  const computerSender = (event: IpcMainInvokeEvent) => {
-    const win = BrowserWindow.fromWebContents(event.sender)
-    if (!win || win.webContents !== event.sender || event.senderFrame !== event.sender.mainFrame)
-      throw Error("Invalid computer control sender")
-    return win
-  }
-  const computerWindows = new Map<number, string>()
-  ipcMain.handle("computer-status", (event) => { computerSender(event); return deps.browser.computer.status() })
-  ipcMain.handle("computer-control", (event, sessionID: string, controller: "off" | "user" | "agent") => {
-    const win = computerSender(event)
-    validateBrowserSessionID(sessionID)
-    const status = deps.browser.computer.control(sessionID, controller)
-    if (controller !== "off") {
-      if (!computerWindows.has(win.id)) win.once("closed", () => {
-        deps.browser.computer.release(computerWindows.get(win.id))
-        computerWindows.delete(win.id)
-      })
-      computerWindows.set(win.id, sessionID)
-    }
-    return status
-  })
-  ipcMain.handle("computer-frame", (event, sessionID: string, display?: number) => {
-    computerSender(event)
-    validateBrowserSessionID(sessionID)
-    return deps.browser.computer.frame(sessionID, display)
-  })
   ipcMain.handle("browser-list-chrome-profiles", () => deps.browser.listChromeProfiles())
   ipcMain.handle("browser-import-chrome-profile", (event: IpcMainInvokeEvent, sessionID: string, profileID: string) => {
     validateBrowserSessionID(sessionID)

@@ -68,16 +68,6 @@ const api: ElectronAPI = {
     },
   },
   browser: {
-    computer: {
-      status: () => ipcRenderer.invoke("computer-status"),
-      control: (sessionID, controller) => ipcRenderer.invoke("computer-control", sessionID, controller),
-      frame: (sessionID, display) => ipcRenderer.invoke("computer-frame", sessionID, display),
-      onEvent: (cb) => {
-        const handler = (_event: unknown, status: Parameters<typeof cb>[0]) => cb(status)
-        ipcRenderer.on("computer-event", handler)
-        return () => ipcRenderer.removeListener("computer-event", handler)
-      },
-    },
     snapshot: (sessionID) => ipcRenderer.invoke("browser-snapshot", sessionID),
     listChromeProfiles: () => ipcRenderer.invoke("browser-list-chrome-profiles"),
     importChromeProfile: (sessionID, profileID) => ipcRenderer.invoke("browser-import-chrome-profile", sessionID, profileID),
