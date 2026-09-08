@@ -66,7 +66,7 @@ Download it from this repo's [releases page](https://github.com/ConnorSawaya/ove
 | --------------------- | ---------------------------------- |
 | macOS (Apple Silicon) | `overcode-desktop-mac-arm64.dmg`   |
 | macOS (Intel)         | `overcode-desktop-mac-x64.dmg`     |
-| Windows               | `overcode-desktop-windows-x64.exe` |
+| Windows               | `overcode-desktop-win-x64.exe` |
 | Linux                 | `.deb`, `.rpm`, or `.AppImage`     |
 
 #### Installation Directory
