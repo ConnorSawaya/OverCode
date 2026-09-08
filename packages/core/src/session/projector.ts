@@ -372,19 +372,24 @@ const layer = Layer.effectDiscard(
         })
       }),
     )
-    yield* events.project(SessionEvent.PromptCancelled, (event) =>
-      SessionInput.projectCancelled(db, {
-        sessionID: event.data.sessionID,
-        messageID: event.data.messageID,
-      }),
-    )
-    yield* events.project(SessionEvent.PromptDeliveryChanged, (event) =>
-      SessionInput.projectDeliveryChanged(db, {
-        sessionID: event.data.sessionID,
-        messageID: event.data.messageID,
-        delivery: event.data.delivery,
-      }),
-    )
+    // Not registered: SessionEvent.PromptCancelled and
+    // SessionEvent.PromptDeliveryChanged are not defined in
+    // @opencode-ai/schema/session-event and nothing publishes them.
+    // (Registering them crashes Server.listen: project() reads
+    // definition.type of undefined.) Re-enable once the definitions exist.
+    // yield* events.project(SessionEvent.PromptCancelled, (event) =>
+    //   SessionInput.projectCancelled(db, {
+    //     sessionID: event.data.sessionID,
+    //     messageID: event.data.messageID,
+    //   }),
+    // )
+    // yield* events.project(SessionEvent.PromptDeliveryChanged, (event) =>
+    //   SessionInput.projectDeliveryChanged(db, {
+    //     sessionID: event.data.sessionID,
+    //     messageID: event.data.messageID,
+    //     delivery: event.data.delivery,
+    //   }),
+    // )
     yield* events.project(SessionEvent.ContextUpdated, (event) => run(db, event))
     yield* events.project(SessionEvent.Synthetic, (event) => run(db, event))
     yield* events.project(SessionEvent.Shell.Started, (event) => run(db, event))
