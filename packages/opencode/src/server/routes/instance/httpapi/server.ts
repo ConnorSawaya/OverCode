@@ -63,6 +63,8 @@ import { ProjectCopy } from "@opencode-ai/core/project/copy"
 import { PtyTicket } from "@opencode-ai/core/pty/ticket"
 import { Ripgrep } from "@opencode-ai/core/ripgrep"
 import { SessionProjector } from "@opencode-ai/core/session/projector"
+import { ProjectProjector } from "@opencode-ai/core/project/projector"
+import * as Sync from "@/sync/service"
 import { SessionV2 } from "@opencode-ai/core/session"
 import { SessionExecution } from "@opencode-ai/core/session/execution"
 import * as SessionExecutionLocal from "@opencode-ai/core/session/execution/local"
@@ -80,8 +82,10 @@ import {
   serverAuthorizationLayer,
 } from "./middleware/authorization"
 import { EventApi } from "./groups/event"
+import { DeviceSyncApi } from "./groups/device-sync"
 import { PtyConnectApi } from "./groups/pty"
 import { eventHandlers } from "./handlers/event"
+import { deviceSyncHandlers } from "./handlers/device-sync"
 import { configHandlers } from "./handlers/config"
 import { controlHandlers } from "./handlers/control"
 import { controlPlaneHandlers } from "./handlers/control-plane"
@@ -146,6 +150,10 @@ const rootApiRoutes = HttpApiBuilder.layer(RootHttpApi).pipe(
 const eventApiRoutes = HttpApiBuilder.layer(EventApi).pipe(
   Layer.provide(eventHandlers),
   Layer.provide([httpApiAuthLayer, workspaceRoutingLive, instanceContextLayer]),
+)
+const deviceSyncApiRoutes = HttpApiBuilder.layer(DeviceSyncApi).pipe(
+  Layer.provide(deviceSyncHandlers),
+  Layer.provide([httpApiAuthLayer, schemaErrorLayer]),
 )
 const ptyConnectApiRoutes = HttpApiBuilder.layer(PtyConnectApi).pipe(
   Layer.provide(ptyConnectHandlers),
@@ -234,6 +242,8 @@ const app = LayerNode.group([
   Todo.node,
   Session.node,
   SessionProjector.node,
+  ProjectProjector.node,
+  Sync.node,
   SessionStatus.node,
   BackgroundJob.node,
   RuntimeFlags.node,
@@ -276,6 +286,7 @@ export function createRoutes(
   return Layer.mergeAll(
     rootApiRoutes,
     eventApiRoutes,
+    deviceSyncApiRoutes,
     ptyConnectApiRoutes,
     instanceRoutes,
     serverRoutes,

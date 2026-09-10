@@ -11,6 +11,7 @@ export function terminalWebSocketURL(input: {
   username?: string
   password?: string
   authToken?: boolean
+  relayToken?: string
 }) {
   const isV1 = input.protocol === "v1"
   const next = new URL(`${input.url}${isV1 ? `/pty/${input.id}/connect` : `/api/pty/${input.id}/connect`}`)
@@ -21,6 +22,7 @@ export function terminalWebSocketURL(input: {
   }
   next.searchParams.set("cursor", String(input.cursor))
   next.protocol = next.protocol === "https:" ? "wss:" : "ws:"
+  if (input.relayToken) next.searchParams.set("token", input.relayToken)
   if (input.ticket) {
     next.searchParams.set("ticket", input.ticket)
     return next

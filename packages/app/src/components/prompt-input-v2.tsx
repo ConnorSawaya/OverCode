@@ -315,13 +315,26 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
     })),
   ])
   const slashCommands = createMemo(() => [
-    ...sync().data.command.map((item) => ({
-      id: `custom.${item.name}`,
-      trigger: item.name,
-      title: item.name,
-      description: item.description,
-      type: "custom" as const,
-    })),
+    ...(platform.platform === "desktop" && platform.computerUse
+      ? [
+          {
+            id: "computer-use",
+            trigger: "computer-use",
+            title: language.t("computerUse.title"),
+            description: language.t("computerUse.command.description"),
+            type: "custom" as const,
+          },
+        ]
+      : []),
+    ...sync()
+      .data.command.filter((item) => item.name !== "computer-use")
+      .map((item) => ({
+        id: `custom.${item.name}`,
+        trigger: item.name,
+        title: item.name,
+        description: item.description,
+        type: "custom" as const,
+      })),
     ...command.options
       .filter((item) => !item.disabled && !item.id.startsWith("suggested.") && item.slash)
       .map((item) => ({

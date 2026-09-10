@@ -3,6 +3,27 @@ import type { Prompt } from "@/context/prompt"
 import { buildRequestParts } from "./build-request-parts"
 
 describe("buildRequestParts", () => {
+  test("keeps task text visible while sending synthetic computer-use instructions in the same message", () => {
+    const text = "/computer-use open Settings"
+    const result = buildRequestParts({
+      prompt: [{ type: "text", content: text, start: 0, end: text.length }],
+      text,
+      instructions: "Use computer_use safely",
+      context: [],
+      images: [],
+      sessionID: "ses_computer",
+      messageID: "msg_computer",
+      sessionDirectory: "/repo",
+    })
+    expect(result.requestParts).toEqual([
+      expect.objectContaining({ type: "text", text: "Use computer_use safely", synthetic: true }),
+      expect.objectContaining({ type: "text", text, synthetic: undefined }),
+    ])
+    expect(result.optimisticParts.filter((part) => part.type === "text" && !part.synthetic)).toEqual([
+      expect.objectContaining({ text, sessionID: "ses_computer", messageID: "msg_computer" }),
+    ])
+  })
+
   test("keeps internal goal-loop instructions out of the visible transcript", () => {
     const result = buildRequestParts({
       prompt: [{ type: "text", content: "Continue the goal", start: 0, end: 17 }],

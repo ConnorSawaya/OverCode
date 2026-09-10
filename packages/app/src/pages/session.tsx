@@ -1991,12 +1991,14 @@ export default function Page() {
     void runFollowupAction(sessionID, id, "remove")
   }
 
-  const halt = (sessionID: string) =>
-    busy(sessionID)
-      ? sdk()
-          .api.session.interrupt({ sessionID })
-          .catch(() => {})
-      : Promise.resolve()
+  const halt = async (sessionID: string) => {
+    const session = sdk().api.session
+    const working = busy(sessionID)
+    await platform.computerUse?.stop(sessionID).catch(() => {
+      showToast({ title: language.t("computerUse.title"), description: language.t("computerUse.stopFailed") })
+    })
+    if (working) await session.interrupt({ sessionID }).catch(() => {})
+  }
 
   const sendGoalInstruction = async (input: {
     sessionID: string

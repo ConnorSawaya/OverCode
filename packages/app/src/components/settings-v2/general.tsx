@@ -28,6 +28,8 @@ import {
 import "./settings-v2.css"
 import { DictationSettings } from "./dictation"
 import { BackgroundSetting } from "./background-setting"
+import { ComputerUseSettings } from "../computer-use-settings"
+import { MobileAccessSettings } from "../mobile-access-settings"
 
 const schemeOptions: ("system" | "light" | "dark")[] = ["system", "light", "dark"]
 const fontSettings = {
@@ -596,6 +598,10 @@ export const SettingsGeneralV2: Component<{
         </Show>
 
         <GeneralSection />
+        <ComputerUseSettings v2 />
+        <Show when={desktop() && platform.mobileAccess}>
+          <MobileAccessSettings />
+        </Show>
         <Show when={desktop() && platform.speech}>
           <DictationSettings />
         </Show>

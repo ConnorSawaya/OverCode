@@ -1,7 +1,9 @@
 import type { DesktopMenuAction } from "@opencode-ai/app/desktop-menu"
+import type { ComputerUsePlatform } from "@opencode-ai/app/computer-use"
 import type { WslServersPlatform } from "@opencode-ai/app/wsl/types"
 import type { UpdaterState } from "@opencode-ai/app/updater"
 import type { DesktopNativeBundle } from "@opencode-ai/app/i18n/desktop-native"
+import type { MobileAccessPlatform, MobileAccessState, SyncDevicesPlatform } from "@opencode-ai/app"
 import type { BrowserBounds, BrowserController, BrowserEvent, BrowserProfileCandidate, BrowserSnapshot, SpeechPlatform } from "@opencode-ai/app"
 export type {
   WslDistroProbe,
@@ -77,6 +79,9 @@ export type FatalRendererError = {
 }
 
 export type ElectronAPI = {
+  computerUse: ComputerUsePlatform
+  mobileAccess: MobileAccessPlatform
+  syncDevices: SyncDevicesPlatform
   quickStartDirectory: () => Promise<string>
   killSidecar: () => Promise<void>
   installCli: () => Promise<string>
@@ -111,6 +116,7 @@ export type ElectronAPI = {
   openQuickChat: (options?: QuickChatOptions) => Promise<void>
   onMenuCommand: (cb: (id: string) => void) => () => void
   onDeepLink: (cb: (urls: string[]) => void) => () => void
+  onSyncProfileApplied: (cb: () => void) => () => void
 
   openDirectoryPicker: (opts?: {
     multiple?: boolean

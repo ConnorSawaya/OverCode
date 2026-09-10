@@ -137,11 +137,24 @@ export interface Interface {
   readonly project: <D extends Definition>(definition: D, projector: Subscriber<D>) => Effect.Effect<void>
   readonly replay: (
     event: SerializedEvent,
-    options?: { readonly publish?: boolean; readonly ownerID?: string; readonly strictOwner?: boolean },
+    options?: {
+      readonly publish?: boolean
+      readonly ownerID?: string
+      readonly strictOwner?: boolean
+      /** Append imported events after the local tail while retaining their stable IDs. */
+      readonly rebase?: boolean
+      readonly metadata?: Record<string, unknown>
+    },
   ) => Effect.Effect<void>
   readonly replayAll: (
     events: SerializedEvent[],
-    options?: { readonly publish?: boolean; readonly ownerID?: string; readonly strictOwner?: boolean },
+    options?: {
+      readonly publish?: boolean
+      readonly ownerID?: string
+      readonly strictOwner?: boolean
+      readonly rebase?: boolean
+      readonly metadata?: Record<string, unknown>
+    },
   ) => Effect.Effect<string | undefined>
   readonly remove: (aggregateID: string) => Effect.Effect<void>
   readonly claim: (aggregateID: string, ownerID: string) => Effect.Effect<void>
@@ -210,6 +223,7 @@ export const layerWith = (options?: LayerOptions) =>
           readonly aggregateID: string
           readonly ownerID?: string
           readonly strictOwner?: boolean
+          readonly rebase?: boolean
         },
         commit?: (seq: number) => Effect.Effect<void>,
       ) {
@@ -251,6 +265,26 @@ export const layerWith = (options?: LayerOptions) =>
                             string,
                             unknown
                           >
+                          const existingEvent = yield* db
+                            .select()
+                            .from(EventTable)
+                            .where(eq(EventTable.id, event.id))
+                            .get()
+                            .pipe(Effect.orDie)
+                          if (existingEvent) {
+                            if (
+                              existingEvent.aggregate_id === aggregateID &&
+                              existingEvent.type === versionedType(definition.type, durable.version) &&
+                              isDeepStrictEqual(existingEvent.data, encoded)
+                            )
+                              return
+                            yield* Effect.die(
+                              new InvalidDurableEventError({
+                                type: event.type,
+                                message: `Event ${event.id} already exists with different data`,
+                              }),
+                            )
+                          }
                           if (input?.strictOwner && row?.ownerID && row.ownerID !== input.ownerID) {
                             yield* Effect.die(
                               new InvalidDurableEventError({
@@ -259,7 +293,7 @@ export const layerWith = (options?: LayerOptions) =>
                               }),
                             )
                           }
-                          if (input && input.seq <= latest) {
+                          if (input && !input.rebase && input.seq <= latest) {
                             const stored = yield* db
                               .select()
                               .from(EventTable)
@@ -288,11 +322,11 @@ export const layerWith = (options?: LayerOptions) =>
                               }),
                             )
                           }
-                          if (input && row?.ownerID && row.ownerID !== input.ownerID) {
+                          if (input && !input.rebase && row?.ownerID && row.ownerID !== input.ownerID) {
                             return
                           }
-                          const seq = input?.seq ?? latest + 1
-                          if (input && seq !== latest + 1) {
+                          const seq = input?.rebase ? latest + 1 : (input?.seq ?? latest + 1)
+                          if (input && !input.rebase && seq !== latest + 1) {
                             yield* Effect.die(
                               new InvalidDurableEventError({
                                 type: event.type,
@@ -300,19 +334,6 @@ export const layerWith = (options?: LayerOptions) =>
                               }),
                             )
                           }
-                          const stored = yield* db
-                            .select({ aggregateID: EventTable.aggregate_id, seq: EventTable.seq })
-                            .from(EventTable)
-                            .where(eq(EventTable.id, event.id))
-                            .get()
-                            .pipe(Effect.orDie)
-                          if (stored)
-                            yield* Effect.die(
-                              new InvalidDurableEventError({
-                                type: event.type,
-                                message: `Event ${event.id} already exists at aggregate ${stored.aggregateID} sequence ${stored.seq}`,
-                              }),
-                            )
                           const committed = {
                             ...event,
                             durable: { aggregateID, seq, version: durable.version },
@@ -440,7 +461,13 @@ export const layerWith = (options?: LayerOptions) =>
 
       function replay(
         event: SerializedEvent,
-        options?: { readonly publish?: boolean; readonly ownerID?: string; readonly strictOwner?: boolean },
+        options?: {
+          readonly publish?: boolean
+          readonly ownerID?: string
+          readonly strictOwner?: boolean
+          readonly rebase?: boolean
+          readonly metadata?: Record<string, unknown>
+        },
       ) {
         return Effect.gen(function* () {
           const definition = Durable.get(event.type)
@@ -452,6 +479,7 @@ export const layerWith = (options?: LayerOptions) =>
             const payload = {
               id: event.id,
               type: definition.type,
+              ...(options?.metadata ? { metadata: options.metadata } : {}),
               data: Schema.decodeUnknownSync(definition.data)(event.data),
             } as Payload
             const committed = yield* commitDurableEvent(definition, payload, {
@@ -459,6 +487,7 @@ export const layerWith = (options?: LayerOptions) =>
               aggregateID: event.aggregateID,
               ownerID: options?.ownerID,
               strictOwner: options?.strictOwner,
+              rebase: options?.rebase,
             })
             if (committed && options?.publish) {
               yield* notify(
@@ -479,7 +508,13 @@ export const layerWith = (options?: LayerOptions) =>
 
       function replayAll(
         events: SerializedEvent[],
-        options?: { readonly publish?: boolean; readonly ownerID?: string; readonly strictOwner?: boolean },
+        options?: {
+          readonly publish?: boolean
+          readonly ownerID?: string
+          readonly strictOwner?: boolean
+          readonly rebase?: boolean
+          readonly metadata?: Record<string, unknown>
+        },
       ) {
         return Effect.gen(function* () {
           const source = events[0]?.aggregateID

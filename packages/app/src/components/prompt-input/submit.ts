@@ -10,6 +10,8 @@ import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { useLocal, type ModelSelection } from "@/context/local"
 import { usePermission } from "@/context/permission"
+import { usePlatform } from "@/context/platform"
+import type { ComputerUsePlatform } from "@/computer-use"
 import {
   type ContextItem,
   type ImageAttachmentPart,
@@ -30,6 +32,7 @@ import { normalizeSessionInfo } from "@/utils/session"
 import { Event } from "@opencode-ai/schema/event"
 import { blobDataUrl } from "@/utils/draft-store"
 import { parseGoalCommand } from "@/pages/session/session-goal"
+import { COMPUTER_USE_INSTRUCTIONS, parseComputerUseCommand } from "./computer-use"
 
 type PendingPrompt = {
   abort: AbortController
@@ -60,6 +63,7 @@ type FollowupSendInput = {
   optimisticBusy?: boolean
   before?: () => Promise<boolean> | boolean
   loadPastedText?: (part: PastedTextPart) => Promise<string>
+  instructions?: string
 }
 
 const draftText = (prompt: Prompt) => prompt.map((part) => ("content" in part ? part.content : "")).join("")
@@ -81,13 +85,15 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
     })),
   )
   const queued = input.delivery === "queue"
+  let markedBusy = false
   const setBusy = () => {
     if (!input.optimisticBusy || queued) return
+    markedBusy = true
     input.serverSync.session.set("session_status", input.draft.sessionID, { type: "busy" })
   }
 
   const setIdle = () => {
-    if (!input.optimisticBusy || queued) return
+    if (!markedBusy) return
     input.serverSync.session.set("session_status", input.draft.sessionID, { type: "idle" })
   }
 
@@ -99,7 +105,12 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
 
   const [head, ...tail] = text.split(" ")
   const cmd = head?.startsWith("/") ? head.slice(1) : undefined
-  if (cmd && pastedTextParts.length === 0 && input.sync.data.command.find((item) => item.name === cmd)) {
+  if (
+    !input.instructions &&
+    cmd &&
+    pastedTextParts.length === 0 &&
+    input.sync.data.command.find((item) => item.name === cmd)
+  ) {
     setBusy()
     try {
       if (!(await wait())) {
@@ -149,6 +160,7 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
     messageID,
     sessionDirectory: input.draft.sessionDirectory,
     synthetic: input.draft.synthetic,
+    instructions: input.instructions,
     pastedTexts,
   })
 
@@ -176,11 +188,14 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
       messageID,
     })
 
-  if (!queued)
+  const addOptimistic = () =>
     batch(() => {
       setBusy()
       add()
     })
+
+  // Computer-use admission checks must see real activity, not our optimistic busy state.
+  if (!queued && !input.instructions) addOptimistic()
 
   try {
     if (!(await wait())) {
@@ -191,8 +206,11 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
       return false
     }
 
+    if (!queued && input.instructions) addOptimistic()
+
     await input.api.prompt({
       sessionID: input.draft.sessionID,
+      directory: input.instructions ? input.draft.sessionDirectory : undefined,
       id: messageID,
       agent: input.draft.agent,
       model: input.draft.model,
@@ -268,6 +286,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
   const serverSync = useServerSync()
   const local = useLocal()
   const permission = usePermission()
+  const platform = usePlatform()
   const prompt = input.prompt
   const layout = useLayout()
   const language = useLanguage()
@@ -275,6 +294,25 @@ export function createPromptSubmit(input: PromptSubmitInput) {
   const [search] = useSearchParams<{ draftId?: string }>()
   const tabs = useTabs()
   const pendingKey = (sessionID: string) => ScopedKey.from(sdk().scope, sessionID)
+  type ComputerSubmission = { platform: ComputerUsePlatform; abort: AbortController; sessionID?: string }
+  let computerSubmission: ComputerSubmission | undefined
+
+  const stopComputerUse = async (sessionID?: string) => {
+    if (!platform.computerUse) return "idle" as const
+    return platform.computerUse.stop(sessionID).then(
+      (state) => {
+        if (state.phase === "idle" || state.phase === "stopping") return state.phase
+        if (!state.sessionID && state.phase === "error") return "idle" as const
+        if (sessionID && state.sessionID !== sessionID) return "idle" as const
+        showToast({ title: language.t("computerUse.title"), description: language.t("computerUse.stopFailed") })
+        return false
+      },
+      () => {
+        showToast({ title: language.t("computerUse.title"), description: language.t("computerUse.stopFailed") })
+        return false
+      },
+    )
+  }
 
   const errorMessage = (err: unknown) => {
     if (err && typeof err === "object" && "message" in err && typeof err.message === "string") return err.message
@@ -288,23 +326,25 @@ export function createPromptSubmit(input: PromptSubmitInput) {
 
   const abort = async () => {
     const sessionID = params.id
+    const api = sdk().api.session
+    const key = sessionID ? pendingKey(sessionID) : undefined
+    const server = serverSync()
+    computerSubmission?.abort.abort()
+    if (sessionID || computerSubmission?.sessionID) await stopComputerUse(computerSubmission?.sessionID ?? sessionID)
     if (!sessionID) return Promise.resolve()
 
-    serverSync().session.set("todo", sessionID, [])
+    server.session.set("todo", sessionID, [])
 
     input.onAbort?.()
 
-    const key = pendingKey(sessionID)
-    const queued = pending.get(key)
+    const queued = key ? pending.get(key) : undefined
     if (queued) {
       queued.abort.abort()
       queued.cleanup()
-      pending.delete(key)
+      if (key) pending.delete(key)
       return Promise.resolve()
     }
-    return sdk()
-      .api.session.interrupt({ sessionID })
-      .catch(() => {})
+    return api.interrupt({ sessionID }).catch(() => {})
   }
 
   const restoreCommentItems = (
@@ -330,9 +370,9 @@ export function createPromptSubmit(input: PromptSubmitInput) {
     }
   }
 
-  const seed = (dir: string, info: Session) => {
-    serverSync().session.remember(info)
-    const [, setStore] = serverSync().child(dir)
+  const seed = (dir: string, info: Session, server = serverSync()) => {
+    server.session.remember(info)
+    const [, setStore] = server.child(dir)
     setStore("session", (list: Session[]) => {
       const result = Binary.search(list, info.id, (item) => item.id)
       const next = [...list]
@@ -345,7 +385,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
     })
   }
 
-  const handleSubmit = async (event: Event) => {
+  const submit = async (event: Event, computer?: ComputerSubmission) => {
     event.preventDefault()
 
     const target = prompt.capture()
@@ -360,6 +400,27 @@ export function createPromptSubmit(input: PromptSubmitInput) {
     const images = input.imageAttachments().slice()
     const pastedTextParts = currentPrompt.filter((part): part is PastedTextPart => part.type === "pasted_text")
     const mode = input.mode()
+    const origin = {
+      sdk: sdk(),
+      url: sdk().url,
+      scope: sdk().scope,
+      directory: sdk().directory,
+      sync: sync(),
+      server: serverSync(),
+      id: params.id,
+      dir: params.dir,
+      draftID: search.draftId,
+    }
+    const unchanged = () =>
+      !computer?.abort.signal.aborted &&
+      sdk().scope === origin.scope &&
+      sdk().url === origin.url &&
+      sdk().directory === origin.directory &&
+      params.id === origin.id &&
+      params.dir === origin.dir &&
+      search.draftId === origin.draftID &&
+      submission.current(prompt.capture()) &&
+      target.current() === currentPrompt
 
     if (text.trim().length === 0 && images.length === 0 && pastedTextParts.length === 0 && input.commentCount() === 0) {
       if (input.working()) void abort()
@@ -389,6 +450,21 @@ export function createPromptSubmit(input: PromptSubmitInput) {
 
     let sessionDirectory = projectDirectory
     let client = sdk().client
+
+    const handoff = (sessionID: string) =>
+      startTransition(() => {
+        if (shouldAutoAccept) permissionState.enableAutoAccept(sessionID, sessionDirectory)
+        local.session.promote(sessionDirectory, sessionID, {
+          agent: currentAgent.name,
+          model: { providerID: currentModel.provider.id, modelID: currentModel.id },
+          variant: variant ?? null,
+        })
+        layout.handoff.setTabs(base64Encode(sessionDirectory), sessionID)
+        const draftID = search.draftId
+        if (draftID) tabs.promoteDraft(draftID, { server: tabs.draft(draftID).server, sessionId: sessionID })
+        else navigate(`/${base64Encode(sessionDirectory)}/session/${sessionID}`)
+        submission.retarget(prompt.capture({ dir: base64Encode(sessionDirectory), id: sessionID }))
+      })
 
     if (isNewSession) {
       if (worktreeSelection === "create") {
@@ -426,13 +502,17 @@ export function createPromptSubmit(input: PromptSubmitInput) {
         serverSync().child(sessionDirectory)
       }
 
-      input.onNewSessionWorktreeReset?.()
+      if (!computer) input.onNewSessionWorktreeReset?.()
     }
 
+    if (computer && !unchanged()) {
+      showToast({ title: language.t("computerUse.title"), description: language.t("computerUse.changed") })
+      return
+    }
     let session = input.info()
     if (!session && isNewSession) {
-      const created = await sdk()
-        .api.session.create({
+      const created = await (computer ? origin.sdk : sdk()).api.session
+        .create({
           agent: currentAgent.name,
           model: { id: currentModel.id, providerID: currentModel.provider.id, variant },
           location: { directory: sessionDirectory },
@@ -446,22 +526,9 @@ export function createPromptSubmit(input: PromptSubmitInput) {
           return undefined
         })
       if (created) {
-        seed(sessionDirectory, created)
+        seed(sessionDirectory, created, computer ? origin.server : serverSync())
         session = created
-        await startTransition(() => {
-          if (!session) return
-          if (shouldAutoAccept) permissionState.enableAutoAccept(session.id, sessionDirectory)
-          local.session.promote(sessionDirectory, session.id, {
-            agent: currentAgent.name,
-            model: { providerID: currentModel.provider.id, modelID: currentModel.id },
-            variant: variant ?? null,
-          })
-          layout.handoff.setTabs(base64Encode(sessionDirectory), session.id)
-          const draftID = search.draftId
-          if (draftID) tabs.promoteDraft(draftID, { server: tabs.draft(draftID).server, sessionId: session.id })
-          else navigate(`/${base64Encode(sessionDirectory)}/session/${session.id}`)
-          submission.retarget(prompt.capture({ dir: base64Encode(sessionDirectory), id: session.id }))
-        })
+        if (!computer) await handoff(session.id)
       }
     }
     if (!session) {
@@ -508,6 +575,85 @@ export function createPromptSubmit(input: PromptSubmitInput) {
         input.queueScroll()
       })
       return true
+    }
+
+    if (computer) {
+      computer.sessionID = session.id
+      let activated = false
+      let submitted = false
+      try {
+        if (!unchanged() || (!isNewSession && session.id !== origin.id))
+          throw new Error(language.t("computerUse.changed"))
+        // Consent must not outlive worktree preparation or follow a changing route.
+        const worktree = WorktreeState.get(origin.scope, sessionDirectory)
+        if (worktree?.status === "pending") {
+          const waiting = new AbortController()
+          const cancelled = () => waiting.abort()
+          computer.abort.signal.addEventListener("abort", cancelled, { once: true })
+          const timer = setTimeout(cancelled, 5 * 60 * 1000)
+          const result = await Promise.race([
+            WorktreeState.wait(origin.scope, sessionDirectory),
+            new Promise<undefined>((resolve) =>
+              waiting.signal.addEventListener("abort", () => resolve(undefined), { once: true }),
+            ),
+          ]).finally(() => {
+            clearTimeout(timer)
+            computer.abort.signal.removeEventListener("abort", cancelled)
+          })
+          if (!unchanged()) throw new Error(language.t("computerUse.changed"))
+          if (result?.status !== "ready") throw new Error(language.t("workspace.error.stillPreparing"))
+        }
+        const access = await computer.platform.state()
+        if (!unchanged()) throw new Error(language.t("computerUse.changed"))
+        if (input.working()) throw new Error(language.t("computerUse.busy"))
+        if (!access.available) throw new Error(language.t("computerUse.unavailable"))
+        if (access.phase !== "idle" && access.phase !== "error") {
+          throw new Error(
+            language.t(access.phase === "stopping" ? "computerUse.settings.stoppingStatus" : "computerUse.inUse"),
+          )
+        }
+        const state = await computer.platform.start(session.id, origin.url, sessionDirectory).catch(() => {
+          throw new Error(language.t("computerUse.failed"))
+        })
+        activated = state.phase === "active" && state.sessionID === session.id
+        const grantID = state.grantID
+        if (!unchanged()) throw new Error(language.t("computerUse.changed"))
+        if (!state.available || !activated || !grantID) {
+          throw new Error(language.t(state.phase === "error" ? "computerUse.failed" : "computerUse.notGranted"))
+        }
+        const sent = await sendFollowupDraft({
+          api: origin.sdk.api.session,
+          sync: origin.sync,
+          serverSync: origin.server,
+          draft,
+          instructions: COMPUTER_USE_INSTRUCTIONS(grantID),
+          optimisticBusy: sessionDirectory === projectDirectory,
+          loadPastedText: input.loadPastedText,
+          before: async () => {
+            const current = await computer.platform.state()
+            // A replacement grant is not ours to use or revoke during failed admission.
+            activated = current.sessionID === session.id && current.grantID === grantID
+            if (!unchanged()) throw new Error(language.t("computerUse.changed"))
+            if (input.working()) throw new Error(language.t("computerUse.busy"))
+            return current.available && current.phase === "active" && activated
+          },
+        })
+        if (!sent) throw new Error(language.t("computerUse.notGranted"))
+        if (!unchanged()) throw new Error(language.t("computerUse.changed"))
+        if (isNewSession) {
+          await handoff(session.id)
+          input.onNewSessionWorktreeReset?.()
+        }
+        clearContext(submission.target())
+        clearInput()
+        input.onSubmit?.()
+        submitted = true
+      } catch (err) {
+        showToast({ title: language.t("computerUse.title"), description: errorMessage(err) })
+      } finally {
+        if (activated && !submitted) await stopComputerUse(session.id)
+      }
+      return
     }
 
     const goalTitle = pastedTextParts.length === 0 ? parseGoalCommand(text) : undefined
@@ -683,6 +829,45 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       })
       removeOptimisticMessage()
       if (restoreInput()) restoreCommentItems(submission.target(), commentItems)
+    })
+  }
+
+  const handleSubmit = async (event: Event) => {
+    event.preventDefault()
+    const command = input.mode() === "normal" ? parseComputerUseCommand(draftText(prompt.current())) : undefined
+    if (!command) return submit(event)
+    if (command.type === "usage") {
+      showToast({ title: language.t("computerUse.title"), description: language.t("computerUse.usage") })
+      return
+    }
+    if (command.type === "off") {
+      computerSubmission?.abort.abort()
+      const target = prompt.capture()
+      const current = target.current()
+      const phase = await stopComputerUse()
+      if (!phase) return
+      if (target.current() === current) target.reset()
+      showToast({
+        title: language.t(phase === "stopping" ? "computerUse.settings.stoppingStatus" : "computerUse.stopped"),
+      })
+      return
+    }
+    if (platform.platform !== "desktop" || !platform.computerUse) {
+      showToast({ title: language.t("computerUse.title"), description: language.t("computerUse.unavailable") })
+      return
+    }
+    if (computerSubmission) {
+      showToast({ title: language.t("computerUse.title"), description: language.t("computerUse.pending") })
+      return
+    }
+    if (input.working()) {
+      showToast({ title: language.t("computerUse.title"), description: language.t("computerUse.busy") })
+      return
+    }
+    const request = { platform: platform.computerUse, abort: new AbortController() }
+    computerSubmission = request
+    await submit(event, request).finally(() => {
+      if (computerSubmission === request) computerSubmission = undefined
     })
   }
 

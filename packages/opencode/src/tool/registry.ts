@@ -56,6 +56,7 @@ import { MCP } from "@/mcp"
 import { PermissionV1 } from "@opencode-ai/core/v1/permission"
 import { McpCatalog } from "@/mcp/catalog"
 import { BrowserTool } from "./browser"
+import { ComputerUseTool } from "./computer-use"
 
 export function webSearchEnabled(providerID: ProviderV2.ID, flags = { exa: false, parallel: false }) {
   return (
@@ -111,6 +112,7 @@ const layer = Layer.effect(
     const webfetch = yield* WebFetchTool
     const websearch = yield* WebSearchTool
     const browser = yield* BrowserTool
+    const computer = yield* ComputerUseTool
     const shell = yield* ShellTool
     const globtool = yield* GlobTool
     const writetool = yield* WriteTool
@@ -224,6 +226,7 @@ const layer = Layer.effect(
           rename: Tool.init(rename),
           search: Tool.init(websearch),
           browser: Tool.init(browser),
+          computer: Tool.init(computer),
           skill: Tool.init(skilltool),
           patch: Tool.init(patchtool),
           question: Tool.init(question),
@@ -249,6 +252,7 @@ const layer = Layer.effect(
             tool.rename,
             tool.search,
             tool.browser,
+            tool.computer,
             tool.skill,
             tool.patch,
             ...(tool.execute ? [tool.execute] : []),

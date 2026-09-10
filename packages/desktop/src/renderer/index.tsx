@@ -201,6 +201,12 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
     platform: "desktop",
     os,
     version: pkg.version,
+    computerUse: window.api.computerUse,
+    mobileAccess: window.api.mobileAccess,
+    syncDevices: {
+      ...window.api.syncDevices,
+      onProfileApplied: window.api.onSyncProfileApplied,
+    },
     speech: window.api.speech,
     quickStartDirectory: window.api.quickStartDirectory,
     windowID: windowState.id,

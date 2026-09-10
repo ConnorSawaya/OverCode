@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { mkdirSync, rmSync } from "node:fs"
+import { existsSync, mkdirSync, rmSync } from "node:fs"
 import * as http from "node:http"
 import { createServer } from "node:net"
 import { homedir, tmpdir } from "node:os"
@@ -50,6 +50,13 @@ import { cleanupStoreFiles } from "./store-cleanup"
 import { startBackgroundCli } from "./background-cli"
 import { setNativeTranslations } from "./native-translations"
 import { BrowserManager } from "./browser"
+import { ComputerUseController } from "./computer-use"
+import { createComputerUseWorker } from "./computer-use-worker"
+import { MobileAccessController } from "./mobile-access"
+import { SyncDevicesController } from "./sync-devices"
+import { getStore } from "./store"
+import { COMPUTER_USE_COLOR_KEY } from "./store-keys"
+import { nativeT } from "./native-translations"
 
 const APP_NAMES: Record<string, string> = {
   dev: "Overcode Dev",
@@ -68,6 +75,9 @@ const jsCallStackFeature = "DocumentPolicyIncludeJSCallStacksInCrashReports"
 let logger: ReturnType<typeof initLogging>
 let server: SidecarListener | null = null
 let browserManager: BrowserManager | null = null
+let computerUse: ComputerUseController | undefined
+let mobileAccess: MobileAccessController | undefined
+let syncDevices: SyncDevicesController | undefined
 
 const pendingDeepLinks: string[] = []
 
@@ -88,6 +98,7 @@ function emitDeepLinks(urls: string[]) {
 }
 
 async function killSidecar() {
+  await computerUse?.stop()
   if (!server) return
   const current = server
   server = null
@@ -231,6 +242,9 @@ const main = Effect.gen(function* () {
 
   app.on("before-quit", () => {
     setAppQuitting()
+    void computerUse?.dispose()
+  void mobileAccess?.dispose()
+  syncDevices?.dispose()
     void Promise.all([stopSidecars(), stopBrowser()])
   })
 
@@ -262,6 +276,56 @@ const main = Effect.gen(function* () {
 
   yield* Effect.promise(() => app.whenReady())
 
+  const computerExecutable = join(
+    app.isPackaged ? process.resourcesPath : join(app.getAppPath(), "resources"),
+    "computer-use", "overcode-computer-use.exe",
+  )
+  computerUse = new ComputerUseController({
+    available: () => process.platform === "win32" && SIDECAR_VERSION === "v1" && existsSync(computerExecutable),
+    color: getStore().get(COMPUTER_USE_COLOR_KEY),
+    saveColor: (color) => getStore().set(COMPUTER_USE_COLOR_KEY, color),
+    labels: () => ({
+      active: nativeT("desktop.computerUse.overlay.active"),
+      stop: nativeT("desktop.computerUse.overlay.stop"),
+      escape: nativeT("desktop.computerUse.overlay.escape"),
+    }),
+    createWorker: (stopped) => createComputerUseWorker(computerExecutable, stopped),
+    changed: (state) => {
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("computer-use-state", state)
+      }
+    },
+    interrupt: async (owner, local) => {
+      const headers = new Headers()
+      if (local.password)
+        headers.set(
+          "Authorization",
+          `Basic ${Buffer.from(`${local.username ?? "opencode"}:${local.password}`).toString("base64")}`,
+        )
+      const target = (path: string, init?: RequestInit) => {
+        const url = new URL(path, local.url)
+        if (owner.directory) url.searchParams.set("directory", owner.directory)
+        return fetch(url, {
+          method: "POST",
+          headers,
+          redirect: "error",
+          signal: AbortSignal.timeout(2000),
+          ...init,
+        }).then((response) => {
+          if (!response.ok) throw new Error(`interrupt_failed_${response.status}`)
+        })
+      }
+      // The attached sidecar serves both the legacy prompt API and the v2
+      // session API; a computer grant may own execution on either runner.
+      const outcomes = await Promise.allSettled([
+        target(`/session/${encodeURIComponent(owner.sessionID)}/abort`),
+        target(`/api/session/${encodeURIComponent(owner.sessionID)}/interrupt`),
+      ])
+      if (outcomes.every((outcome) => outcome.status === "rejected")) throw new Error("interrupt_failed")
+    },
+  })
+  Object.assign(process.env, yield* Effect.promise(() => computerUse!.listen()))
+
   browserManager = new BrowserManager()
   yield* Effect.promise(() => browserManager!.start())
 
@@ -283,6 +347,13 @@ const main = Effect.gen(function* () {
   registerRendererProtocol()
   setDockIcon()
   const updater = setupAutoUpdater(stopSidecars)
+  const mobile = (mobileAccess = new MobileAccessController({
+    getLocalServer: () => Effect.runPromise(Deferred.await(serverReady)),
+  }))
+  const sync = (syncDevices = new SyncDevicesController({
+    mobileAccess: mobile,
+    getLocalServer: () => Effect.runPromise(Deferred.await(serverReady)),
+  }))
   const menuDeps = {
     trigger: (id: string) => {
       const win = getLastFocusedWindow()
@@ -322,6 +393,9 @@ const main = Effect.gen(function* () {
       if (setNativeTranslations(bundle)) createMenu(menuDeps)
     },
     browser: browserManager,
+    computerUse,
+    mobileAccess: mobile,
+    syncDevices: sync,
   })
   registerWslIpcHandlers(wslServers)
   yield* Effect.promise(() => startNetLog()).pipe(
@@ -388,10 +462,14 @@ const main = Effect.gen(function* () {
         userDataPath: app.getPath("userData"),
         onStdout: (message) => writeLog("server", "stdout", { message }),
         onStderr: (message) => writeLog("server", "stderr", { message }, "warn"),
-        onExit: (code) => writeLog("utility", "sidecar exited", { code }, "warn"),
+        onExit: (code) => {
+          computerUse?.setServer()
+          writeLog("utility", "sidecar exited", { code }, "warn")
+        },
       }),
     )
     server = listener
+    computerUse?.setServer({ url, username: "opencode", password })
     yield* Deferred.succeed(serverReady, {
       url,
       username: "opencode",

@@ -29,6 +29,7 @@ type BuildRequestPartsInput = {
   sessionID: string
   sessionDirectory: string
   synthetic?: boolean
+  instructions?: string
   pastedTexts?: { part: PastedTextPart; text: string }[]
 }
 
@@ -103,6 +104,15 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
         },
       ]
     : []
+
+  if (input.instructions) {
+    requestParts.unshift({
+      id: Identifier.ascending("part"),
+      type: "text",
+      text: input.instructions,
+      synthetic: true,
+    })
+  }
 
   const files = input.prompt.filter(isFileAttachment).map((attachment) => {
     const path = absolute(input.sessionDirectory, attachment.path)

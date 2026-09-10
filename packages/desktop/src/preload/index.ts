@@ -1,16 +1,69 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron"
 import type { ElectronAPI, WslServersEvent } from "./types"
+import type { MobileAccessState, SyncDevicesState } from "@opencode-ai/app"
 import type { UpdaterState } from "@opencode-ai/app/updater"
 
 const updaterCallbacks = new Set<(state: UpdaterState) => void>()
 let updaterState: UpdaterState | undefined
 let updaterSubscription: Promise<void> | undefined
+let mobileAccessState: MobileAccessState = { status: "disabled" }
+let syncDevicesState: SyncDevicesState = { status: "disabled", peers: [], projects: [] }
 const updaterHandler = (_: unknown, state: UpdaterState) => {
   updaterState = state
   updaterCallbacks.forEach((callback) => callback(state))
 }
 
 const api: ElectronAPI = {
+  computerUse: {
+    state: () => ipcRenderer.invoke("computer-use-state"),
+    start: (sessionID, serverUrl, directory) => ipcRenderer.invoke("computer-use-start", sessionID, serverUrl, directory),
+    stop: (sessionID) => ipcRenderer.invoke("computer-use-stop", sessionID),
+    setColor: (color) => ipcRenderer.invoke("computer-use-color", color),
+    onState: (callback) => {
+      const handler = (_event: unknown, state: Parameters<typeof callback>[0]) => callback(state)
+      ipcRenderer.on("computer-use-state", handler)
+      return () => ipcRenderer.removeListener("computer-use-state", handler)
+    },
+  },
+  mobileAccess: {
+    state: () => mobileAccessState,
+    start: () => ipcRenderer.invoke("mobile-access-start"),
+    stop: () => ipcRenderer.invoke("mobile-access-stop"),
+    revoke: () => ipcRenderer.invoke("mobile-access-revoke"),
+    newPairingCode: () => ipcRenderer.invoke("mobile-access-new-code"),
+    rotate: () => ipcRenderer.invoke("mobile-access-rotate"),
+    onState: (callback) => {
+      const handler = (_event: unknown, state: Parameters<typeof callback>[0]) => {
+        mobileAccessState = state
+        callback(state)
+      }
+      ipcRenderer.on("mobile-access-state", handler)
+      void ipcRenderer.invoke("mobile-access-subscribe")
+      return () => {
+        ipcRenderer.removeListener("mobile-access-state", handler)
+        void ipcRenderer.invoke("mobile-access-unsubscribe")
+      }
+    },
+  },
+  syncDevices: {
+    state: () => syncDevicesState,
+    pair: (code, relayUrl) => ipcRenderer.invoke("sync-devices-pair", code, relayUrl),
+    removePeer: (deviceId) => ipcRenderer.invoke("sync-devices-remove-peer", deviceId),
+    syncNow: () => ipcRenderer.invoke("sync-devices-sync-now"),
+    mapProject: (projectID, localWorktree) => ipcRenderer.invoke("sync-devices-map-project", projectID, localWorktree),
+    onState: (callback) => {
+      const handler = (_event: unknown, state: Parameters<typeof callback>[0]) => {
+        syncDevicesState = state
+        callback(state)
+      }
+      ipcRenderer.on("sync-devices-state", handler)
+      void ipcRenderer.invoke("sync-devices-subscribe")
+      return () => {
+        ipcRenderer.removeListener("sync-devices-state", handler)
+        void ipcRenderer.invoke("sync-devices-unsubscribe")
+      }
+    },
+  },
   killSidecar: () => ipcRenderer.invoke("kill-sidecar"),
   installCli: () => ipcRenderer.invoke("install-cli"),
   awaitInitialization: () => ipcRenderer.invoke("await-initialization"),
@@ -117,6 +170,15 @@ const api: ElectronAPI = {
     const handler = (_: unknown, urls: string[]) => cb(urls)
     ipcRenderer.on("deep-link", handler)
     return () => ipcRenderer.removeListener("deep-link", handler)
+  },
+  onSyncProfileApplied: (cb) => {
+    const handler = () => cb()
+    ipcRenderer.on("sync-profile-applied", handler)
+    void ipcRenderer.invoke("sync-profile-applied-subscribe")
+    return () => {
+      ipcRenderer.removeListener("sync-profile-applied", handler)
+      void ipcRenderer.invoke("sync-profile-applied-unsubscribe")
+    }
   },
 
   openDirectoryPicker: (opts) => ipcRenderer.invoke("open-directory-picker", opts),

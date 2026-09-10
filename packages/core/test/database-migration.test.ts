@@ -138,6 +138,18 @@ describe("DatabaseMigration", () => {
         expect(
           yield* db.get(sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'session_context_epoch'`),
         ).toEqual({ name: "session_context_epoch" })
+        expect(yield* db.get(sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sync_state'`)).toEqual({
+          name: "sync_state",
+        })
+        expect(yield* db.get(sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sync_change'`)).toEqual({
+          name: "sync_change",
+        })
+        expect(yield* db.get(sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sync_profile'`)).toEqual({
+          name: "sync_profile",
+        })
+        expect(
+          yield* db.get(sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sync_project_mapping'`),
+        ).toEqual({ name: "sync_project_mapping" })
         expect(
           yield* db.get(
             sql`SELECT name FROM pragma_table_info('session_context_epoch') WHERE name IN ('agent', 'replacement_seq', 'revision')`,

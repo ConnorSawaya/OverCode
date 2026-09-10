@@ -4,6 +4,9 @@ import { SessionID } from "./schema"
 import { Effect, Layer, Context } from "effect"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { SessionStatusEvent } from "@opencode-ai/schema/session-status-event"
+import { ComputerUse } from "@opencode-ai/core/computer-use"
+import { httpClient } from "@opencode-ai/core/effect/app-node-platform"
+import { HttpClient } from "effect/unstable/http"
 
 export const Info = SessionStatusEvent.Info
 export type Info = SessionStatusEvent.Info
@@ -22,6 +25,7 @@ const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const events = yield* EventV2Bridge.Service
+    const http = yield* HttpClient.HttpClient
 
     const state = yield* InstanceState.make(
       Effect.fn("SessionStatus.state")(() => Effect.succeed(new Map<SessionID, Info>())),
@@ -38,6 +42,7 @@ const layer = Layer.effect(
 
     const set = Effect.fn("SessionStatus.set")(function* (sessionID: SessionID, status: Info) {
       const data = yield* InstanceState.get(state)
+      if (status.type === "idle") yield* ComputerUse.stopSession(http, sessionID)
       yield* events.publish(Event.Status, { sessionID, status })
       if (status.type === "idle") {
         yield* events.publish(Event.Idle, { sessionID })
@@ -51,6 +56,6 @@ const layer = Layer.effect(
   }),
 )
 
-export const node = LayerNode.make({ service: Service, layer: layer, deps: [EventV2Bridge.node] })
+export const node = LayerNode.make({ service: Service, layer: layer, deps: [EventV2Bridge.node, httpClient] })
 
 export * as SessionStatus from "./status"

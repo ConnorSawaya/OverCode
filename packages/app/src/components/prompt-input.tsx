@@ -721,16 +721,30 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         type: "builtin" as const,
       }))
 
-    const custom = sync().data.command.map((cmd) => ({
-      id: `custom.${cmd.name}`,
-      trigger: cmd.name,
-      title: cmd.name,
-      description: cmd.description,
-      type: "custom" as const,
-      // source: cmd.source,
-    }))
+    const custom = sync()
+      .data.command.filter((cmd) => cmd.name !== "computer-use")
+      .map((cmd) => ({
+        id: `custom.${cmd.name}`,
+        trigger: cmd.name,
+        title: cmd.name,
+        description: cmd.description,
+        type: "custom" as const,
+        // source: cmd.source,
+      }))
 
-    return [...custom, ...builtin]
+    const computer =
+      platform.platform === "desktop" && platform.computerUse
+        ? [
+            {
+              id: "computer-use",
+              trigger: "computer-use",
+              title: language.t("computerUse.title"),
+              description: language.t("computerUse.command.description"),
+              type: "custom" as const,
+            },
+          ]
+        : []
+    return [...computer, ...custom, ...builtin]
   })
 
   const handleSlashSelect = (cmd: SlashCommand | undefined) => {

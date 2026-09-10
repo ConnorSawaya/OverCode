@@ -246,6 +246,41 @@ export default {
           CONSTRAINT \`fk_session_share_session_id_session_id_fk\` FOREIGN KEY (\`session_id\`) REFERENCES \`session\`(\`id\`) ON DELETE CASCADE
         );
       `)
+      yield* tx.run(`
+        CREATE TABLE \`sync_change\` (
+          \`revision\` integer PRIMARY KEY AUTOINCREMENT,
+          \`id\` text NOT NULL,
+          \`aggregate_id\` text NOT NULL,
+          \`seq\` integer NOT NULL,
+          \`type\` text NOT NULL,
+          \`data\` text NOT NULL,
+          \`source_device\` text NOT NULL,
+          \`time_created\` integer NOT NULL
+        );
+      `)
+      yield* tx.run(`
+        CREATE TABLE \`sync_profile\` (
+          \`device_id\` text PRIMARY KEY,
+          \`updated_at\` integer NOT NULL,
+          \`data\` text NOT NULL
+        );
+      `)
+      yield* tx.run(`
+        CREATE TABLE \`sync_project_mapping\` (
+          \`project_id\` text PRIMARY KEY,
+          \`source_worktree\` text NOT NULL,
+          \`local_worktree\` text,
+          \`time_updated\` integer NOT NULL
+        );
+      `)
+      yield* tx.run(`
+        CREATE TABLE \`sync_state\` (
+          \`id\` text PRIMARY KEY,
+          \`device_id\` text NOT NULL,
+          \`time_created\` integer NOT NULL,
+          \`time_updated\` integer NOT NULL
+        );
+      `)
       yield* tx.run(`CREATE UNIQUE INDEX \`event_aggregate_seq_idx\` ON \`event\` (\`aggregate_id\`,\`seq\`);`)
       yield* tx.run(`CREATE INDEX \`event_aggregate_type_seq_idx\` ON \`event\` (\`aggregate_id\`,\`type\`,\`seq\`);`)
       yield* tx.run(
@@ -283,6 +318,10 @@ export default {
       yield* tx.run(`CREATE INDEX \`session_workspace_idx\` ON \`session\` (\`workspace_id\`);`)
       yield* tx.run(`CREATE INDEX \`session_parent_idx\` ON \`session\` (\`parent_id\`);`)
       yield* tx.run(`CREATE INDEX \`todo_session_idx\` ON \`todo\` (\`session_id\`);`)
+      yield* tx.run(`CREATE UNIQUE INDEX \`sync_change_id_idx\` ON \`sync_change\` (\`id\`);`)
+      yield* tx.run(`CREATE INDEX \`sync_change_revision_idx\` ON \`sync_change\` (\`revision\`);`)
+      yield* tx.run(`CREATE INDEX \`sync_change_aggregate_idx\` ON \`sync_change\` (\`aggregate_id\`,\`seq\`);`)
+      yield* tx.run(`CREATE INDEX \`sync_profile_updated_idx\` ON \`sync_profile\` (\`updated_at\`);`)
     })
   },
 } satisfies Omit<DatabaseMigration.Migration, "id">

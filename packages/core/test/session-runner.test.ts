@@ -58,6 +58,9 @@ import { ProviderV2 } from "@opencode-ai/core/provider"
 import { Cause, DateTime, Deferred, Effect, Exit, Fiber, Layer, Schema, Stream } from "effect"
 import { asc, eq } from "drizzle-orm"
 import { testEffect } from "./lib/effect"
+import { ComputerUseTool } from "@opencode-ai/core/tool/computer-use"
+import { FetchHttpClient } from "effect/unstable/http"
+import { computerBridge, frame, grantID } from "./lib/computer-use"
 
 const requests: LLMRequest[] = []
 let response: LLMEvent[] = []
@@ -1523,6 +1526,63 @@ describe("SessionRunnerLLM", () => {
           ],
         },
         { type: "assistant", finish: "stop", content: [{ type: "text", id: "text-final", text: "Done" }] },
+      ])
+    }),
+  )
+
+  it.live("feeds a computer_use screenshot attachment into the next model turn without structured base64", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const bridge = yield* computerBridge()
+      yield* Layer.build(ComputerUseTool.layer).pipe(
+        Effect.provide(
+          Layer.mergeAll(FetchHttpClient.layer, Layer.mock(PermissionV2.Service, { assert: () => Effect.void })),
+        ),
+      )
+      const session = yield* SessionV2.Service
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "Inspect the shared desktop" }), resume: false })
+      requests.length = 0
+      responses = [
+        [
+          LLMEvent.stepStart({ index: 0 }),
+          LLMEvent.toolCall({ id: "call-computer", name: "computer_use", input: { action: "screenshot", grantID } }),
+          LLMEvent.stepFinish({ index: 0, reason: "tool-calls" }),
+          LLMEvent.finish({ reason: "tool-calls" }),
+        ],
+        [
+          LLMEvent.stepStart({ index: 0 }),
+          LLMEvent.stepFinish({ index: 0, reason: "stop" }),
+          LLMEvent.finish({ reason: "stop" }),
+        ],
+      ]
+      yield* session.resume(sessionID)
+      expect(requests).toHaveLength(2)
+      expect(requests[1]?.messages.find((message) => message.role === "tool")?.content).toMatchObject([
+        {
+          type: "tool-result",
+          id: "call-computer",
+          name: "computer_use",
+          result: {
+            type: "content",
+            value: [
+              { type: "text", text: expect.stringContaining(frame.id) },
+              { type: "file", uri: `data:image/jpeg;base64,${frame.data}`, mime: "image/jpeg", name: "computer.jpg" },
+            ],
+          },
+        },
+      ])
+      const history = yield* session.context(sessionID)
+      const assistant = history.find((message) => message.type === "assistant")
+      const tool = assistant?.type === "assistant" ? assistant.content.find((part) => part.type === "tool") : undefined
+      expect(tool?.type === "tool" && tool.state.status === "completed" && tool.state.structured).toEqual({
+        action: "screenshot",
+        ok: true,
+        frameId: frame.id,
+        width: frame.width,
+        height: frame.height,
+      })
+      expect(bridge.requests).toEqual([
+        { path: "/action", token: bridge.token, body: { action: "screenshot", sessionID, grantID } },
       ])
     }),
   )

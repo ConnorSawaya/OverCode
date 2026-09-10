@@ -8,6 +8,7 @@ import type { UpdaterPlatform } from "../updater"
 import type { DraftStore } from "@/utils/draft-store"
 import type { BrowserPlatform } from "./browser"
 import type { SpeechPlatform } from "@/utils/speech-types"
+import type { ComputerUsePlatform } from "../computer-use"
 
 type PickerPaths = string | string[] | null
 type OpenDirectoryPickerOptions = { title?: string; multiple?: boolean }
@@ -23,6 +24,62 @@ type OpenAttachmentPickerOptions = {
 type SaveFilePickerOptions = { title?: string; defaultPath?: string }
 type PlatformName = "web" | "desktop"
 type DesktopOS = "macos" | "windows" | "linux"
+
+export type MobileAccessStatus = "disabled" | "starting" | "online" | "stopping" | "error"
+export type MobileAccessState = {
+  status: MobileAccessStatus
+  relayUrl?: string
+  pairUri?: string
+  pairCode?: string
+  pairExpiresAt?: number
+  deviceId?: string
+  devices?: MobileDevice[]
+  error?: string
+}
+export type MobileDevice = {
+  id: string
+  name: string
+  pairedAt: string
+  lastSeen: string
+}
+export type MobileAccessPlatform = {
+  state(): MobileAccessState
+  start(): Promise<MobileAccessState>
+  stop(): Promise<MobileAccessState>
+  revoke(): Promise<MobileAccessState>
+  newPairingCode(): Promise<MobileAccessState>
+  rotate(): Promise<MobileAccessState>
+  revokeDevice?(deviceId: string): Promise<MobileDevice[]>
+  onState(callback: (state: MobileAccessState) => void): () => void
+}
+
+export type SyncDeviceStatus = "disabled" | "pairing" | "syncing" | "online" | "offline" | "error"
+export type SyncPeer = MobileDevice & {
+  status?: "online" | "offline"
+}
+export type SyncProjectMapping = {
+  projectID: string
+  name?: string
+  sourceWorktree: string
+  localWorktree?: string
+}
+export type SyncDevicesState = {
+  status: SyncDeviceStatus
+  deviceId?: string
+  peers: SyncPeer[]
+  projects: SyncProjectMapping[]
+  lastSynced?: number
+  error?: string
+}
+export type SyncDevicesPlatform = {
+  state(): SyncDevicesState
+  pair(code: string, relayUrl?: string): Promise<SyncDevicesState>
+  removePeer(deviceId: string): Promise<SyncDevicesState>
+  syncNow(): Promise<SyncDevicesState>
+  mapProject(projectID: string, localWorktree: string): Promise<SyncDevicesState>
+  onState(callback: (state: SyncDevicesState) => void): () => void
+  onProfileApplied?(callback: () => void): () => void
+}
 
 export type QuickChatOptions = {
   directory?: string
@@ -89,6 +146,15 @@ type PlatformBase = {
   /** Session-owned Chromium browser control surface (desktop only). */
   browser?: BrowserPlatform
   speech?: SpeechPlatform
+
+  /** Secure PC connector for the Overcode Mobile app (desktop only). */
+  mobileAccess?: MobileAccessPlatform
+
+  /** Cross-device sync status for the trusted-device settings surface. */
+  syncDevices?: SyncDevicesPlatform
+
+  /** Opt-in native desktop input, independent of the embedded browser. */
+  computerUse?: ComputerUsePlatform
 
   /** Application-global desktop updater */
   updater?: UpdaterPlatform

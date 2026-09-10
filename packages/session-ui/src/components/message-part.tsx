@@ -36,6 +36,7 @@ import { useFileComponent } from "@opencode-ai/ui/context/file"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { type UiI18n, useI18n } from "@opencode-ai/ui/context/i18n"
 import { BasicTool, GenericTool } from "./basic-tool"
+import { ComputerUseTool } from "./computer-use-tool"
 import { Accordion } from "@opencode-ai/ui/accordion"
 import { StickyAccordionHeader } from "@opencode-ai/ui/sticky-accordion-header"
 import { Collapsible } from "@opencode-ai/ui/collapsible"
@@ -1552,6 +1553,8 @@ export const ToolRegistry = {
   render: getTool,
 }
 
+ToolRegistry.register({ name: "computer_use", render: ComputerUseTool })
+
 function ToolFileAccordion(props: { path: string; actions?: JSX.Element; children: JSX.Element }) {
   const value = createMemo(() => props.path || "tool-file")
 
@@ -1645,12 +1648,16 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
                   tool={part().tool}
                   error={error()}
                   title={
-                    part().tool === "websearch" ? webSearchProviderLabel(partMetadata().provider, i18n) : undefined
+                    part().tool === "computer_use"
+                      ? i18n.t("ui.computerUse.title")
+                      : part().tool === "websearch"
+                        ? webSearchProviderLabel(partMetadata().provider, i18n)
+                        : undefined
                   }
                   defaultOpen={props.defaultOpen}
                   open={controlledOpen()}
                   onOpenChange={props.onToolOpenChange ? handleToolOpenChange : undefined}
-                  subtitle={taskSubtitle()}
+                  subtitle={part().tool === "computer_use" ? i18n.t("ui.toolErrorCard.failed") : taskSubtitle()}
                   href={taskHref()}
                   onSubtitleClick={(event) => {
                     if (!data.navigateToSession) return

@@ -6,6 +6,7 @@ import { useFile, selectionFromLines, type FileSelection, type SelectedLineRange
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePermission } from "@/context/permission"
+import { usePlatform } from "@/context/platform"
 import { usePrompt } from "@/context/prompt"
 import { useSDK } from "@/context/sdk"
 import { useSettings } from "@/context/settings"
@@ -43,6 +44,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const file = useFile()
   const language = useLanguage()
   const permission = usePermission()
+  const platform = usePlatform()
   const prompt = usePrompt()
   const sdk = useSDK()
   const settings = useSettings()
@@ -400,6 +402,9 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     const parts = sync().data.part[message.id]
 
     if (sync().data.session_working(sessionID)) {
+      await platform.computerUse?.stop(sessionID).catch(() => {
+        showToast({ title: language.t("computerUse.title"), description: language.t("computerUse.stopFailed") })
+      })
       await session.interrupt({ sessionID }).catch(() => {})
     }
 

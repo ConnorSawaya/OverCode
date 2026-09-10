@@ -49,6 +49,7 @@ export type CompatibleApi = Omit<ServerApi, "session" | "permission"> & {
   readonly permission: CompatiblePermissionApi
 }
 type LegacyPrompt = {
+  directory?: string
   agent?: string
   model?: { providerID: string; modelID: string }
   variant?: string
@@ -261,7 +262,7 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
         await legacy().session.abort(value)
       },
       async prompt(value: SessionPromptInput & LegacyPrompt) {
-        await legacy().session.promptAsync({
+        await legacy(value).session.promptAsync({
           sessionID: value.sessionID,
           messageID: value.id ?? undefined,
           agent: value.agent,

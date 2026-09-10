@@ -36,6 +36,7 @@ export function createSdkForServer({
     headers: {
       ...(config.headers instanceof Headers ? Object.fromEntries(config.headers.entries()) : config.headers),
       ...auth,
+      ...(server.token ? { "x-overcode-channel-token": server.token } : {}),
     },
     baseUrl: server.url,
   })
@@ -54,8 +55,11 @@ export function createApiForServer(input: {
             username: input.server.username,
             password: input.server.password,
           })}`,
+          ...(input.server.token ? { "x-overcode-channel-token": input.server.token } : {}),
         }
-      : undefined,
+      : input.server.token
+        ? { "x-overcode-channel-token": input.server.token }
+        : undefined,
   })
 }
 

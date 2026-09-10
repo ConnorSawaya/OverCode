@@ -629,6 +629,7 @@ export const Terminal = (props: TerminalProps) => {
             username,
             password,
             authToken,
+            relayToken: auth.token,
           }),
         )
         socket.binaryType = "arraybuffer"

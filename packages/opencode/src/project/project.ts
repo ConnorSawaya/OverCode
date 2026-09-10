@@ -6,7 +6,6 @@ import { ProjectDirectories } from "@opencode-ai/core/project/directories"
 import { SessionTable } from "@opencode-ai/core/session/sql"
 import { WorkspaceTable } from "@opencode-ai/core/control-plane/workspace.sql"
 import { Flag } from "@opencode-ai/core/flag/flag"
-import { GlobalBus } from "@/bus/global"
 import { which } from "@opencode-ai/core/util/which"
 import { Command } from "@/command"
 import { InstanceState } from "@/effect/instance-state"
@@ -130,14 +129,7 @@ const layer = Layer.effect(
       Effect.catch(() => Effect.succeed({ code: 1, text: "", stderr: "" } satisfies GitResult)),
     )
 
-    const emitUpdated = (data: Info) =>
-      Effect.sync(() =>
-        GlobalBus.emit("event", {
-          directory: "global",
-          project: data.id,
-          payload: { type: Event.Updated.type, properties: data },
-        }),
-      )
+    const emitUpdated = (data: Info) => events.publish(Event.Updated, data).pipe(Effect.asVoid)
 
     const fakeVcs = Schema.decodeUnknownSync(Schema.optional(Project.Vcs))(Flag.OPENCODE_FAKE_VCS)
 

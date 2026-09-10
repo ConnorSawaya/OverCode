@@ -55,7 +55,7 @@ const getBase = (appId: string): Configuration => ({
   extraMetadata: {
     desktopName: `${appId}.desktop`,
   },
-  files: ["out/**/*", "resources/**/*", "!resources/opencode-cli*"],
+  files: ["out/**/*", "resources/**/*", "!resources/opencode-cli*", "!resources/computer-use/**/*"],
   extraResources: [
     ...(channel === "dev"
       ? [
@@ -90,6 +90,7 @@ const getBase = (appId: string): Configuration => ({
     schemes: ["opencode"],
   },
   win: {
+    extraResources: [{ from: "resources/computer-use", to: "computer-use", filter: ["overcode-computer-use.exe"] }],
     icon: `resources/icons/icon.ico`,
     signtoolOptions: {
       sign: signWindows,

@@ -74,6 +74,10 @@ export async function downloadCliToResources() {
   const directory = await mkdtemp(join(tmpdir(), "opencode-cli-"))
   const dest = windowsify("resources/opencode-cli")
   try {
+    // Bun does not materialize dependencies when installing into an empty
+    // temporary directory. Create a minimal package manifest first so the
+    // dev/packaging CLI binary is actually extracted before we copy it.
+    await Bun.write(join(directory, "package.json"), '{"private":true}\n')
     await $`bun install --no-save --cwd ${directory} ${`${cli.package}@${CLI_VERSION}`} ${`--os=${cli.os}`} ${`--cpu=${cli.cpu}`}`
     await copyFile(
       join(directory, "node_modules", cli.package, "bin", cli.os === "win32" ? "opencode2.exe" : "opencode2"),

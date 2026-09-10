@@ -131,7 +131,9 @@ describe("createCompatibleApi", () => {
     expect(
       requests.every((request) => {
         const url = new URL(request.url)
-        return request.headers.get("x-opencode-directory") === "%2Frepo" || url.searchParams.get("directory") === "/repo"
+        return (
+          request.headers.get("x-opencode-directory") === "%2Frepo" || url.searchParams.get("directory") === "/repo"
+        )
       }),
     ).toBe(true)
   })
@@ -166,6 +168,27 @@ describe("createCompatibleApi", () => {
     expect((await requests[0]!.json()).parts).toEqual([
       { id: "prt_text", type: "text", text: "look" },
       { id: "prt_image", type: "file", mime: "image/png", url: "data:image/png;base64,AAAA", filename: "image.png" },
+    ])
+  })
+
+  test("routes a computer-use prompt to its captured worktree without changing default prompt scope", async () => {
+    const { api, requests } = setup("v1")
+    await api.session.prompt({
+      sessionID: "ses_computer",
+      id: "msg_computer",
+      directory: "C:\\work trees\\task",
+      text: "/computer-use open Settings",
+      legacyParts: [{ type: "text", text: "/computer-use open Settings" }],
+    })
+    await api.session.prompt({ sessionID: "ses_default", text: "ordinary prompt" })
+
+    expect(requests.map((request) => new URL(request.url).pathname)).toEqual([
+      "/session/ses_computer/prompt_async",
+      "/session/ses_default/prompt_async",
+    ])
+    expect(requests.map((request) => request.headers.get("x-opencode-directory"))).toEqual([
+      encodeURIComponent("C:\\work trees\\task"),
+      encodeURIComponent("/repo"),
     ])
   })
 

@@ -24,11 +24,13 @@ import {
 } from "./windows"
 import type { UpdaterController } from "./updater-controller"
 import { BrowserManager } from "./browser"
+import type { ComputerUseController } from "./computer-use"
 import { createUpdaterSubscriptions } from "./updater-subscriptions"
 import { createDesktopDraftStore } from "./draft-store"
 import { nativeT } from "./native-translations"
 import { createLocalSpeech, isLocalSpeechAvailable } from "./speech-local"
 import type { SpeechRequest } from "@opencode-ai/app"
+import type { MobileAccessPlatform, SyncDevicesPlatform } from "@opencode-ai/app"
 
 const pickerFilters = (ext?: string[]) => {
   if (!ext || ext.length === 0) return undefined
@@ -58,9 +60,61 @@ type Deps = {
   recordFatalRendererError: (error: FatalRendererError) => Promise<void> | void
   setNativeTranslations: (bundle: DesktopNativeBundle) => void
   browser: BrowserManager
+  computerUse: ComputerUseController
+  mobileAccess: MobileAccessPlatform
+  syncDevices: SyncDevicesPlatform
 }
 
 export function registerIpcHandlers(deps: Deps) {
+  const computerOwners = new Set<number>()
+  const mobileAccessSubscriptions = new Map<number, () => void>()
+  const syncDevicesSubscriptions = new Map<number, () => void>()
+  const syncProfileAppliedSubscriptions = new Map<number, () => void>()
+  const computerSender = (event: IpcMainInvokeEvent) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const url = event.senderFrame?.url ?? ""
+    const dev = !app.isPackaged && process.env.ELECTRON_RENDERER_URL
+    const trusted = url.startsWith("oc://renderer/") || (dev && new URL(url).origin === new URL(dev).origin)
+    if (!trusted || !win || !getWindowID(win) || win.webContents !== event.sender || event.senderFrame !== event.sender.mainFrame)
+      throw new Error("invalid_computer_use_sender")
+    return win
+  }
+  ipcMain.handle("computer-use-state", (event) => {
+    computerSender(event)
+    return deps.computerUse.state()
+  })
+  ipcMain.handle("computer-use-start", async (event, sessionID: string, serverUrl: string, directory?: string) => {
+    const win = computerSender(event)
+    const owner = event.sender.id
+    if (!computerOwners.has(owner)) {
+      computerOwners.add(owner)
+      const stop = () => { void deps.computerUse.releaseOwner(owner) }
+      event.sender.on("will-navigate", stop)
+      event.sender.on("render-process-gone", stop)
+      event.sender.once("destroyed", () => { computerOwners.delete(owner); stop() })
+    }
+    return deps.computerUse.start({ window: owner, sessionID, directory }, serverUrl, async () => {
+      const result = await dialog.showMessageBox(win, {
+        type: "warning",
+        title: nativeT("desktop.computerUse.consent.title"),
+        message: nativeT("desktop.computerUse.consent.message"),
+        detail: nativeT("desktop.computerUse.consent.detail"),
+        buttons: [nativeT("desktop.computerUse.consent.allow"), nativeT("desktop.computerUse.consent.cancel")],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+      })
+      return result.response === 0 && !win.isDestroyed() && !event.sender.isDestroyed()
+    })
+  })
+  ipcMain.handle("computer-use-stop", (event, sessionID?: string) => {
+    computerSender(event)
+    return deps.computerUse.stop(sessionID)
+  })
+  ipcMain.handle("computer-use-color", (event, color: unknown) => {
+    computerSender(event)
+    return deps.computerUse.setColor(color)
+  })
   ipcMain.handle("quick-start-directory", () => prepareQuickStart(app.getPath("documents")))
   const drafts = createDesktopDraftStore(join(app.getPath("userData"), "drafts.sqlite"))
   const updaterSubscriptions = createUpdaterSubscriptions()
@@ -80,6 +134,71 @@ export function registerIpcHandlers(deps: Deps) {
   app.on("browser-window-created", (_event, win) => win.on("session-end", () => drafts.flush()))
 
   ipcMain.handle("kill-sidecar", () => deps.killSidecar())
+  ipcMain.handle("mobile-access-state", () => deps.mobileAccess.state())
+  ipcMain.handle("mobile-access-start", () => deps.mobileAccess.start())
+  ipcMain.handle("mobile-access-stop", () => deps.mobileAccess.stop())
+  ipcMain.handle("mobile-access-revoke", () => deps.mobileAccess.revoke())
+  ipcMain.handle("mobile-access-new-code", () => deps.mobileAccess.newPairingCode())
+  ipcMain.handle("mobile-access-rotate", () => deps.mobileAccess.rotate())
+  ipcMain.handle("mobile-access-subscribe", (event) => {
+    const id = event.sender.id
+    mobileAccessSubscriptions.get(id)?.()
+    const unsubscribe = deps.mobileAccess.onState((state) => {
+      if (event.sender.isDestroyed()) return
+      event.sender.send("mobile-access-state", state)
+    })
+    mobileAccessSubscriptions.set(id, unsubscribe)
+    event.sender.once("destroyed", () => {
+      mobileAccessSubscriptions.get(id)?.()
+      mobileAccessSubscriptions.delete(id)
+    })
+  })
+  ipcMain.handle("mobile-access-unsubscribe", (event) => {
+    mobileAccessSubscriptions.get(event.sender.id)?.()
+    mobileAccessSubscriptions.delete(event.sender.id)
+  })
+  ipcMain.handle("sync-devices-state", () => deps.syncDevices.state())
+  ipcMain.handle("sync-devices-pair", (_event, code: string, relayUrl?: string) => deps.syncDevices.pair(code, relayUrl))
+  ipcMain.handle("sync-devices-remove-peer", (_event, deviceId: string) => deps.syncDevices.removePeer(deviceId))
+  ipcMain.handle("sync-devices-sync-now", () => deps.syncDevices.syncNow())
+  ipcMain.handle("sync-devices-map-project", (_event, projectID: string, localWorktree: string) =>
+    deps.syncDevices.mapProject(projectID, localWorktree),
+  )
+  ipcMain.handle("sync-devices-subscribe", (event) => {
+    const id = event.sender.id
+    syncDevicesSubscriptions.get(id)?.()
+    const unsubscribe = deps.syncDevices.onState((state) => {
+      if (event.sender.isDestroyed()) return
+      event.sender.send("sync-devices-state", state)
+    })
+    syncDevicesSubscriptions.set(id, unsubscribe)
+    event.sender.once("destroyed", () => {
+      syncDevicesSubscriptions.get(id)?.()
+      syncDevicesSubscriptions.delete(id)
+    })
+  })
+  ipcMain.handle("sync-devices-unsubscribe", (event) => {
+    syncDevicesSubscriptions.get(event.sender.id)?.()
+    syncDevicesSubscriptions.delete(event.sender.id)
+  })
+  ipcMain.handle("sync-profile-applied-subscribe", (event) => {
+    const id = event.sender.id
+    syncProfileAppliedSubscriptions.get(id)?.()
+    const unsubscribe = deps.syncDevices.onProfileApplied?.(() => {
+      if (event.sender.isDestroyed()) return
+      event.sender.send("sync-profile-applied")
+    })
+    if (!unsubscribe) return
+    syncProfileAppliedSubscriptions.set(id, unsubscribe)
+    event.sender.once("destroyed", () => {
+      syncProfileAppliedSubscriptions.get(id)?.()
+      syncProfileAppliedSubscriptions.delete(id)
+    })
+  })
+  ipcMain.handle("sync-profile-applied-unsubscribe", (event) => {
+    syncProfileAppliedSubscriptions.get(event.sender.id)?.()
+    syncProfileAppliedSubscriptions.delete(event.sender.id)
+  })
   ipcMain.handle("await-initialization", () => deps.awaitInitialization())
   ipcMain.handle("consume-initial-deep-links", () => deps.consumeInitialDeepLinks())
   ipcMain.handle("get-default-server-url", () => deps.getDefaultServerUrl())

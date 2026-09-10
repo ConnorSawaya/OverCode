@@ -11,6 +11,7 @@ import { SettingsProviders } from "./settings-providers"
 import { SettingsModels } from "./settings-models"
 import { SettingsServers } from "./settings-servers"
 import { SettingsToolsV2 } from "./settings-v2/tools"
+import { SettingsSyncDevices } from "./settings-v2/sync-devices"
 import { useParams } from "@solidjs/router"
 import { base64Decode } from "@opencode-ai/core/util/encode"
 
@@ -50,6 +51,10 @@ export const DialogSettings: Component<{ defaultValue?: string }> = (props) => {
                       <Icon name="keyboard" />
                       {language.t("settings.tab.shortcuts")}
                     </Tabs.Trigger>
+                    <Tabs.Trigger value="sync">
+                      <Icon name="share" />
+                      {language.t("settings.syncDevices.title")}
+                    </Tabs.Trigger>
                     <Tabs.Trigger value="servers">
                       <Icon name="server" />
                       {language.t("status.popover.tab.servers")}
@@ -87,6 +92,9 @@ export const DialogSettings: Component<{ defaultValue?: string }> = (props) => {
         </Tabs.Content>
         <Tabs.Content value="shortcuts" class="no-scrollbar">
           <SettingsKeybinds />
+        </Tabs.Content>
+        <Tabs.Content value="sync" class="no-scrollbar">
+          <SettingsSyncDevices />
         </Tabs.Content>
         <Tabs.Content value="servers" class="no-scrollbar">
           <SettingsServers />

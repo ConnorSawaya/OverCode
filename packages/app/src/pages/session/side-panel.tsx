@@ -452,8 +452,13 @@ function ChatTranscript(props: {
   const stop = async () => {
     const targetDirectory = directory()
     if (!targetDirectory) return
+    const sessionID = props.tab.sessionId
+    const session = sdk().api.session
     try {
-      await sdk().api.session.interrupt({ sessionID: props.tab.sessionId })
+      await platform.computerUse?.stop(sessionID).catch(() => {
+        showToast({ title: language.t("computerUse.title"), description: language.t("computerUse.stopFailed") })
+      })
+      await session.interrupt({ sessionID })
     } catch (err) {
       showToast({
         title: language.t("common.requestFailed"),

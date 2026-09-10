@@ -34,6 +34,7 @@ import {
   lazy,
   onCleanup,
   type ParentProps,
+  onMount,
   Show,
 } from "solid-js"
 import { Dynamic } from "solid-js/web"
@@ -620,6 +621,16 @@ function ServerKey(props: ParentProps) {
   )
 }
 
+function ProfileSyncRefresh() {
+  const platform = usePlatform()
+
+  onMount(() => {
+    const unsubscribe = platform.syncDevices?.onProfileApplied?.(() => void platform.restart())
+    if (unsubscribe) onCleanup(unsubscribe)
+  })
+  return null
+}
+
 export function AppInterface(props: {
   children?: JSX.Element
   defaultServer: ServerConnection.Key
@@ -649,6 +660,7 @@ export function AppInterface(props: {
       servers={props.servers}
     >
       <GlobalProvider>
+        <ProfileSyncRefresh />
         <SettingsProvider>
           <ConnectionGate disableHealthCheck={props.disableHealthCheck} startup={props.startup}>
             <Show when={useSettings().general.newLayoutDesigns().toString()} keyed>

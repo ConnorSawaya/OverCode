@@ -2,6 +2,7 @@ export * as SessionProjector from "./projector"
 
 import { and, desc, eq, gt, or, sql } from "drizzle-orm"
 import { DateTime, Effect, Layer, Schema } from "effect"
+import { join } from "node:path"
 import { Database } from "../database/database"
 import { EventV2 } from "../event"
 import { makeGlobalNode } from "../effect/app-node"
@@ -12,6 +13,9 @@ import { SessionMessage } from "./message"
 import { SessionMessageUpdater } from "./message-updater"
 import { SessionInput } from "./input"
 import { WorkspaceV2 } from "../workspace"
+import { ProjectV2 } from "../project"
+import { ProjectTable } from "../project/sql"
+import { AbsolutePath } from "../schema"
 import { MessageTable, PartTable, SessionInputTable, SessionMessageTable, SessionTable } from "./sql"
 import type { DeepMutable } from "../schema"
 
@@ -73,6 +77,34 @@ function sessionRow(info: SessionV1.SessionInfo): typeof SessionTable.$inferInse
     time_archived: info.time.archived,
   }
 }
+
+function syncImported(event: { metadata?: Record<string, unknown> }) {
+  return event.metadata?.syncImport === true
+}
+
+function mappedDirectory(worktree: string, relative: string | undefined, fallback: string) {
+  if (!relative || relative === ".") return worktree
+  const pieces = relative.replaceAll("\\", "/").split("/").filter(Boolean)
+  if (pieces.some((piece) => piece === "..")) return fallback
+  return join(worktree, ...pieces)
+}
+
+const localizeSessionInfo = Effect.fn("SessionProjector.localizeSessionInfo")(function* (
+  db: DatabaseService,
+  info: SessionV1.SessionInfo,
+) {
+  const project = yield* db
+    .select({ worktree: ProjectTable.worktree })
+    .from(ProjectTable)
+    .where(eq(ProjectTable.id, info.projectID))
+    .get()
+    .pipe(Effect.orDie)
+  if (!project || info.projectID === ProjectV2.ID.global) return info
+  return {
+    ...info,
+    directory: mappedDirectory(project.worktree, info.path, project.worktree),
+  }
+})
 
 function messageData(
   info: (typeof SessionV1.Event.MessageUpdated.Type)["data"]["info"],
@@ -213,9 +245,10 @@ const layer = Layer.effectDiscard(
     const { db } = yield* Database.Service
     yield* events.project(SessionV1.Event.Created, (event) =>
       Effect.gen(function* () {
+        const info = syncImported(event) ? yield* localizeSessionInfo(db, event.data.info) : event.data.info
         const stored = yield* db
           .insert(SessionTable)
-          .values(sessionRow(event.data.info))
+          .values(sessionRow(info))
           .onConflictDoNothing()
           .returning({ sessionID: SessionTable.id })
           .get()
@@ -232,21 +265,64 @@ const layer = Layer.effectDiscard(
       }),
     )
     yield* events.project(SessionV1.Event.Updated, (event) =>
-      db
-        .update(SessionTable)
-        .set(sessionRow(event.data.info))
-        .where(eq(SessionTable.id, event.data.sessionID))
-        .run()
-        .pipe(Effect.orDie),
+      Effect.gen(function* () {
+        const info = syncImported(event) ? yield* localizeSessionInfo(db, event.data.info) : event.data.info
+        if (!syncImported(event)) {
+          yield* db
+            .update(SessionTable)
+            .set(sessionRow(info))
+            .where(eq(SessionTable.id, event.data.sessionID))
+            .run()
+            .pipe(Effect.orDie)
+          return
+        }
+        const current = yield* db
+          .select({ directory: SessionTable.directory, path: SessionTable.path })
+          .from(SessionTable)
+          .where(eq(SessionTable.id, event.data.sessionID))
+          .get()
+          .pipe(Effect.orDie)
+        const row = sessionRow(info)
+        yield* db
+          .update(SessionTable)
+          .set({ ...row, directory: current?.directory ?? row.directory, path: current?.path ?? row.path })
+          .where(eq(SessionTable.id, event.data.sessionID))
+          .run()
+          .pipe(Effect.orDie)
+      }),
     )
     yield* events.project(SessionEvent.Moved, (event) =>
       Effect.gen(function* () {
+        let directory: string = event.data.location.directory
+        if (syncImported(event)) {
+          const current = yield* db
+            .select({ projectID: SessionTable.project_id, currentDirectory: SessionTable.directory })
+            .from(SessionTable)
+            .where(eq(SessionTable.id, event.data.sessionID))
+            .get()
+            .pipe(Effect.orDie)
+          if (current) {
+            const project = yield* db
+              .select({ worktree: ProjectTable.worktree })
+              .from(ProjectTable)
+              .where(eq(ProjectTable.id, current.projectID))
+              .get()
+              .pipe(Effect.orDie)
+            directory = project
+              ? mappedDirectory(project.worktree, event.data.subdirectory, current.currentDirectory)
+              : current.currentDirectory
+          }
+        }
         yield* db
           .update(SessionTable)
           .set({
-            directory: event.data.location.directory,
+            directory: AbsolutePath.make(directory),
             path: event.data.subdirectory,
-            workspace_id: event.data.location.workspaceID ? WorkspaceV2.ID.make(event.data.location.workspaceID) : null,
+            workspace_id: syncImported(event)
+              ? null
+              : event.data.location.workspaceID
+                ? WorkspaceV2.ID.make(event.data.location.workspaceID)
+                : null,
             time_updated: DateTime.toEpochMillis(event.data.timestamp),
           })
           .where(eq(SessionTable.id, event.data.sessionID))
@@ -372,24 +448,19 @@ const layer = Layer.effectDiscard(
         })
       }),
     )
-    // Not registered: SessionEvent.PromptCancelled and
-    // SessionEvent.PromptDeliveryChanged are not defined in
-    // @opencode-ai/schema/session-event and nothing publishes them.
-    // (Registering them crashes Server.listen: project() reads
-    // definition.type of undefined.) Re-enable once the definitions exist.
-    // yield* events.project(SessionEvent.PromptCancelled, (event) =>
-    //   SessionInput.projectCancelled(db, {
-    //     sessionID: event.data.sessionID,
-    //     messageID: event.data.messageID,
-    //   }),
-    // )
-    // yield* events.project(SessionEvent.PromptDeliveryChanged, (event) =>
-    //   SessionInput.projectDeliveryChanged(db, {
-    //     sessionID: event.data.sessionID,
-    //     messageID: event.data.messageID,
-    //     delivery: event.data.delivery,
-    //   }),
-    // )
+    yield* events.project(SessionEvent.PromptCancelled, (event) =>
+      SessionInput.projectCancelled(db, {
+        sessionID: event.data.sessionID,
+        messageID: event.data.messageID,
+      }),
+    )
+    yield* events.project(SessionEvent.PromptDeliveryChanged, (event) =>
+      SessionInput.projectDeliveryChanged(db, {
+        sessionID: event.data.sessionID,
+        messageID: event.data.messageID,
+        delivery: event.data.delivery,
+      }),
+    )
     yield* events.project(SessionEvent.ContextUpdated, (event) => run(db, event))
     yield* events.project(SessionEvent.Synthetic, (event) => run(db, event))
     yield* events.project(SessionEvent.Shell.Started, (event) => run(db, event))

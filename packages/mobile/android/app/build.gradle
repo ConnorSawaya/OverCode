@@ -1,0 +1,78 @@
+apply plugin: 'com.android.application'
+
+def mobilePackage = new groovy.json.JsonSlurper().parse(file('../../../app/package.json'))
+def mobileVersion = mobilePackage.version.toString()
+def mobileVersionParts = mobileVersion.tokenize('.').collect { value ->
+    def digits = value.replaceAll('[^0-9].*', '')
+    digits ? digits.toInteger() : 0
+}
+def mobileVersionCode = (mobileVersionParts + [0, 0, 0]).take(3).inject(0) { total, value -> total * 1000 + value }
+def mobileKeystorePath = System.getenv('OVERCODE_MOBILE_KEYSTORE_PATH')
+def mobileKeystorePassword = System.getenv('OVERCODE_MOBILE_KEYSTORE_PASSWORD')
+def mobileKeyAlias = System.getenv('OVERCODE_MOBILE_KEY_ALIAS')
+def mobileKeyPassword = System.getenv('OVERCODE_MOBILE_KEY_PASSWORD') ?: mobileKeystorePassword
+def hasMobileReleaseSigning = mobileKeystorePath && mobileKeystorePassword && mobileKeyAlias && mobileKeyPassword
+
+android {
+    namespace "ai.overcode.mobile"
+    compileSdk rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "ai.overcode.mobile"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode mobileVersionCode
+        versionName mobileVersion
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        release {
+            if (hasMobileReleaseSigning) {
+                storeFile file(mobileKeystorePath)
+                storePassword mobileKeystorePassword
+                keyAlias mobileKeyAlias
+                keyPassword mobileKeyPassword
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasMobileReleaseSigning) signingConfig signingConfigs.release
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

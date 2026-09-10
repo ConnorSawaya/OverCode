@@ -115,6 +115,7 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
       return HttpServerResponse.jsonUnsafe(result)
     })
 
+
     return handlers
       .handle("health", health)
       .handleRaw("event", event)

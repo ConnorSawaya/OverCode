@@ -40,5 +40,12 @@ export const Info = Schema.Struct({
 }).annotate({ identifier: "Project" })
 export interface Info extends Schema.Schema.Type<typeof Info> {}
 
-const Updated = define({ type: "project.updated", schema: Info.fields })
+// Project metadata is portable user state.  Keep the actual working-tree path
+// in the payload so a peer can use it when the same checkout exists locally,
+// but project projection deliberately preserves a peer's local path mapping.
+const Updated = define({
+  type: "project.updated",
+  durable: { aggregate: "id", version: 1 },
+  schema: Info.fields,
+})
 export const Event = { Updated, Definitions: inventory(Updated) }

@@ -1,0 +1,12 @@
+{
+  "version": "1.18.27",
+  "notes": "Overcode desktop update",
+  "assets": {
+    "win-x64": "https://github.com/ConnorSawaya/overcode/releases/latest/download/overcode-desktop-windows-x64.exe",
+    "win-arm64": "https://github.com/ConnorSawaya/overcode/releases/latest/download/overcode-desktop-windows-arm64.exe",
+    "mac-x64": "https://github.com/ConnorSawaya/overcode/releases/latest/download/overcode-desktop-mac-x64.dmg",
+    "mac-arm64": "https://github.com/ConnorSawaya/overcode/releases/latest/download/overcode-desktop-mac-arm64.dmg",
+    "linux-x64": "https://github.com/ConnorSawaya/overcode/releases/latest/download/overcode-desktop-linux-x64.AppImage",
+    "linux-arm64": "https://github.com/ConnorSawaya/overcode/releases/latest/download/overcode-desktop-linux-arm64.AppImage"
+  }
+}

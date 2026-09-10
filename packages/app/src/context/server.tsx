@@ -185,6 +185,7 @@ export namespace ServerConnection {
     url: string
     username?: string
     password?: string
+    token?: string
   }
 
   // Regular web connections

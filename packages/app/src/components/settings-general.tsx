@@ -31,6 +31,8 @@ import { decode64 } from "@/utils/base64"
 import { playSoundById, SOUND_OPTIONS } from "@/utils/sound"
 import { ExternalLink } from "./external-link"
 import { SettingsList } from "./settings-list"
+import { ComputerUseSettings } from "./computer-use-settings"
+import { MobileAccessSettings } from "./mobile-access-settings"
 
 let demoSoundState = {
   cleanup: undefined as (() => void) | undefined,
@@ -784,6 +786,12 @@ export const SettingsGeneral: Component = () => {
         </Show>
 
         <GeneralSection />
+
+        <ComputerUseSettings />
+
+        <Show when={desktop() && platform.mobileAccess}>
+          <MobileAccessSettings />
+        </Show>
 
         <AppearanceSection />
 

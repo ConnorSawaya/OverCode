@@ -100,6 +100,15 @@ afterEach(async () => {
 })
 
 describe("tool.registry", () => {
+  it.instance("exposes computer_use independently of browser", () =>
+    Effect.gen(function* () {
+      const registry = yield* ToolRegistry.Service
+      const ids = yield* registry.ids()
+      expect(ids).toContain("computer_use")
+      expect(ids).toContain("browser")
+    }),
+  )
+
   it.instance("does not expose task_status", () =>
     Effect.gen(function* () {
       const registry = yield* ToolRegistry.Service

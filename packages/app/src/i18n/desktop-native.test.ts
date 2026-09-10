@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { dict } from "./en"
 import {
   createDesktopNativeBundle,
   DESKTOP_NATIVE_ENGLISH,
@@ -13,6 +14,17 @@ import {
 } from "./desktop-native"
 
 describe("desktop native translations", () => {
+  test("computer-use consent and settings disclose model transmission and local attachment retention", () => {
+    for (const text of [
+      DESKTOP_NATIVE_ENGLISH["desktop.computerUse.consent.detail"],
+      dict["computerUse.settings.description"],
+    ]) {
+      expect(text).toContain("sent to the selected AI model")
+      expect(text).toContain("saved as attachments in your local chat history")
+      expect(text).toContain("does not save separate screenshot files")
+      expect(text).toContain("Permission grants are not persisted")
+    }
+  })
   test("uses native language names independent of the active locale", () => {
     expect(DESKTOP_NATIVE_LOCALES.map((locale) => DESKTOP_NATIVE_LABELS[locale])).toEqual([
       "English",

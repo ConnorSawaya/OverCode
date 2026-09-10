@@ -2,6 +2,7 @@ import { beforeAll, beforeEach, describe, expect, mock, test } from "bun:test"
 import { createStore } from "solid-js/store"
 import type { Prompt, PromptStore } from "@/context/prompt"
 import type { ModelSelection } from "@/context/local"
+import type { ComputerUsePlatform, ComputerUseState } from "@/computer-use"
 
 let createPromptSubmit: typeof import("./submit").createPromptSubmit
 
@@ -40,6 +41,56 @@ let selected = "/repo/worktree-a"
 let variant: string | undefined
 let permissionServer = "server-a"
 let createSessionGate: Promise<void> | undefined
+let computerStartGate: Promise<void> | undefined
+let computerStarted = Promise.withResolvers<void>()
+let computerStopGate: Promise<void> | undefined
+let computerStartError: Error | undefined
+let computerStartResult: ComputerUseState | undefined
+let computerAdmissionState: ComputerUseState | undefined
+let computerStopResult: ComputerUseState | undefined
+const computerGrantID = "4b642151-b115-4c31-99f4-f0632eb44d4a"
+let computerState: ComputerUseState = { available: true, phase: "idle", color: "#38BDF8" }
+let serverUrl = "http://localhost:4096"
+let promptResets = 0
+let queueCalls = 0
+let promptError: Error | undefined
+let sessionWorking = false
+const sessionStatuses: { sessionID: string; type: string }[] = []
+const computerStarts: { sessionID: string; url: string; directory?: string }[] = []
+const computerStops: (string | undefined)[] = []
+const interrupted: string[] = []
+const events: string[] = []
+const toasts: { title?: string; description?: string }[] = []
+const computerPlatform: ComputerUsePlatform = {
+  state: async () => {
+    if (computerAdmissionState && computerStarts.length > 0) computerState = computerAdmissionState
+    return computerState
+  },
+  start: async (sessionID, url, directory) => {
+    computerStarts.push({ sessionID, url, directory })
+    computerStarted.resolve()
+    await computerStartGate
+    if (computerStartError) throw computerStartError
+    computerState = computerStartResult ?? {
+      available: true,
+      phase: "active",
+      color: "#38BDF8",
+      sessionID,
+      grantID: computerGrantID,
+    }
+    return computerState
+  },
+  stop: async (sessionID) => {
+    computerStops.push(sessionID)
+    events.push("stop")
+    await computerStopGate
+    computerState = computerStopResult ?? { available: true, phase: "idle", color: "#38BDF8" }
+    return computerState
+  },
+  setColor: async (color) => ({ ...computerState, color }),
+  onState: () => () => undefined,
+}
+let computerCapability: ComputerUsePlatform | undefined = computerPlatform
 
 let promptValue: Prompt = [{ type: "text", content: "ls", start: 0, end: 2 }]
 const [promptStore, setPromptStore] = createStore<PromptStore>({
@@ -57,7 +108,9 @@ const prompt = {
     current: () => undefined,
     set: () => undefined,
   },
-  reset: () => undefined,
+  reset: () => {
+    promptResets++
+  },
   set: () => undefined,
   context: {
     add: () => undefined,
@@ -93,6 +146,7 @@ const clientFor = (directory: string) => {
           }
         },
         prompt: async (input: unknown) => {
+          if (promptError) throw promptError
           sentPrompts.push(directory)
           promptInputs.push(input)
           return { data: undefined }
@@ -102,6 +156,10 @@ const clientFor = (directory: string) => {
         },
         shell: async (input: { sessionID: string; id?: string; command: string }) => {
           sentShell.push(input)
+        },
+        interrupt: async (input: { sessionID: string }) => {
+          interrupted.push(input.sessionID)
+          events.push("interrupt")
         },
       },
     },
@@ -138,7 +196,10 @@ beforeAll(async () => {
   }))
 
   mock.module("@/utils/toast", () => ({
-    showToast: () => 0,
+    showToast: (toast: { title?: string; description?: string }) => {
+      toasts.push(toast)
+      return 0
+    },
   }))
 
   mock.module("@opencode-ai/core/util/encode", () => ({
@@ -203,7 +264,9 @@ beforeAll(async () => {
         directory: "/repo/main",
         client: rootClient,
         api: rootClient.api,
-        url: "http://localhost:4096",
+        get url() {
+          return serverUrl
+        },
         createClient(opts: any) {
           return clientFor(opts.directory)
         },
@@ -240,7 +303,11 @@ beforeAll(async () => {
     useServerSync: () => () => ({
       session: {
         remember: () => undefined,
-        set: () => undefined,
+        set: (field: string, sessionID: string, value: { type?: string }) => {
+          if (field !== "session_status" || !value.type) return
+          sessionStatuses.push({ sessionID, type: value.type })
+          if (sessionID === params.id) sessionWorking = value.type !== "idle"
+        },
         sync: async () => {
           serverSessionSyncs++
         },
@@ -268,6 +335,8 @@ beforeAll(async () => {
 
   mock.module("@/context/platform", () => ({
     usePlatform: () => ({
+      platform: "desktop",
+      computerUse: computerCapability,
       fetch: fetch,
     }),
   }))
@@ -304,8 +373,470 @@ beforeEach(() => {
   variant = undefined
   permissionServer = "server-a"
   createSessionGate = undefined
+  computerStartGate = undefined
+  computerStarted = Promise.withResolvers<void>()
+  computerStopGate = undefined
+  computerStartError = undefined
+  computerStartResult = undefined
+  computerAdmissionState = undefined
+  computerStopResult = undefined
+  computerState = { available: true, phase: "idle", color: "#38BDF8" }
+  computerCapability = computerPlatform
+  serverUrl = "http://localhost:4096"
+  promptResets = 0
+  queueCalls = 0
+  promptError = undefined
+  sessionWorking = false
+  sessionStatuses.length = 0
+  computerStarts.length = 0
+  computerStops.length = 0
+  interrupted.length = 0
+  events.length = 0
+  toasts.length = 0
   serverSessionSyncs = 0
   for (const key of Object.keys(storedSessions)) delete storedSessions[key]
+})
+
+describe("computer-use submission", () => {
+  const event = () => ({ preventDefault: () => undefined }) as unknown as Event
+  const text = (content: string) => {
+    promptValue = [{ type: "text", content, start: 0, end: content.length }]
+  }
+  const setup = (options: Partial<Parameters<typeof createPromptSubmit>[0]> = {}) =>
+    createPromptSubmit({
+      prompt,
+      info: () => (params.id ? { id: params.id } : undefined),
+      imageAttachments: () => [],
+      commentCount: () => 0,
+      autoAccept: () => false,
+      mode: () => "normal",
+      working: () => sessionWorking,
+      editor: () => undefined,
+      queueScroll: () => undefined,
+      promptLength: (value) => value.reduce((sum, part) => sum + ("content" in part ? part.content.length : 0), 0),
+      addToHistory: () => undefined,
+      resetHistoryNavigation: () => undefined,
+      setMode: () => undefined,
+      setPopover: () => undefined,
+      shouldQueue: () => true,
+      onQueue: () => {
+        queueCalls++
+        return true
+      },
+      ...options,
+    })
+
+  test("bare command explains usage without consent, queueing or session creation", async () => {
+    text("/computer-use")
+    await setup().handleSubmit(event())
+    expect(computerStarts).toEqual([])
+    expect(createdSessions).toEqual([])
+    expect(sentPrompts).toEqual([])
+    expect(promptResets).toBe(0)
+    expect(queueCalls).toBe(0)
+    expect(toasts).toContainEqual({ title: "computerUse.title", description: "computerUse.usage" })
+  })
+
+  test("off stops immediately even busy, without a model or current session", async () => {
+    sessionWorking = true
+    text("/computer-use off")
+    await setup({ model: { current: () => undefined } as unknown as ModelSelection }).handleSubmit(event())
+    expect(computerStops).toEqual([undefined])
+    expect(computerStarts).toEqual([])
+    expect(createdSessions).toEqual([])
+    expect(queueCalls).toBe(0)
+    expect(sentPrompts).toEqual([])
+    expect(promptResets).toBe(1)
+  })
+
+  test("off reports stopping instead of claiming the stop has finished", async () => {
+    sessionWorking = true
+    computerStopResult = { available: true, phase: "stopping", color: "#38BDF8" }
+    text("/computer-use off")
+    await setup().handleSubmit(event())
+    expect(computerStops).toEqual([undefined])
+    expect(promptResets).toBe(1)
+    expect(toasts).toEqual([{ title: "computerUse.settings.stoppingStatus" }])
+    expect(computerStarts).toEqual([])
+    expect(promptInputs).toEqual([])
+  })
+
+  test("missing desktop capability retains the draft", async () => {
+    computerCapability = undefined
+    text("/computer-use open Settings")
+    await setup().handleSubmit(event())
+    expect(computerStarts).toEqual([])
+    expect(createdSessions).toEqual([])
+    expect(promptResets).toBe(0)
+  })
+
+  test("a busy chat refuses consent without queueing, clearing the draft or stopping its existing grant", async () => {
+    params.id = "session-current"
+    sessionWorking = true
+    computerState = {
+      available: true,
+      phase: "active",
+      color: "#38BDF8",
+      sessionID: params.id,
+      grantID: computerGrantID,
+    }
+    text("/computer-use open Settings")
+    await setup().handleSubmit(event())
+    expect(computerStarts).toEqual([])
+    expect(computerStops).toEqual([])
+    expect(promptInputs).toEqual([])
+    expect(queueCalls).toBe(0)
+    expect(promptResets).toBe(0)
+    expect(optimistic).toEqual([])
+    expect(toasts).toContainEqual({ title: "computerUse.title", description: "computerUse.busy" })
+    expect(computerState.phase).toBe("active")
+  })
+
+  test.each(["starting", "active", "stopping"] as const)(
+    "does not acquire or revoke a pre-existing %s grant",
+    async (phase) => {
+      params.id = "session-current"
+      computerState = { available: true, phase, color: "#38BDF8", sessionID: params.id, grantID: computerGrantID }
+      text("/computer-use click")
+      await setup().handleSubmit(event())
+      expect(computerStarts).toEqual([])
+      expect(computerStops).toEqual([])
+      expect(promptInputs).toEqual([])
+      expect(promptResets).toBe(0)
+      expect(toasts).toContainEqual({
+        title: "computerUse.title",
+        description: phase === "stopping" ? "computerUse.settings.stoppingStatus" : "computerUse.inUse",
+      })
+      expect(computerState.phase).toBe(phase)
+    },
+  )
+
+  test("active consent submits one ordinary prompt to the current session, not the queue or command API", async () => {
+    params.id = "session-current"
+    commands.push({ name: "computer-use" })
+    text("/computer-use open Settings")
+    await setup().handleSubmit(event())
+    expect(computerStarts).toEqual([
+      { sessionID: "session-current", url: "http://localhost:4096", directory: "/repo/main" },
+    ])
+    expect(promptInputs).toHaveLength(1)
+    const parts = (promptInputs[0] as { legacyParts: { type: string; text: string; synthetic?: boolean }[] })
+      .legacyParts
+    expect(parts.filter((part) => !part.synthetic).map((part) => part.text)).toEqual(["/computer-use open Settings"])
+    expect(promptInputs[0]).toMatchObject({
+      sessionID: "session-current",
+      directory: "/repo/main",
+      agent: "agent",
+      model: { providerID: "provider", modelID: "model" },
+      legacyParts: [
+        expect.objectContaining({
+          type: "text",
+          synthetic: true,
+          text: expect.stringContaining(`"grantID": "${computerGrantID}"`),
+        }),
+        expect.objectContaining({ type: "text", text: "/computer-use open Settings", synthetic: undefined }),
+      ],
+    })
+    expect(queueCalls).toBe(0)
+    expect(sentCommands).toEqual([])
+    expect(sentShell).toEqual([])
+    expect(createdSessions).toEqual([])
+    expect(promptResets).toBe(1)
+    expect(sessionStatuses).toEqual([{ sessionID: "session-current", type: "busy" }])
+  })
+
+  test("new session consent uses the created ID and selected server before handing off the draft", async () => {
+    search.draftId = "draft-computer"
+    serverUrl = "http://127.0.0.1:44556"
+    const consent = Promise.withResolvers<void>()
+    computerStartGate = consent.promise
+    text("/computer-use open Settings")
+    const running = setup({ newSessionWorktree: () => selected }).handleSubmit(event())
+    await computerStarted.promise
+    selected = "/repo/worktree-b"
+    expect(computerStarts).toEqual([{ sessionID: "session-1", url: serverUrl, directory: "/repo/worktree-a" }])
+    expect(createdSessions).toEqual(["/repo/worktree-a"])
+    expect(promotedDrafts).toEqual([])
+    expect(promptResets).toBe(0)
+    consent.resolve()
+    await running
+    expect(promptInputs).toHaveLength(1)
+    expect(promptInputs[0]).toMatchObject({ sessionID: "session-1", directory: "/repo/worktree-a" })
+    expect(promotedDrafts).toEqual([{ draftID: "draft-computer", server: "project-server", sessionId: "session-1" }])
+  })
+
+  test.each(["idle", "starting", "stopping", "error"] as const)(
+    "%s is not consent and retains the draft",
+    async (phase) => {
+      params.id = "session-current"
+      computerStartResult = { available: true, phase, color: "#38BDF8", sessionID: "session-current" }
+      text("/computer-use open Settings")
+      await setup().handleSubmit(event())
+      expect(promptInputs).toEqual([])
+      expect(queueCalls).toBe(0)
+      expect(promptResets).toBe(0)
+    },
+  )
+
+  test("wrong-session grant is rejected", async () => {
+    params.id = "session-current"
+    computerStartResult = {
+      available: true,
+      phase: "active",
+      color: "#38BDF8",
+      sessionID: "another-session",
+      grantID: computerGrantID,
+    }
+    text("/computer-use click")
+    await setup().handleSubmit(event())
+    expect(promptInputs).toEqual([])
+    expect(computerStops).toEqual([])
+    expect(promptResets).toBe(0)
+  })
+
+  test("availability loss after activation revokes the newly acquired grant without submitting", async () => {
+    params.id = "session-current"
+    computerStartResult = {
+      available: false,
+      phase: "active",
+      color: "#38BDF8",
+      sessionID: params.id,
+      grantID: computerGrantID,
+    }
+    text("/computer-use click")
+    await setup().handleSubmit(event())
+    expect(computerStops).toEqual(["session-current"])
+    expect(promptInputs).toEqual([])
+    expect(promptResets).toBe(0)
+  })
+
+  test.each([undefined, ""])("an active response without a usable grantID is revoked: %s", async (grantID) => {
+    params.id = "session-current"
+    computerStartResult = { available: true, phase: "active", color: "#38BDF8", sessionID: params.id, grantID }
+    text("/computer-use click")
+    await setup().handleSubmit(event())
+    expect(computerStops).toEqual(["session-current"])
+    expect(promptInputs).toEqual([])
+    expect(promptResets).toBe(0)
+    expect(computerState.phase).toBe("idle")
+  })
+
+  test("admission rejects a replacement grant for the same session without revoking the replacement", async () => {
+    params.id = "session-current"
+    computerAdmissionState = {
+      available: true,
+      phase: "active",
+      color: "#38BDF8",
+      sessionID: params.id,
+      grantID: "c542fbfa-95d8-4e36-8d7f-0e9d6338d4a4",
+    }
+    text("/computer-use click")
+    await setup().handleSubmit(event())
+    expect(computerStarts).toHaveLength(1)
+    expect(promptInputs).toEqual([])
+    expect(optimistic).toEqual([])
+    expect(computerStops).toEqual([])
+    expect(computerState.grantID).toBe(computerAdmissionState.grantID)
+    expect(promptResets).toBe(0)
+  })
+
+  test("a false sendFollowupDraft result revokes the acquired grant and retains the draft", async () => {
+    params.id = "session-current"
+    computerAdmissionState = {
+      available: false,
+      phase: "active",
+      color: "#38BDF8",
+      sessionID: params.id,
+      grantID: computerGrantID,
+    }
+    text("/computer-use click")
+    await setup().handleSubmit(event())
+    expect(computerStarts).toHaveLength(1)
+    expect(computerStops).toEqual(["session-current"])
+    expect(computerState.phase).toBe("idle")
+    expect(promptInputs).toEqual([])
+    expect(optimistic).toEqual([])
+    expect(sessionStatuses).toEqual([])
+    expect(promptResets).toBe(0)
+    expect(toasts).toContainEqual({ title: "computerUse.title", description: "computerUse.notGranted" })
+  })
+
+  test.each(["server", "session"])(
+    "changing %s during consent revokes and never sends to the changed destination",
+    async (destination) => {
+      params.id = "session-current"
+      const consent = Promise.withResolvers<void>()
+      computerStartGate = consent.promise
+      text("/computer-use click")
+      const running = setup().handleSubmit(event())
+      await computerStarted.promise
+      if (destination === "server") serverUrl = "https://remote.example.test"
+      else params.id = "session-other"
+      consent.resolve()
+      await running
+      expect(promptInputs).toEqual([])
+      expect(computerStops).toEqual(["session-current"])
+      expect(promptResets).toBe(0)
+    },
+  )
+
+  test("changing destination during session creation never requests consent", async () => {
+    const create = Promise.withResolvers<void>()
+    createSessionGate = create.promise
+    text("/computer-use click")
+    const running = setup().handleSubmit(event())
+    serverUrl = "https://remote.example.test"
+    create.resolve()
+    await running
+    expect(computerStarts).toEqual([])
+    expect(promptInputs).toEqual([])
+    expect(promotedDrafts).toEqual([])
+    expect(promptResets).toBe(0)
+  })
+
+  test("off cancels an outstanding consent request and duplicate submit does not open another dialog", async () => {
+    params.id = "session-current"
+    const consent = Promise.withResolvers<void>()
+    computerStartGate = consent.promise
+    text("/computer-use click")
+    const submit = setup()
+    const running = submit.handleSubmit(event())
+    await computerStarted.promise
+    await submit.handleSubmit(event())
+    expect(computerStarts).toHaveLength(1)
+    text("/computer-use off")
+    await submit.handleSubmit(event())
+    expect(computerStops).toEqual([undefined])
+    consent.resolve()
+    await running
+    expect(promptInputs).toEqual([])
+    expect(queueCalls).toBe(0)
+  })
+
+  test("prompt failure revokes and never clears the input", async () => {
+    params.id = "session-current"
+    promptError = new Error("request failed")
+    text("/computer-use click")
+    await setup().handleSubmit(event())
+    expect(computerStops).toEqual(["session-current"])
+    expect(promptResets).toBe(0)
+  })
+
+  test("native rejection keeps the original draft and sends no prompt", async () => {
+    params.id = "session-current"
+    computerStartError = new Error("local sidecar required")
+    text("/computer-use click")
+    await setup().handleSubmit(event())
+    expect(promptInputs).toEqual([])
+    expect(promptResets).toBe(0)
+    expect(computerStops).toEqual([])
+    expect(toasts).toContainEqual({ title: "computerUse.title", description: "computerUse.failed" })
+  })
+
+  test("a competing native start rejection cannot revoke the winner's same-session grant", async () => {
+    params.id = "session-current"
+    const consent = Promise.withResolvers<void>()
+    computerStartGate = consent.promise
+    text("/computer-use click")
+    const running = setup().handleSubmit(event())
+    await computerStarted.promise
+    computerState = {
+      available: true,
+      phase: "active",
+      color: "#38BDF8",
+      sessionID: params.id,
+      grantID: computerGrantID,
+    }
+    computerStartError = new Error("computer_already_in_use")
+    consent.resolve()
+    await running
+    expect(computerStops).toEqual([])
+    expect(computerState.phase).toBe("active")
+    expect(promptInputs).toEqual([])
+    expect(promptResets).toBe(0)
+  })
+
+  test("becoming busy during consent revokes the new grant without admitting or displaying a task", async () => {
+    params.id = "session-current"
+    const consent = Promise.withResolvers<void>()
+    computerStartGate = consent.promise
+    text("/computer-use click")
+    const running = setup().handleSubmit(event())
+    await computerStarted.promise
+    sessionWorking = true
+    consent.resolve()
+    await running
+    expect(computerStops).toEqual(["session-current"])
+    expect(promptInputs).toEqual([])
+    expect(promptResets).toBe(0)
+    expect(optimistic).toEqual([])
+    expect(sessionStatuses).toEqual([])
+    expect(toasts).toContainEqual({ title: "computerUse.title", description: "computerUse.busy" })
+  })
+
+  test("becoming busy during session creation refuses native start", async () => {
+    const create = Promise.withResolvers<void>()
+    createSessionGate = create.promise
+    text("/computer-use click")
+    const running = setup().handleSubmit(event())
+    sessionWorking = true
+    create.resolve()
+    await running
+    expect(computerStarts).toEqual([])
+    expect(computerStops).toEqual([])
+    expect(promptInputs).toEqual([])
+    expect(promptResets).toBe(0)
+  })
+
+  test("revocation while preparing attachments is checked again before the prompt API", async () => {
+    params.id = "session-current"
+    text("/computer-use use the attached instructions")
+    promptValue.push({
+      type: "pasted_text",
+      id: "paste-1",
+      title: "task",
+      charCount: 4,
+      lineCount: 1,
+      blob: { id: "blob-1", url: "blob:fixture" },
+    })
+    await setup({
+      loadPastedText: async () => {
+        computerState = { available: true, phase: "idle", color: "#38BDF8" }
+        return "task"
+      },
+    }).handleSubmit(event())
+    expect(computerStarts).toHaveLength(1)
+    expect(promptInputs).toEqual([])
+    expect(promptResets).toBe(0)
+  })
+
+  test("editing the draft while consent is open cancels the old submission instead of clearing the new text", async () => {
+    params.id = "session-current"
+    const consent = Promise.withResolvers<void>()
+    computerStartGate = consent.promise
+    text("/computer-use click")
+    const running = setup().handleSubmit(event())
+    await computerStarted.promise
+    text("keep this edited draft")
+    consent.resolve()
+    await running
+    expect(promptInputs).toEqual([])
+    expect(promptResets).toBe(0)
+  })
+
+  test("normal abort stops the captured session before API interruption, even when navigation changes", async () => {
+    params.id = "session-current"
+    const stop = Promise.withResolvers<void>()
+    computerStopGate = stop.promise
+    const running = setup().abort()
+    expect(events).toEqual(["stop"])
+    params.id = "session-other"
+    stop.resolve()
+    await running
+    expect(events).toEqual(["stop", "interrupt"])
+    expect(computerStops).toEqual(["session-current"])
+    expect(interrupted).toEqual(["session-current"])
+  })
 })
 
 describe("prompt submit worktree selection", () => {

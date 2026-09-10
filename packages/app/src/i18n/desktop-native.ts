@@ -295,6 +295,16 @@ export const DESKTOP_NATIVE_ENGLISH = {
   "desktop.dialog.files": "Files",
   "desktop.server.local": "Local Server",
 
+  "desktop.computerUse.consent.title": "Allow computer use?",
+  "desktop.computerUse.consent.message": "Allow this chat to see and control your Windows desktop?",
+  "desktop.computerUse.consent.detail":
+    "Screenshots requested by the assistant are sent to the selected AI model and saved as attachments in your local chat history. The native helper does not save separate screenshot files. The assistant can move your mouse, click, and type until it finishes the task, you choose Stop, or you press Escape on your physical keyboard. Keep sensitive information off screen. Access is only for this session on the local desktop server. Permission grants are not persisted.",
+  "desktop.computerUse.consent.allow": "Allow for this task",
+  "desktop.computerUse.consent.cancel": "Cancel",
+  "desktop.computerUse.overlay.active": "Overcode is using your computer",
+  "desktop.computerUse.overlay.stop": "Stop",
+  "desktop.computerUse.overlay.escape": "Esc to stop",
+
   "desktop.wsl.error.windowsOnly": "WSL is only available on Windows",
   "desktop.wsl.error.unavailable": "WSL is unavailable",
   "desktop.wsl.error.listInstalled": "Failed to list installed WSL distros",
