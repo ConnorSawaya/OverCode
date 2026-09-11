@@ -1,0 +1,343 @@
+@import "@opencode-ai/app/index.css";
+
+:root {
+  color-scheme: light dark;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+  height: 100%;
+}
+
+body {
+  min-height: 100dvh;
+  background: var(--v2-background-bg-deep, #191515);
+}
+
+.mobile-update-notice {
+  position: fixed;
+  z-index: 15;
+  top: calc(env(safe-area-inset-top) + 12px);
+  right: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, #ef9b72 42%, transparent);
+  border-radius: 16px;
+  color: var(--v2-text-text-strong, #fff);
+  background: color-mix(in srgb, var(--v2-background-bg-base, #211e1e) 94%, #ef9b72 6%);
+  box-shadow: 0 12px 30px rgb(0 0 0 / 24%);
+}
+
+.mobile-update-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.mobile-update-copy strong {
+  font-size: 13px;
+}
+
+.mobile-update-copy span {
+  color: var(--v2-text-text-muted, #b9aaaa);
+}
+
+.mobile-update-notes,
+.mobile-update-status {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-update-status {
+  color: #ef9b72 !important;
+}
+
+.mobile-update-status--error {
+  color: var(--v2-text-text-danger, #ff9b91) !important;
+}
+
+.mobile-update-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.mobile-update-later {
+  min-width: 48px;
+  min-height: 48px;
+  padding: 8px;
+  border: 0;
+  color: var(--v2-text-text-muted, #b9aaaa);
+  background: transparent;
+  font-size: 12px;
+}
+
+#root {
+  min-height: 100dvh;
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+}
+
+.mobile-workspace {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.mobile-workspace-app {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+/* The shared V2 shell is also used by desktop, where its main flex row owns
+ * the cross-axis sizing. The mobile wrapper has a column shell instead, so
+ * explicitly stretch the route surface or session content can remain in the
+ * accessibility tree while painting outside the visible pane. */
+.mobile-workspace-app > * {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.mobile-workspace-app main {
+  width: 100%;
+  min-width: 0;
+  align-items: stretch;
+}
+
+.mobile-catalog-error {
+  position: fixed;
+  z-index: 10;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  left: 12px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, #ff6e64 45%, transparent);
+  border-radius: 12px;
+  color: var(--v2-text-text-danger, #ff9b91);
+  background: color-mix(in srgb, #ff6e64 14%, #211e1e);
+  font-size: 14px;
+}
+
+.mobile-connection-switcher {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--v2-border-border-base, #6c5e5e) 32%, transparent);
+  color: var(--v2-text-text-muted, #b9aaaa);
+  background: var(--v2-background-bg-base, #211e1e);
+}
+
+.mobile-connection-select-label {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.mobile-connection-select-label span {
+  flex: 0 0 auto;
+}
+
+.mobile-connection-select-label select {
+  min-width: 0;
+  height: 48px;
+  flex: 1;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--v2-border-border-base, #6c5e5e) 66%, transparent);
+  border-radius: 10px;
+  color: var(--v2-text-text-strong, #fff);
+  background: var(--v2-background-bg-deep, #191515);
+  font-size: 13px;
+}
+
+.mobile-connection-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.mobile-pairing-name-label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--v2-text-text-muted, #b9aaaa);
+  font-size: 13px;
+}
+
+button,
+input,
+textarea,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+button,
+[role="button"] {
+  min-width: 48px;
+  min-height: 48px;
+}
+
+.mobile-pairing {
+  display: flex;
+  min-height: 100%;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  background:
+    radial-gradient(circle at 88% 8%, color-mix(in srgb, #ef9b72 12%, transparent), transparent 30%),
+    var(--v2-background-bg-deep, #191515);
+}
+
+.mobile-pairing-panel {
+  display: flex;
+  width: min(100%, 420px);
+  flex-direction: column;
+  gap: 20px;
+}
+
+.mobile-pairing-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mobile-pairing-mark {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 16px;
+  color: #191515;
+  background: #ef9b72;
+  font-size: 22px;
+  font-weight: 760;
+  letter-spacing: -0.06em;
+}
+
+.mobile-pairing-title {
+  color: var(--v2-text-text-strong, #fff);
+  font-size: 28px;
+  font-weight: 680;
+  letter-spacing: -0.04em;
+}
+
+.mobile-pairing-copy {
+  color: var(--v2-text-text-muted, #b9aaaa);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.mobile-pairing-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mobile-pairing-input {
+  min-height: 56px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--v2-border-border-base, #6c5e5e) 72%, transparent);
+  border-radius: 14px;
+  color: var(--v2-text-text-strong, #fff);
+  background: var(--v2-background-bg-base, #211e1e);
+  outline: none;
+  font-family: "JetBrainsMono Nerd Font Mono", monospace;
+  font-size: 13px;
+}
+
+.mobile-pairing-input:focus {
+  border-color: var(--v2-border-border-focus, #ef9b72);
+  box-shadow: 0 0 0 3px color-mix(in srgb, #ef9b72 22%, transparent);
+}
+
+.mobile-pairing-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.mobile-pairing-actions > button {
+  flex: 1;
+}
+
+.mobile-pairing-error {
+  padding: 12px 14px;
+  border-radius: 12px;
+  color: var(--v2-text-text-danger, #ff9b91);
+  background: color-mix(in srgb, #ff6e64 12%, transparent);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.mobile-pairing-scanner {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #191515ee;
+}
+
+.mobile-pairing-scanner video {
+  width: min(100%, 360px);
+  aspect-ratio: 1;
+  border-radius: 24px;
+  object-fit: cover;
+}
+
+@media (max-width: 520px) {
+  .mobile-update-notice {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .mobile-update-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .mobile-connection-switcher {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .mobile-connection-select-label {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .mobile-connection-actions {
+    width: 100%;
+  }
+
+  .mobile-connection-actions > button {
+    flex: 1;
+  }
+}

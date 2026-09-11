@@ -1,0 +1,7 @@
+{
+  "version": "1.18.32",
+  "notes": "Overcode desktop 1.18.32",
+  "assets": {
+    "win-x64": "https://github.com/ConnorSawaya/overcode/releases/download/overcode-desktop-v1.18.32/overcode-desktop-win-x64.exe"
+  }
+}

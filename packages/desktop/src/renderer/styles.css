@@ -1,0 +1,33 @@
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent !important;
+}
+
+body {
+  border-radius: 16px;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: transparent;
+}
+
+[data-component="desktop-window-shell"] {
+  /* The app layout uses flex: 1 to fill this shell, including when projects collapse. */
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+[data-component="desktop-window-shell"][data-edge-to-edge="true"] {
+  border-radius: 0;
+}

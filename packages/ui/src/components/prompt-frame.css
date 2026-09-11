@@ -1,0 +1,56 @@
+[data-component="prompt-frame"] {
+  --prompt-frame-accent: var(--v2-border-border-focus);
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  border-radius: inherit;
+  pointer-events: none;
+  border: 1px solid color-mix(in srgb, var(--prompt-frame-accent) 18%, transparent);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+[data-component="prompt-frame"][hidden] {
+  display: none;
+}
+[data-component="prompt-frame"][data-agent="build"] {
+  --prompt-frame-accent: var(--icon-agent-build-base, var(--v2-agent-build-solid));
+}
+[data-component="prompt-frame"][data-agent="plan"] {
+  --prompt-frame-accent: var(--icon-agent-plan-base, var(--v2-agent-plan-solid));
+}
+
+[data-component="prompt-frame"][data-animate="true"] {
+  animation: prompt-frame-pulse 2.4s ease-in-out infinite;
+}
+
+[data-component="prompt-frame"][data-animate="false"] {
+  animation: none;
+}
+
+@keyframes prompt-frame-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 color-mix(in srgb, var(--prompt-frame-accent) 0%, transparent),
+      0 0 10px -7px color-mix(in srgb, var(--prompt-frame-accent) 32%, transparent);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--prompt-frame-accent) 18%, transparent),
+      0 0 20px -4px color-mix(in srgb, var(--prompt-frame-accent) 58%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-component="prompt-frame"][data-animate="true"] {
+    animation: none;
+    box-shadow: 0 0 12px -6px color-mix(in srgb, var(--prompt-frame-accent) 48%, transparent);
+  }
+}
+
+@media (forced-colors: active) {
+  [data-component="prompt-frame"] {
+    display: none;
+  }
+}

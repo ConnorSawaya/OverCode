@@ -1,0 +1,104 @@
+name: Overcode Desktop Release
+
+on:
+  push:
+    tags:
+      - "overcode-desktop-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semantic desktop version, for example 1.18.32"
+        required: true
+        type: string
+      source_ref:
+        description: "Branch or ref to package and update"
+        required: true
+        default: overcode-rebrand
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    if: github.repository == 'ConnorSawaya/overcode'
+    runs-on: windows-2022
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Set version
+        id: version
+        shell: pwsh
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_SOURCE_REF: ${{ inputs.source_ref }}
+        run: |
+          $version = $env:INPUT_VERSION
+          if (-not $version) { $version = $env:GITHUB_REF_NAME -replace '^overcode-desktop-v', '' }
+          $sourceRef = $env:INPUT_SOURCE_REF
+          if (-not $sourceRef) { $sourceRef = 'overcode-rebrand' }
+          if ($version -notmatch '^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$') {
+            throw "Version must be semantic, for example 1.18.32"
+          }
+          $path = "packages/desktop/package.json"
+          $package = Get-Content $path -Raw | ConvertFrom-Json
+          $package.version = $version
+          $package | ConvertTo-Json -Depth 100 | Set-Content $path
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "source_ref=$sourceRef" >> $env:GITHUB_OUTPUT
+
+      - name: Set up Bun and install workspace dependencies
+        uses: ./.github/actions/setup-bun
+        with:
+          install-flags: "--frozen-lockfile"
+
+      - name: Build the Overcode installer
+        working-directory: packages/desktop
+        env:
+          OPENCODE_VERSION: ${{ steps.version.outputs.version }}
+          OPENCODE_CHANNEL: prod
+        run: bun run package:win
+
+      - name: Create or update GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $tag = "overcode-desktop-v$env:RELEASE_VERSION"
+          $installer = "packages/desktop/dist/overcode-desktop-win-x64.exe"
+          $blockmap = "$installer.blockmap"
+          if (-not (Test-Path $installer)) { throw "Desktop installer was not produced: $installer" }
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --repo $env:GITHUB_REPOSITORY --title "Overcode Desktop $env:RELEASE_VERSION" --notes "Overcode Desktop $env:RELEASE_VERSION" --latest
+          }
+          gh release upload $tag $installer $blockmap --repo $env:GITHUB_REPOSITORY --clobber
+
+      - name: Update the GitHub update feed
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          SOURCE_REF: ${{ steps.version.outputs.source_ref }}
+        run: |
+          $path = "packages/desktop/update.json"
+          $manifest = Get-Content $path -Raw | ConvertFrom-Json
+          $manifest.version = $env:RELEASE_VERSION
+          $manifest.notes = "Overcode desktop $env:RELEASE_VERSION"
+          $manifest.assets = [ordered]@{
+            "win-x64" = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/overcode-desktop-v$env:RELEASE_VERSION/overcode-desktop-win-x64.exe"
+          }
+          $manifest | ConvertTo-Json -Depth 10 | Set-Content $path
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/desktop/package.json packages/desktop/update.json
+          if (-not (git diff --cached --quiet)) {
+            git commit -m "chore: publish Overcode desktop $env:RELEASE_VERSION"
+            git push origin "HEAD:$env:SOURCE_REF"
+          }

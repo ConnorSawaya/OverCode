@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@opencode-ai/mobile",
+  "version": "1.18.32",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "build:web": "vite build",
+    "typecheck": "tsgo --noEmit",
+    "sync": "bun run build:web && cap sync android",
+    "open": "cap open android",
+    "build:apk": "bun run sync && android/gradlew.bat --no-daemon --console plain -p android assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/core": "^7.4.4",
+    "@opencode-ai/app": "workspace:*",
+    "@opencode-ai/mobile-relay": "workspace:*",
+    "@opencode-ai/ui": "workspace:*",
+    "solid-js": "catalog:"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^7.4.4",
+    "@capacitor/cli": "^7.4.4",
+    "@tailwindcss/vite": "catalog:",
+    "@types/node": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:"
+  }
+}

@@ -1,0 +1,5 @@
+export { SessionComposerRegion } from "./session-composer-region"
+export { SessionGoalDock } from "./session-goal-dock"
+export { createPromptInputController, createPromptProjectControls } from "./session-composer-controls"
+export { createSessionComposerController } from "./session-composer-state"
+export { createSessionComposerRegionController } from "./session-composer-region-controller"
