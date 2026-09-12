@@ -492,8 +492,8 @@ const main = Effect.gen(function* () {
     logger.log("loading task finished")
   }).pipe(forwardInitializationFailure(serverReady), Effect.forkChild)
 
-  yield* Fiber.await(loadingTask)
-
+  // Show the window immediately instead of blocking on sidecar spawn +
+  // health. The renderer shows a loading splash until serverReady resolves.
   app.on("window-all-closed", () => {
     if (process.platform === "darwin") return
     app.quit()
@@ -505,6 +505,8 @@ const main = Effect.gen(function* () {
 
   const windows = restoreMainWindows()
   if (windows.length) createMenu(menuDeps)
+
+  yield* Fiber.await(loadingTask)
 })
 
 void Effect.runPromise(main).catch((error) => {

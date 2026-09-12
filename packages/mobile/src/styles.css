@@ -139,6 +139,12 @@ body {
   font-size: 14px;
 }
 
+.mobile-catalog-error-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
 .mobile-connection-switcher {
   display: flex;
   align-items: center;

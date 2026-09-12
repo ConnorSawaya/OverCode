@@ -39,6 +39,9 @@ const MAX_MANIFEST_BYTES = 64 * 1024
 const REQUEST_TIMEOUT_MS = 30_000
 const UPDATE_DIR = "overcode-updates"
 const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000
+// Delay the first automatic check until launch has settled so the manifest
+// fetch + installer download don't contend with sidecar spawn and first paint.
+const UPDATE_BOOT_DELAY_MS = 60_000
 const TRUSTED_MANIFEST_HOST = "raw.githubusercontent.com"
 const TRUSTED_MANIFEST_PATH = "/ConnorSawaya/overcode/"
 const TRUSTED_RELEASE_HOST = "github.com"
@@ -114,13 +117,16 @@ export function setupAutoUpdater(stop: () => Promise<void>) {
       }
     }
 
-    void controller.start().then((state) => {
-      if (state.status === "ready") return showUpdaterDialog(controller, false)
-    }).catch((error) => {
-      writeLog("updater", "automatic update startup failed", {
-        error: error instanceof Error ? error.message : String(error),
-      }, "warn")
-    })
+    const bootTimer = setTimeout(() => {
+      void controller.start().then((state) => {
+        if (state.status === "ready") return showUpdaterDialog(controller, false)
+      }).catch((error) => {
+        writeLog("updater", "automatic update startup failed", {
+          error: error instanceof Error ? error.message : String(error),
+        }, "warn")
+      })
+    }, UPDATE_BOOT_DELAY_MS)
+    app.once("will-quit", () => clearTimeout(bootTimer))
     const interval = setInterval(() => void runAutomaticCheck(), UPDATE_CHECK_INTERVAL_MS)
     app.once("will-quit", () => clearInterval(interval))
   }

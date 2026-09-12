@@ -169,6 +169,15 @@ function MobilePairingScreen(props: {
 
   onCleanup(stopScan)
 
+  // Never hold the camera while backgrounded.
+  onMount(() => {
+    const onVisibility = () => {
+      if (document.hidden) stopScan()
+    }
+    document.addEventListener("visibilitychange", onVisibility)
+    onCleanup(() => document.removeEventListener("visibilitychange", onVisibility))
+  })
+
   const pairingInputIsValid = () => {
     const raw = value().trim()
     return isPairingCode(raw) || !!parsePairingUri(raw)
@@ -258,6 +267,42 @@ function activeConnection() {
   return connections().find((value) => value.id === id) ?? connections()[0]
 }
 
+// Keep the screen on while the workspace is open so the OS never sleeps
+// mid-session. Web Wake Lock when available; the native window flag in
+// MainActivity is the fallback that always applies.
+function useScreenAwake() {
+  onMount(() => {
+    let sentinel: WakeLockSentinel | undefined
+    let disposed = false
+    const acquire = async () => {
+      if (disposed || sentinel || document.hidden) return
+      try {
+        if (!("wakeLock" in navigator)) return
+        sentinel = await navigator.wakeLock.request("screen")
+        sentinel.addEventListener("release", () => {
+          sentinel = undefined
+        })
+      } catch {
+        sentinel = undefined
+      }
+    }
+    const onVisibility = () => {
+      if (document.hidden) {
+        void sentinel?.release().catch(() => undefined)
+        sentinel = undefined
+      } else void acquire()
+    }
+    document.addEventListener("visibilitychange", onVisibility)
+    void acquire()
+    onCleanup(() => {
+      disposed = true
+      document.removeEventListener("visibilitychange", onVisibility)
+      void sentinel?.release().catch(() => undefined)
+      sentinel = undefined
+    })
+  })
+}
+
 function MobileWorkspace(props: {
   connection: SavedConnection
   connections: SavedConnection[]
@@ -266,6 +311,7 @@ function MobileWorkspace(props: {
   onAdd: () => void
   onForget: () => void
 }) {
+  useScreenAwake()
   const server: ServerConnection.Http = {
     type: "http",
     http: { url: props.connection.relay, token: props.connection.token },
@@ -277,7 +323,7 @@ function MobileWorkspace(props: {
         <AppInterface
           defaultServer={ServerConnection.Key.make(server.http.url)}
           servers={[server]}
-          serverScoped={<MobileProjectBootstrap />}
+          serverScoped={<MobileProjectBootstrap onRepair={props.onAdd} />}
         />
       </div>
     </div>
@@ -287,10 +333,12 @@ function MobileWorkspace(props: {
 // The desktop sidebar remembers which projects were opened locally. A fresh
 // phone has no such local history, so seed its workspace list from the remote
 // project catalog once the server bootstrap has arrived.
-function MobileProjectBootstrap() {
+function MobileProjectBootstrap(props: { onRepair: () => void }) {
   const server = useServer()
   const sync = useServerSync()
   const [catalogError, setCatalogError] = createSignal(false)
+  const [sessionExpired, setSessionExpired] = createSignal(false)
+  let inflight: AbortController | undefined
 
   const openCatalogProjects = (projects: unknown) => {
     if (!Array.isArray(projects)) throw new Error("invalid_project_catalog")
@@ -304,18 +352,52 @@ function MobileProjectBootstrap() {
     }
   }
 
-  onMount(() => {
+  const refreshCatalog = () => {
     const connection = server.current
     if (!connection || connection.type !== "http" || !connection.http.token) return
+    inflight?.abort()
+    const pending = new AbortController()
+    inflight = pending
+    const timer = setTimeout(() => pending.abort(), 15_000)
     void fetch(`${connection.http.url}/project`, {
       headers: { "x-overcode-channel-token": connection.http.token },
+      signal: pending.signal,
     })
       .then((response) => {
+        if (response.status === 401 || response.status === 403) {
+          setSessionExpired(true)
+          throw new Error("project_catalog_unauthorized")
+        }
         if (!response.ok) throw new Error(`project_catalog_${response.status}`)
         return response.json()
       })
-      .then(openCatalogProjects)
-      .catch(() => setCatalogError(true))
+      .then((projects) => {
+        openCatalogProjects(projects)
+        setCatalogError(false)
+        setSessionExpired(false)
+      })
+      .catch((error) => {
+        // Aborted by a newer refresh or by backgrounding; the next
+        // foreground return retries, so don't surface an error banner.
+        if (error instanceof Error && error.name === "AbortError") return
+        if (!sessionExpired()) setCatalogError(true)
+      })
+      .finally(() => clearTimeout(timer))
+  }
+
+  onMount(() => {
+    refreshCatalog()
+    const onVisible = () => {
+      if (!document.hidden) refreshCatalog()
+    }
+    const onOnline = () => refreshCatalog()
+    document.addEventListener("visibilitychange", onVisible)
+    window.addEventListener("online", onOnline)
+    onCleanup(() => {
+      document.removeEventListener("visibilitychange", onVisible)
+      window.removeEventListener("online", onOnline)
+      inflight?.abort()
+    })
   })
 
   createEffect(() => {
@@ -323,11 +405,28 @@ function MobileProjectBootstrap() {
   })
 
   return (
-    <Show when={catalogError()}>
-      <div class="mobile-catalog-error" role="alert">
-        Projects could not be loaded from this PC. Reconnect and try again.
-      </div>
-    </Show>
+    <>
+      <Show when={sessionExpired()}>
+        <div class="mobile-catalog-error" role="alert">
+          This PC rejected the saved pairing. Pair again to reconnect.
+          <div class="mobile-catalog-error-actions">
+            <ButtonV2 type="button" variant="contrast" size="normal" onClick={props.onRepair}>
+              Pair again
+            </ButtonV2>
+          </div>
+        </div>
+      </Show>
+      <Show when={!sessionExpired() && catalogError()}>
+        <div class="mobile-catalog-error" role="alert">
+          Projects could not be loaded from this PC. Reconnect and try again.
+          <div class="mobile-catalog-error-actions">
+            <ButtonV2 type="button" variant="contrast" size="normal" onClick={refreshCatalog}>
+              Retry
+            </ButtonV2>
+          </div>
+        </div>
+      </Show>
+    </>
   )
 }
 
@@ -391,6 +490,7 @@ async function exchangePairingCode(pairing: MobilePairing): Promise<MobileConnec
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ code: pairing.code, deviceName: "Overcode Mobile", deviceType: MOBILE_DEVICE_TYPE }),
+    signal: AbortSignal.timeout(15_000),
   })
   if (!response.ok) throw new Error("pairing_failed")
   const result = (await response.json()) as { token?: string; deviceId?: string }
