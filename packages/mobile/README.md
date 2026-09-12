@@ -52,3 +52,40 @@ bun run script/phone.ts crashes   # recent native/JS crashes from logcat
 
 `tap` takes 450-wide preview coordinates (as printed screenshots) and scales
 them to the device, so copy positions straight from a screenshot.
+
+Set `OCPHONE_SERIAL` to pin a device when several are attached.
+
+### Talking to the phone without USB
+
+`transport` tells you what is possible on the current network:
+
+```bash
+bun run script/phone.ts transport
+```
+
+- **USB** always works while plugged in.
+- **WiFi adb** needs the phone pingable on the LAN. Many networks run client
+  isolation (ours does), which blocks it — then either stay on USB or join
+  both ends to a phone hotspot and retry.
+- After any network change, re-run `transport` to confirm.
+
+### MCP server (for agents)
+
+`script/mcp.ts` is a dependency-free stdio MCP server wrapping the same
+tooling, so agents drive the phone through tools instead of raw adb:
+
+```json
+{
+  "mcpServers": {
+    "overcode-phone": {
+      "command": "bun",
+      "args": ["run", "script/mcp.ts"],
+      "cwd": "C:\\path\\to\\overcode\\packages\\mobile"
+    }
+  }
+}
+```
+
+Tools: `devices`, `transport`, `launch`, `shot` (returns a png path — read
+it), `tap`, `type_text`, `pair`, `auto_pair`, `back`, `home`, `stay_on`,
+`crashes`.
