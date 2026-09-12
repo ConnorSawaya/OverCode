@@ -12,7 +12,7 @@
 //   bun run script/phone.ts type <text>          type into the focused field
 //   bun run script/phone.ts clear [n=12]         send n deletes to the focused field
 //   bun run script/phone.ts pair <code>          focus field, clear, type code, submit, screenshot
-//   bun run script/phone.ts auto [--relay URL] [--timeout-ms 45000]
+//   bun run script/phone.ts auto [--relay URL] [--timeout-ms 45000] [--proxy URL]
 //                                                 mint code + pair + verify, one command
 //   bun run script/phone.ts back|home            navigation keys
 //   bun run script/phone.ts stayon [on|off]      keep screen on while plugged in
@@ -88,10 +88,12 @@ switch (command) {
   case "auto": {
     const relayIndex = rest.indexOf("--relay");
     const relay = relayIndex >= 0 ? rest[relayIndex + 1] : undefined;
+    const proxyIndex = rest.indexOf("--proxy");
+    const proxy = proxyIndex >= 0 ? rest[proxyIndex + 1] : undefined;
     const timeoutIndex = rest.indexOf("--timeout-ms");
-    const timeoutMs = Number(rest[timeoutIndex + 1] ?? "45000");
+    const timeoutMs = timeoutIndex >= 0 ? Number(rest[timeoutIndex + 1]) : 45000;
     if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new Error("usage: phone.ts auto [--relay URL] [--timeout-ms 45000]");
-    await autoPair(relay, timeoutMs);
+    await autoPair(relay, timeoutMs, proxy);
     break;
   }
   case "back":

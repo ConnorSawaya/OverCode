@@ -172,10 +172,11 @@ export async function enterPairingCode(code: string): Promise<void> {
   }
 }
 
-export async function autoPair(relay: string | undefined, timeoutMs: number): Promise<void> {
+export async function autoPair(relay: string | undefined, timeoutMs: number, proxy?: string): Promise<void> {
   const connectorPath = fileURLToPath(new URL("../../mobile-relay/script/fake-connector.ts", import.meta.url));
   const connectorArgs = ["run", connectorPath];
   if (relay) connectorArgs.push("--relay", relay);
+  if (proxy) connectorArgs.push("--proxy", proxy);
   const connector = Bun.spawn(["bun", ...connectorArgs], { stdout: "pipe", stderr: "pipe" });
   try {
     const before = await uiDump();
