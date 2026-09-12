@@ -57,6 +57,8 @@ import { PermissionV1 } from "@opencode-ai/core/v1/permission"
 import { McpCatalog } from "@/mcp/catalog"
 import { BrowserTool } from "./browser"
 import { ComputerUseTool } from "./computer-use"
+import { discoveryDef } from "./discovery"
+import { SandboxTool } from "./sandbox"
 
 export function webSearchEnabled(providerID: ProviderV2.ID, flags = { exa: false, parallel: false }) {
   return (
@@ -120,6 +122,7 @@ const layer = Layer.effect(
     const greptool = yield* GrepTool
     const patchtool = yield* ApplyPatchTool
     const skilltool = yield* SkillTool
+    const sandboxtool = yield* SandboxTool
     const agent = yield* Agent.Service
     const codeMode = flags.experimentalCodeMode ? yield* Effect.promise(() => import("./code-mode")) : undefined
     const codeModeTool = codeMode ? yield* codeMode.CodeModeTool : undefined
@@ -229,10 +232,27 @@ const layer = Layer.effect(
           computer: Tool.init(computer),
           skill: Tool.init(skilltool),
           patch: Tool.init(patchtool),
+          sandbox: Tool.init(sandboxtool),
           question: Tool.init(question),
           lsp: Tool.init(lsptool),
           plan: Tool.init(plan),
           ...(codeModeTool ? { execute: Tool.init(codeModeTool) } : {}),
+        })
+
+        // Discovery is assembled here (not via Tool.define) so it can list
+        // the bundled tools without depending back on this service.
+        const discovered = yield* Tool.init({
+          id: "discover",
+          init: () =>
+            Effect.succeed(
+              discoveryDef(() =>
+                Effect.succeed(
+                  Object.values(tool)
+                    .filter((def) => def.id !== "discover")
+                    .map((def) => ({ name: def.id, source: "builtin", description: def.description })),
+                ),
+              ),
+            ),
         })
 
         return {
@@ -255,6 +275,8 @@ const layer = Layer.effect(
             tool.computer,
             tool.skill,
             tool.patch,
+            tool.sandbox,
+            discovered,
             ...(tool.execute ? [tool.execute] : []),
             ...(flags.experimentalLspTool ? [tool.lsp] : []),
             ...(flags.experimentalPlanMode && flags.client === "cli" ? [tool.plan] : []),

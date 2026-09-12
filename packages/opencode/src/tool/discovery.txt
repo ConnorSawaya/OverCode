@@ -1,0 +1,9 @@
+Use this when you need a capability but are not sure which tool provides it,
+or before enabling a new MCP server. Search first, read schemas second, call
+third — do not dump every tool definition into context.
+
+Actions:
+- search: rank tools (built-in + MCP) against a plain-language query.
+  Returns names, sources, and one-line descriptions only.
+- categories: list tool sources (builtin, each MCP server, custom) with counts.
+- describe: full description plus argument names for exactly one tool.

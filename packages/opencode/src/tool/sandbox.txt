@@ -1,0 +1,9 @@
+Use this to run generated or untrusted code and observe what it does,
+instead of running it in the project directory.
+
+Runs the command with no shell in a fresh EMPTY temp directory (deleted
+afterwards) and kills it after the timeout. Returns returncode/stdout/stderr.
+
+Limits, stated plainly: process-level containment only. No filesystem or
+network isolation — this is not a security boundary. Never run hostile code.
+Prefer this over shell when the code must not see or touch the project.

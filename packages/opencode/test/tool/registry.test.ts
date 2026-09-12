@@ -109,6 +109,15 @@ describe("tool.registry", () => {
     }),
   )
 
+  it.instance("exposes overcode discover and sandbox tools", () =>
+    Effect.gen(function* () {
+      const registry = yield* ToolRegistry.Service
+      const ids = yield* registry.ids()
+      expect(ids).toContain("discover")
+      expect(ids).toContain("sandbox")
+    }),
+  )
+
   it.instance("does not expose task_status", () =>
     Effect.gen(function* () {
       const registry = yield* ToolRegistry.Service
