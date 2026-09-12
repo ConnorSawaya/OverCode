@@ -12,7 +12,7 @@ import * as Tool from "./tool";
 import DESCRIPTION from "./discovery.txt";
 
 export const Parameters = Schema.Struct({
-  action: Schema.Literal("search", "categories", "describe"),
+  action: Schema.Literals(["search", "categories", "describe"]),
   query: Schema.optional(Schema.String).annotate({ description: "Plain-language capability query (search only)" }),
   name: Schema.optional(Schema.String).annotate({ description: "Exact tool name (describe only)" }),
   limit: Schema.optional(Schema.Number).annotate({ description: "Max results for search (default 8, max 25)" }),

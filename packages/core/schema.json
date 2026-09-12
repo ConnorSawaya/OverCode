@@ -1,9 +1,9 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "0c39c19a-e46b-4f6d-860e-2b126f0c6e17",
+  "id": "3b84baa1-c643-48dd-a644-3db9f3d254a2",
   "prevIds": [
-    "b78dddb3-517f-4c61-9c38-0785ef03a520"
+    "0c39c19a-e46b-4f6d-860e-2b126f0c6e17"
   ],
   "ddl": [
     {
@@ -100,6 +100,14 @@
     },
     {
       "name": "sync_state",
+      "entityType": "tables"
+    },
+    {
+      "name": "workflow_history",
+      "entityType": "tables"
+    },
+    {
+      "name": "workflow_instance",
       "entityType": "tables"
     },
     {
@@ -1743,6 +1751,156 @@
       "table": "sync_state"
     },
     {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "workflow_history"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "instance_id",
+      "entityType": "columns",
+      "table": "workflow_history"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "step_id",
+      "entityType": "columns",
+      "table": "workflow_history"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "event",
+      "entityType": "columns",
+      "table": "workflow_history"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "workflow_history"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "result",
+      "entityType": "columns",
+      "table": "workflow_history"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "time_created",
+      "entityType": "columns",
+      "table": "workflow_history"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "workflow_instance"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "workflow_instance"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "workflow_instance"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "current_step",
+      "entityType": "columns",
+      "table": "workflow_instance"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "definition",
+      "entityType": "columns",
+      "table": "workflow_instance"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "context",
+      "entityType": "columns",
+      "table": "workflow_instance"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "time_created",
+      "entityType": "columns",
+      "table": "workflow_instance"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "time_updated",
+      "entityType": "columns",
+      "table": "workflow_instance"
+    },
+    {
       "columns": [
         "project_id"
       ],
@@ -1951,6 +2109,21 @@
       "name": "fk_session_share_session_id_session_id_fk",
       "entityType": "fks",
       "table": "session_share"
+    },
+    {
+      "columns": [
+        "instance_id"
+      ],
+      "tableTo": "workflow_instance",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_workflow_history_instance_id_workflow_instance_id_fk",
+      "entityType": "fks",
+      "table": "workflow_history"
     },
     {
       "columns": [
@@ -2169,6 +2342,24 @@
       "nameExplicit": false,
       "name": "sync_state_pk",
       "table": "sync_state",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "workflow_history_pk",
+      "table": "workflow_history",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "workflow_instance_pk",
+      "table": "workflow_instance",
       "entityType": "pks"
     },
     {
@@ -2572,6 +2763,34 @@
       "name": "sync_profile_updated_idx",
       "entityType": "indexes",
       "table": "sync_profile"
+    },
+    {
+      "columns": [
+        {
+          "value": "instance_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "workflow_history_instance_idx",
+      "entityType": "indexes",
+      "table": "workflow_history"
+    },
+    {
+      "columns": [
+        {
+          "value": "status",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "workflow_instance_status_idx",
+      "entityType": "indexes",
+      "table": "workflow_instance"
     }
   ],
   "renames": []

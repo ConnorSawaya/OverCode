@@ -43,5 +43,6 @@ export const migrations = (
     import("./migration/20260905184928_session-prompt-queue"),
     import("./migration/20260909120000_cross-device-sync"),
     import("./migration/20260910144323_sync-project-mapping"),
+    import("./migration/20260912064303_add-workflow-tables"),
   ])
 ).map((module) => module.default) satisfies DatabaseMigration.Migration[]

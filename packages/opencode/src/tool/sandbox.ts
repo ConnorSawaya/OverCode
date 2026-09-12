@@ -39,7 +39,7 @@ export function truncateOutput(value: string): string {
 }
 
 export function runSandboxed(input: {
-  command: string[];
+  command: ReadonlyArray<string>;
   files?: Record<string, string>;
   timeoutMs?: number;
   signal?: AbortSignal;
@@ -57,7 +57,8 @@ export function runSandboxed(input: {
         yield* Effect.promise(() => fs.mkdir(path.dirname(target), { recursive: true }));
         yield* Effect.promise(() => fs.writeFile(target, content));
       }
-      const proc = Bun.spawn(input.command, {
+      const argv = [...input.command];
+      const proc = Bun.spawn(argv, {
         cwd: workdir,
         stdout: "pipe",
         stderr: "pipe",

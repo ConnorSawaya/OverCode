@@ -59,6 +59,8 @@ import { BrowserTool } from "./browser"
 import { ComputerUseTool } from "./computer-use"
 import { discoveryDef } from "./discovery"
 import { SandboxTool } from "./sandbox"
+import { WorkflowTool } from "./workflow"
+import { Workflow } from "../workflow"
 
 export function webSearchEnabled(providerID: ProviderV2.ID, flags = { exa: false, parallel: false }) {
   return (
@@ -123,6 +125,7 @@ const layer = Layer.effect(
     const patchtool = yield* ApplyPatchTool
     const skilltool = yield* SkillTool
     const sandboxtool = yield* SandboxTool
+    const workflowtool = yield* WorkflowTool
     const agent = yield* Agent.Service
     const codeMode = flags.experimentalCodeMode ? yield* Effect.promise(() => import("./code-mode")) : undefined
     const codeModeTool = codeMode ? yield* codeMode.CodeModeTool : undefined
@@ -233,6 +236,7 @@ const layer = Layer.effect(
           skill: Tool.init(skilltool),
           patch: Tool.init(patchtool),
           sandbox: Tool.init(sandboxtool),
+          workflow: Tool.init(workflowtool),
           question: Tool.init(question),
           lsp: Tool.init(lsptool),
           plan: Tool.init(plan),
@@ -276,6 +280,7 @@ const layer = Layer.effect(
             tool.skill,
             tool.patch,
             tool.sandbox,
+            tool.workflow,
             discovered,
             ...(tool.execute ? [tool.execute] : []),
             ...(flags.experimentalLspTool ? [tool.lsp] : []),
@@ -466,6 +471,7 @@ export const node = LayerNode.make({
     Plugin.node,
     Question.node,
     Todo.node,
+    Workflow.node,
     Agent.node,
     Skill.node,
     Session.node,

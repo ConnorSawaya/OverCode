@@ -1,0 +1,18 @@
+Use this for multi-step jobs that must survive restarts, failures, and
+cancellations — releases, migrations, multi-part refactors. For a quick
+in-memory checklist inside one session, todowrite is lighter.
+
+Actions:
+- start: create a workflow from an ordered step list. Returns the id and the
+  first current step. Do that step, then report it.
+- report: record the CURRENT step as completed (with result/context for later
+  steps) or failed. Returns the next step, or the terminal status.
+- status: show current step, context, and history. Use after a restart or to
+  re-orient mid-job.
+- resume: alias for status that also logs that work continued here.
+- list: all workflows, optionally filtered by status.
+- cancel: stop a workflow. Terminal workflows (completed/failed/cancelled)
+  refuse further reports.
+
+Rules: report exactly the current step id; out-of-order reports are rejected.
+Context patches merge forward so later steps see earlier results.
