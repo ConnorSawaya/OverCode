@@ -128,7 +128,7 @@ export default function StatsLab() {
       <Meta name="description" content={labDescription()} />
       <LocaleLinks path={labPath()} />
       <Meta property="og:type" content="website" />
-      <Meta property="og:site_name" content="OpenCode" />
+      <Meta property="og:site_name" content="Overcode" />
       <Meta property="og:title" content={labTitle()} />
       <Meta property="og:description" content={labDescription()} />
       <Meta property="og:url" content={labUrl()} />
@@ -653,7 +653,7 @@ function LabModelTooltip(props: { state: LabModelTooltipState }) {
           </span>
           <strong>{props.state.model.name}</strong>
         </div>
-        <p>{props.state.model.description ?? "Recent OpenCode usage, share, context, and output limits."}</p>
+        <p>{props.state.model.description ?? "Recent Overcode usage, share, context, and output limits."}</p>
       </div>
       <div data-slot="tooltip-divider" />
       <div data-slot="lab-model-tooltip-metrics">

@@ -4,7 +4,7 @@
 @import "tw-animate-css";
 
 :root {
-  --opencode-custom-background: none;
+  --overcode-custom-background: none;
 }
 
 html,
@@ -21,7 +21,7 @@ body,
 
 body[data-custom-background] {
   background-color: var(--v2-background-bg-deep);
-  background-image: var(--opencode-custom-background);
+  background-image: var(--overcode-custom-background);
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover;
@@ -370,32 +370,32 @@ body[data-custom-background] #root [class*="bg-background-base"] {
   }
 
   /* The native quick-chat window is intentionally quieter than the full shell. */
-  html[data-opencode-window="quick-chat"] [data-component="session-new-design"] {
+  html[data-overcode-window="quick-chat"] [data-component="session-new-design"] {
     border-radius: 0;
     background: var(--v2-background-bg-deep);
   }
 
-  html[data-opencode-window="quick-chat"] [data-component="session-new-design"] > div:first-child,
-  html[data-opencode-window="quick-chat"] [data-component="provider-tip"] {
+  html[data-overcode-window="quick-chat"] [data-component="session-new-design"] > div:first-child,
+  html[data-overcode-window="quick-chat"] [data-component="provider-tip"] {
     display: none;
   }
 
-  html[data-opencode-window="quick-chat"] [data-component="session-new-design"] > div:nth-child(2) {
+  html[data-overcode-window="quick-chat"] [data-component="session-new-design"] > div:nth-child(2) {
     top: auto;
     bottom: 24px;
     padding-inline: 12px;
   }
 
-  html[data-opencode-window="quick-chat"] [data-component="session-new-design"] > div:nth-child(2) > div {
+  html[data-overcode-window="quick-chat"] [data-component="session-new-design"] > div:nth-child(2) > div {
     width: 100%;
     max-width: none;
   }
 
-  html[data-opencode-window="quick-chat"] [data-component="session-new-design"] > div:nth-child(2) > div > div {
+  html[data-overcode-window="quick-chat"] [data-component="session-new-design"] > div:nth-child(2) > div > div {
     gap: 12px;
   }
 
-  html[data-opencode-window="quick-chat"] [data-component="session-new-design"] [data-component="prompt-input-v2"] {
+  html[data-overcode-window="quick-chat"] [data-component="session-new-design"] [data-component="prompt-input-v2"] {
     min-height: 104px;
     border-radius: 14px;
   }

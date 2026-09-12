@@ -48,8 +48,8 @@ export async function proxyInference(request: Request, clientIP?: string): Promi
   forwarded.headers.set("authorization", `Bearer ${key}`)
   const ip = request.headers.get("cf-connecting-ip") ?? clientIP
   if (ip) forwarded.headers.set("x-real-ip", ip)
-  const requestID = request.headers.get("x-opencode-request-id") ?? request.headers.get("x-opencode-request")
-  if (requestID) forwarded.headers.set("x-opencode-request-id", requestID)
+  const requestID = request.headers.get("x-overcode-request-id") ?? request.headers.get("x-overcode-request")
+  if (requestID) forwarded.headers.set("x-overcode-request-id", requestID)
 
   return fetch(forwarded, { redirect: "manual" })
 }

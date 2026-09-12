@@ -5,7 +5,7 @@ import { join } from "node:path"
 import { prepareQuickStart } from "./quick-start"
 
 test("quick start has a stable workspace across concurrent opens and restarts", async () => {
-  const documents = await mkdtemp(join(tmpdir(), "opencode-quick-start-test-"))
+  const documents = await mkdtemp(join(tmpdir(), "overcode-quick-start-test-"))
   const directories = await Promise.all(Array.from({ length: 3 }, () => prepareQuickStart(documents)))
   expect(new Set(directories).size).toBe(1)
   expect(await prepareQuickStart(documents)).toBe(directories[0])

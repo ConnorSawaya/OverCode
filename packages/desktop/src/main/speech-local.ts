@@ -67,13 +67,13 @@ export function createLocalSpeech(directory: string, progress: (value: SpeechPro
               "-NoProfile",
               "-NonInteractive",
               "-Command",
-              "Expand-Archive -LiteralPath $env:OPENCODE_SPEECH_ZIP -DestinationPath $env:OPENCODE_SPEECH_DEST -Force",
+              "Expand-Archive -LiteralPath $env:OVERCODE_SPEECH_ZIP -DestinationPath $env:OVERCODE_SPEECH_DEST -Force",
             ],
             {
               windowsHide: true,
               timeout: 180_000,
               signal: setup.signal,
-              env: { ...process.env, OPENCODE_SPEECH_ZIP: zip, OPENCODE_SPEECH_DEST: staging },
+              env: { ...process.env, OVERCODE_SPEECH_ZIP: zip, OVERCODE_SPEECH_DEST: staging },
             },
           )
           if (!(await findServer(staging))) throw new Error("speech-runtime-missing")
@@ -113,13 +113,13 @@ export function createLocalSpeech(directory: string, progress: (value: SpeechPro
               "-NoProfile",
               "-NonInteractive",
               "-Command",
-              "Expand-Archive -LiteralPath $env:OPENCODE_SPEECH_ZIP -DestinationPath $env:OPENCODE_SPEECH_DEST -Force",
+              "Expand-Archive -LiteralPath $env:OVERCODE_SPEECH_ZIP -DestinationPath $env:OVERCODE_SPEECH_DEST -Force",
             ],
             {
               windowsHide: true,
               timeout: 180_000,
               signal: setup.signal,
-              env: { ...process.env, OPENCODE_SPEECH_ZIP: zip, OPENCODE_SPEECH_DEST: staging },
+              env: { ...process.env, OVERCODE_SPEECH_ZIP: zip, OVERCODE_SPEECH_DEST: staging },
             },
           )
           await rename(staging, cublas)

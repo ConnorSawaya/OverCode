@@ -124,8 +124,8 @@ export function createWslServersController(
 
   const setOpencodeCheck = (distro: string, check: WslOpencodeCheck) => {
     setState({
-      opencodeChecks: {
-        ...state.opencodeChecks,
+      overcodeChecks: {
+        ...state.overcodeChecks,
         [distro]: check,
       },
     })
@@ -136,7 +136,7 @@ export function createWslServersController(
     const version = resolved
       ? await (options?.readCommandVersion ?? readWslCommandVersion)(resolved, distro, opts)
       : null
-    return opencodeCheck(distro, resolved, version, appVersion)
+    return overcodeCheck(distro, resolved, version, appVersion)
   }
 
   const refreshOpencodeCheck = async (distro: string, opts?: { signal?: AbortSignal }) => {
@@ -154,14 +154,14 @@ export function createWslServersController(
       setState({ distroProbes: { ...state.distroProbes, ...Object.fromEntries(distroProbes) } })
     }
 
-    const opencodeChecks = await Promise.all(
+    const overcodeChecks = await Promise.all(
       unique
         .filter((distro) => distroProbeReady(state.distroProbes[distro]))
-        .filter((distro) => !state.opencodeChecks[distro])
+        .filter((distro) => !state.overcodeChecks[distro])
         .map(async (distro) => [distro, await checkOpencode(distro, opts)] as const),
     )
-    if (opencodeChecks.length) {
-      setState({ opencodeChecks: { ...state.opencodeChecks, ...Object.fromEntries(opencodeChecks) } })
+    if (overcodeChecks.length) {
+      setState({ overcodeChecks: { ...state.overcodeChecks, ...Object.fromEntries(overcodeChecks) } })
     }
   }
 
@@ -177,7 +177,7 @@ export function createWslServersController(
       })
       .catch((error) => {
         const message = error instanceof Error ? error.message : String(error)
-        logger?.error("wsl opencode check failed", { id, distro, message })
+        logger?.error("wsl overcode check failed", { id, distro, message })
       })
   }
 
@@ -191,7 +191,7 @@ export function createWslServersController(
           })
           .catch((error) => {
             const message = error instanceof Error ? error.message : String(error)
-            logger?.error("wsl opencode check failed", {
+            logger?.error("wsl overcode check failed", {
               id: item.config.id,
               distro: item.config.distro,
               message,
@@ -361,13 +361,13 @@ export function createWslServersController(
     },
 
     async installOpencode(name: string) {
-      await runJob({ kind: "install-opencode", distro: name, startedAt: Date.now() }, async (abort) => {
+      await runJob({ kind: "install-overcode", distro: name, startedAt: Date.now() }, async (abort) => {
         const result = await installWslOpencode(appVersion, name, { signal: abort.signal })
         if (result.code !== 0) {
           throw new Error(summarize(result.stderr || result.stdout) || nativeT("desktop.wsl.error.installOpencode"))
         }
         await refreshOpencodeCheck(name, { signal: abort.signal })
-        expectOpencodeVersion(state.opencodeChecks[name]?.version ?? null, appVersion, name)
+        expectOpencodeVersion(state.overcodeChecks[name]?.version ?? null, appVersion, name)
         const id = wslServerIdToRestart(state.servers, name)
         if (id) await startServer(id)
       })
@@ -402,7 +402,7 @@ export function createWslServersController(
       persistServers(remaining)
       setState({
         servers: state.servers.filter((item) => item.config.id !== id),
-        ...(distro ? clearWslDistroState(state.distroProbes, state.opencodeChecks, distro) : {}),
+        ...(distro ? clearWslDistroState(state.distroProbes, state.overcodeChecks, distro) : {}),
       })
     },
 
@@ -428,7 +428,7 @@ function initialState(): WslServersState {
     installed: [],
     online: [],
     distroProbes: {},
-    opencodeChecks: {},
+    overcodeChecks: {},
     pendingRestart: false,
     servers: [],
     job: null,
@@ -464,7 +464,7 @@ function normalizePersistedServer(value: unknown): WslServerConfig[] {
   ]
 }
 
-function opencodeCheck(
+function overcodeCheck(
   distro: string,
   resolvedPath: string | null,
   version: string | null,
@@ -477,7 +477,7 @@ function opencodeCheck(
       version: null,
       expectedVersion,
       matchesDesktop: null,
-      error: nativeT("desktop.wsl.error.opencodeMissing"),
+      error: nativeT("desktop.wsl.error.overcodeMissing"),
     }
   }
   if (!version) {
@@ -487,7 +487,7 @@ function opencodeCheck(
       version: null,
       expectedVersion,
       matchesDesktop: null,
-      error: nativeT("desktop.wsl.error.opencodeCannotRun"),
+      error: nativeT("desktop.wsl.error.overcodeCannotRun"),
     }
   }
   return {

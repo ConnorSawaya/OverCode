@@ -13,7 +13,7 @@ import "./styles.css"
 const PAIRING_KEY = "overcode.mobile.pairing"
 const DEFAULT_RELAY_URL = "https://overcode-relay-production.up.railway.app"
 
-if (!localStorage.getItem("opencode-color-scheme")) localStorage.setItem("opencode-color-scheme", "dark")
+if (!localStorage.getItem("overcode-color-scheme")) localStorage.setItem("overcode-color-scheme", "dark")
 
 const platform: Platform = {
   platform: "web",
@@ -36,7 +36,7 @@ function MobileApp() {
   const locale = normalizeLocale(navigator.language)
   return (
     <PlatformProvider value={platform}>
-      <AppBaseProviders locale={locale} defaultTheme="opencode-codex">
+      <AppBaseProviders locale={locale} defaultTheme="overcode-codex">
         <MobileUpdateNotice />
         <Show when={storageReady()}>
           <Show when={connection()} keyed fallback={<MobilePairingScreen onPaired={pair} />}>

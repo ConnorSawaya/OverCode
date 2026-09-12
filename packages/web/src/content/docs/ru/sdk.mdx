@@ -1,6 +1,6 @@
 ---
 title: SDK
-description: Типобезопасный JS-клиент для сервера opencode.
+description: Типобезопасный JS-клиент для сервера overcode.
 ---
 
 import config from "../../../../config.mjs"
@@ -25,7 +25,7 @@ npm install @opencode-ai/sdk
 
 ## Создать клиента
 
-Создайте экземпляр opencode:
+Создайте экземпляр overcode:
 
 ```javascript
 import { createOpencode } from "@opencode-ai/sdk"
@@ -49,12 +49,12 @@ const { client } = await createOpencode()
 
 ## Конфигурация
 
-Вы можете передать объект конфигурации для настройки поведения. Экземпляр по-прежнему получает ваш `opencode.json`, но вы можете переопределить или добавить встроенную конфигурацию:
+Вы можете передать объект конфигурации для настройки поведения. Экземпляр по-прежнему получает ваш `overcode.json`, но вы можете переопределить или добавить встроенную конфигурацию:
 
 ```javascript
 import { createOpencode } from "@opencode-ai/sdk"
 
-const opencode = await createOpencode({
+const overcode = await createOpencode({
   hostname: "127.0.0.1",
   port: 4096,
   config: {
@@ -62,14 +62,14 @@ const opencode = await createOpencode({
   },
 })
 
-console.log(`Server running at ${opencode.server.url}`)
+console.log(`Server running at ${overcode.server.url}`)
 
-opencode.server.close()
+overcode.server.close()
 ```
 
 ## Только клиент
 
-Если у вас уже есть работающий экземпляр opencode, вы можете создать экземпляр клиента для подключения к нему:
+Если у вас уже есть работающий экземпляр overcode, вы можете создать экземпляр клиента для подключения к нему:
 
 ```javascript
 import { createOpencodeClient } from "@opencode-ai/sdk"
@@ -376,7 +376,7 @@ await client.session.prompt({
 ```javascript
 // Search and read files
 const textResults = await client.find.text({
-  query: { pattern: "function.*opencode" },
+  query: { pattern: "function.*overcode" },
 })
 
 const files = await client.find.files({

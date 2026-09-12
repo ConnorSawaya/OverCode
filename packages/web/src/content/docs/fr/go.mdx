@@ -7,9 +7,9 @@ import config from "../../../../config.mjs"
 export const console = config.console
 export const email = `mailto:${config.email}`
 
-OpenCode Go est un abonnement à bas coût à **10 $/mois** qui vous donne un accès fiable aux modèles de codage ouverts populaires.
+Overcode Go est un abonnement à bas coût à **10 $/mois** qui vous donne un accès fiable aux modèles de codage ouverts populaires.
 
-Go fonctionne comme n'importe quel autre fournisseur dans OpenCode. Vous vous abonnez à OpenCode Go et obtenez votre clé d'API. C'est **totalement facultatif** et vous n'avez pas besoin de l'utiliser pour utiliser OpenCode.
+Go fonctionne comme n'importe quel autre fournisseur dans Overcode. Vous vous abonnez à Overcode Go et obtenez votre clé d'API. C'est **totalement facultatif** et vous n'avez pas besoin de l'utiliser pour utiliser Overcode.
 
 Il est conçu principalement pour les utilisateurs internationaux et offre un accès mondial stable.
 
@@ -22,7 +22,7 @@ Les modèles ouverts sont devenus vraiment performants. Ils atteignent désormai
 Cependant, obtenir un accès fiable et à faible latence à ces modèles peut être difficile. Les fournisseurs varient en qualité et en disponibilité.
 
 :::tip
-Nous avons testé un groupe sélectionné de modèles et de fournisseurs qui fonctionnent bien avec OpenCode.
+Nous avons testé un groupe sélectionné de modèles et de fournisseurs qui fonctionnent bien avec Overcode.
 :::
 
 Pour remédier à cela, nous avons fait plusieurs choses :
@@ -31,20 +31,20 @@ Pour remédier à cela, nous avons fait plusieurs choses :
 2. Nous avons ensuite travaillé avec quelques fournisseurs pour nous assurer qu'ils étaient correctement servis.
 3. Enfin, nous avons évalué les performances de la combinaison modèle/fournisseur et avons dressé une liste que nous nous sentons à l'aise de recommander.
 
-OpenCode Go vous donne accès à ces modèles pour **10 $/mois**.
+Overcode Go vous donne accès à ces modèles pour **10 $/mois**.
 
 ---
 
 ## Comment ça marche
 
-OpenCode Go fonctionne comme n'importe quel autre fournisseur dans OpenCode.
+Overcode Go fonctionne comme n'importe quel autre fournisseur dans Overcode.
 
-1. Vous vous connectez à **<a href={console}>OpenCode Zen</a>**, vous vous abonnez à Go et copiez votre clé d'API.
-2. Vous exécutez la commande `/connect` dans la TUI, sélectionnez `OpenCode Go` et collez votre clé d'API.
+1. Vous vous connectez à **<a href={console}>Overcode Zen</a>**, vous vous abonnez à Go et copiez votre clé d'API.
+2. Vous exécutez la commande `/connect` dans la TUI, sélectionnez `Overcode Go` et collez votre clé d'API.
 3. Exécutez `/models` dans la TUI pour voir la liste des modèles disponibles via Go.
 
 :::note
-Un seul membre par espace de travail peut s'abonner à OpenCode Go.
+Un seul membre par espace de travail peut s'abonner à Overcode Go.
 :::
 
 La liste actuelle des modèles comprend :
@@ -82,7 +82,7 @@ La liste des modèles peut changer au fur et à mesure que nous en testons et en
 
 ## Limites d'utilisation
 
-OpenCode Go inclut les limites suivantes :
+Overcode Go inclut les limites suivantes :
 
 - **Limite de 5 heures** — 12 $ d'utilisation
 - **Limite hebdomadaire** — 30 $ d'utilisation
@@ -224,35 +224,35 @@ Vous pouvez également accéder aux modèles Go via les points de terminaison d'
 
 | Modèle                       | ID de modèle                 | Point de terminaison                             | Package AI SDK              |
 | ---------------------------- | ---------------------------- | ------------------------------------------------ | --------------------------- |
-| Grok 4.6                     | grok-4.6                     | `https://opencode.ai/zen/go/v1/responses`        | `@ai-sdk/openai`            |
-| GPT 5.6 Luna                 | gpt-5.6-luna                 | `https://opencode.ai/zen/go/v1/responses`        | `@ai-sdk/openai`            |
-| GLM-5.3-Flash                | glm-5.3-flash                | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
-| GLM-5.3                      | glm-5.3                      | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
-| GLM-5.2                      | glm-5.2                      | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
-| GLM-5.1                      | glm-5.1                      | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
-| Kimi K3                      | kimi-k3                      | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
-| Kimi K2.7 Code               | kimi-k2.7-code               | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
-| Kimi K2.6                    | kimi-k2.6                    | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
-| LongCat-2.0                  | longcat-2.0                  | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
-| DeepSeek V4 Pro              | deepseek-v4-pro              | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
-| DeepSeek V4 Flash            | deepseek-v4-flash            | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
-| DeepSeek V4 Flash Vision Exp | deepseek-v4-flash-vision-exp | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
-| MiMo-V2.5                    | mimo-v2.5                    | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
-| MiMo-V2.5-Pro                | mimo-v2.5-pro                | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
-| MiniMax M3                   | minimax-m3                   | `https://opencode.ai/zen/go/v1/messages`         | `@ai-sdk/anthropic`         |
-| MiniMax M2.7                 | minimax-m2.7                 | `https://opencode.ai/zen/go/v1/messages`         | `@ai-sdk/anthropic`         |
-| MiniMax M2.5                 | minimax-m2.5                 | `https://opencode.ai/zen/go/v1/messages`         | `@ai-sdk/anthropic`         |
-| Muse Spark 1.3 Contributor   | muse-spark-1.3-contributor   | `https://opencode.ai/zen/go/v1/responses`        | `@ai-sdk/openai`            |
-| Muse Spark 1.2 Contributor   | muse-spark-1.2-contributor   | `https://opencode.ai/zen/go/v1/responses`        | `@ai-sdk/openai`            |
-| Qwen3.8 Max                  | qwen3.8-max                  | `https://opencode.ai/zen/go/v1/messages`         | `@ai-sdk/anthropic`         |
-| Qwen3.8 Flash                | qwen3.8-flash                | `https://opencode.ai/zen/go/v1/messages`         | `@ai-sdk/anthropic`         |
-| Qwen3.7 Max                  | qwen3.7-max                  | `https://opencode.ai/zen/go/v1/messages`         | `@ai-sdk/anthropic`         |
-| Qwen3.7 Plus                 | qwen3.7-plus                 | `https://opencode.ai/zen/go/v1/messages`         | `@ai-sdk/anthropic`         |
-| Qwen3.6 Plus                 | qwen3.6-plus                 | `https://opencode.ai/zen/go/v1/messages`         | `@ai-sdk/anthropic`         |
-| Hy4 preview                  | hy4-preview                  | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
-| Hy3                          | hy3                          | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| Grok 4.6                     | grok-4.6                     | `https://overcode.ai/zen/go/v1/responses`        | `@ai-sdk/openai`            |
+| GPT 5.6 Luna                 | gpt-5.6-luna                 | `https://overcode.ai/zen/go/v1/responses`        | `@ai-sdk/openai`            |
+| GLM-5.3-Flash                | glm-5.3-flash                | `https://overcode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| GLM-5.3                      | glm-5.3                      | `https://overcode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| GLM-5.2                      | glm-5.2                      | `https://overcode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| GLM-5.1                      | glm-5.1                      | `https://overcode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| Kimi K3                      | kimi-k3                      | `https://overcode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| Kimi K2.7 Code               | kimi-k2.7-code               | `https://overcode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| Kimi K2.6                    | kimi-k2.6                    | `https://overcode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| LongCat-2.0                  | longcat-2.0                  | `https://overcode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| DeepSeek V4 Pro              | deepseek-v4-pro              | `https://overcode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| DeepSeek V4 Flash            | deepseek-v4-flash            | `https://overcode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| DeepSeek V4 Flash Vision Exp | deepseek-v4-flash-vision-exp | `https://overcode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| MiMo-V2.5                    | mimo-v2.5                    | `https://overcode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| MiMo-V2.5-Pro                | mimo-v2.5-pro                | `https://overcode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| MiniMax M3                   | minimax-m3                   | `https://overcode.ai/zen/go/v1/messages`         | `@ai-sdk/anthropic`         |
+| MiniMax M2.7                 | minimax-m2.7                 | `https://overcode.ai/zen/go/v1/messages`         | `@ai-sdk/anthropic`         |
+| MiniMax M2.5                 | minimax-m2.5                 | `https://overcode.ai/zen/go/v1/messages`         | `@ai-sdk/anthropic`         |
+| Muse Spark 1.3 Contributor   | muse-spark-1.3-contributor   | `https://overcode.ai/zen/go/v1/responses`        | `@ai-sdk/openai`            |
+| Muse Spark 1.2 Contributor   | muse-spark-1.2-contributor   | `https://overcode.ai/zen/go/v1/responses`        | `@ai-sdk/openai`            |
+| Qwen3.8 Max                  | qwen3.8-max                  | `https://overcode.ai/zen/go/v1/messages`         | `@ai-sdk/anthropic`         |
+| Qwen3.8 Flash                | qwen3.8-flash                | `https://overcode.ai/zen/go/v1/messages`         | `@ai-sdk/anthropic`         |
+| Qwen3.7 Max                  | qwen3.7-max                  | `https://overcode.ai/zen/go/v1/messages`         | `@ai-sdk/anthropic`         |
+| Qwen3.7 Plus                 | qwen3.7-plus                 | `https://overcode.ai/zen/go/v1/messages`         | `@ai-sdk/anthropic`         |
+| Qwen3.6 Plus                 | qwen3.6-plus                 | `https://overcode.ai/zen/go/v1/messages`         | `@ai-sdk/anthropic`         |
+| Hy4 preview                  | hy4-preview                  | `https://overcode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| Hy3                          | hy3                          | `https://overcode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
 
-L'[ID de modèle](/docs/config/#models) dans votre configuration OpenCode utilise le format `opencode-go/<model-id>`. Par exemple, pour Kimi K3, vous utiliseriez `opencode-go/kimi-k3` dans votre configuration.
+L'[ID de modèle](/docs/config/#models) dans votre configuration Overcode utilise le format `overcode-go/<model-id>`. Par exemple, pour Kimi K3, vous utiliseriez `overcode-go/kimi-k3` dans votre configuration.
 
 ---
 
@@ -261,7 +261,7 @@ L'[ID de modèle](/docs/config/#models) dans votre configuration OpenCode utilis
 Vous pouvez récupérer la liste complète des modèles disponibles et leurs métadonnées à partir de :
 
 ```
-https://opencode.ai/zen/go/v1/models
+https://overcode.ai/zen/go/v1/models
 ```
 
 ---
@@ -307,9 +307,9 @@ https://opencode.ai/zen/go/v1/models
 
 ## Objectifs
 
-Nous avons créé OpenCode Go pour :
+Nous avons créé Overcode Go pour :
 
 1. Rendre le codage par IA **accessible** à un plus grand nombre de personnes avec un abonnement à bas coût.
 2. Fournir un accès **fiable** aux meilleurs modèles de codage ouverts.
 3. Sélectionner des modèles qui sont **testés et évalués** pour une utilisation en tant qu'agent de codage.
-4. N'avoir **aucun verrouillage exclusif** en vous permettant d'utiliser n'importe quel autre fournisseur avec OpenCode également.
+4. N'avoir **aucun verrouillage exclusif** en vous permettant d'utiliser n'importe quel autre fournisseur avec Overcode également.

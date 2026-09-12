@@ -22,23 +22,23 @@ function tauriDir(id: string) {
 }
 
 // The Tauri app identifier changes between dev/beta/prod builds.
-// These are the legacy OpenCode identifiers — Overcode only ever reads them,
+// These are the legacy Overcode identifiers — Overcode only ever reads them,
 // to carry settings forward on first launch after the rebrand.
 const TAURI_APP_IDS: Record<string, string> = {
-  dev: "ai.opencode.desktop.dev",
-  beta: "ai.opencode.desktop.beta",
-  prod: "ai.opencode.desktop",
+  dev: "ai.overcode.desktop.dev",
+  beta: "ai.overcode.desktop.beta",
+  prod: "ai.overcode.desktop",
 }
 function tauriAppId() {
-  return app.isPackaged ? TAURI_APP_IDS[CHANNEL] : "ai.opencode.desktop.dev"
+  return app.isPackaged ? TAURI_APP_IDS[CHANNEL] : "ai.overcode.desktop.dev"
 }
 
-// Legacy OpenCode Electron userData directories, per channel. Same read-only
+// Legacy Overcode Electron userData directories, per channel. Same read-only
 // migration source as the Tauri dirs above.
 const LEGACY_APP_IDS: Record<string, string> = {
-  dev: "ai.opencode.desktop.dev",
-  beta: "ai.opencode.desktop.beta",
-  prod: "ai.opencode.desktop",
+  dev: "ai.overcode.desktop.dev",
+  beta: "ai.overcode.desktop.beta",
+  prod: "ai.overcode.desktop",
 }
 function electronUserDataDir(id: string) {
   switch (process.platform) {
@@ -52,10 +52,10 @@ function electronUserDataDir(id: string) {
 }
 
 // Migrate a single Tauri .dat file into the corresponding electron-store.
-// `opencode.settings.dat` is special: it maps to the `opencode.settings` store
+// `overcode.settings.dat` is special: it maps to the `overcode.settings` store
 // (the electron-store name without the `.dat` extension). All other .dat files
 // keep their full filename as the electron-store name so they match what the
-// renderer already passes via IPC (e.g. `"default.dat"`, `"opencode.global.dat"`).
+// renderer already passes via IPC (e.g. `"default.dat"`, `"overcode.global.dat"`).
 function migrateFile(datPath: string, filename: string) {
   let data: Record<string, unknown>
   try {
@@ -65,10 +65,10 @@ function migrateFile(datPath: string, filename: string) {
     return
   }
 
-  // opencode.settings.dat → the electron settings store ("opencode.settings").
+  // overcode.settings.dat → the electron settings store ("overcode.settings").
   // All other .dat files keep their full filename as the store name so they match
-  // what the renderer passes via IPC (e.g. "default.dat", "opencode.global.dat").
-  const storeName = filename === "opencode.settings.dat" ? "opencode.settings" : filename
+  // what the renderer passes via IPC (e.g. "default.dat", "overcode.global.dat").
+  const storeName = filename === "overcode.settings.dat" ? "overcode.settings" : filename
   const target = getStore(storeName)
   const migrated: string[] = []
   const skipped: string[] = []

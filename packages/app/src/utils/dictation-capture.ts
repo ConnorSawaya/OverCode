@@ -46,7 +46,7 @@ export async function startDictationCapture(input: {
     if (context.sampleRate !== 16000) throw new Error("speech-sample-rate")
     await context.audioWorklet.addModule(new URL("./dictation-worklet.js", import.meta.url).href)
     input.signal.throwIfAborted()
-    node = new AudioWorkletNode(context, "opencode-dictation")
+    node = new AudioWorkletNode(context, "overcode-dictation")
     node.port.onmessage = (event: MessageEvent<Float32Array | string>) => {
       if (event.data === "flushed") {
         flush?.()

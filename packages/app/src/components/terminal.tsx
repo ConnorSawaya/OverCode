@@ -180,7 +180,7 @@ export const Terminal = (props: TerminalProps) => {
   const directory = sdk().directory
   const url = sdk().url
   const auth = connection.http
-  const username = auth?.username ?? "opencode"
+  const username = auth?.username ?? "overcode"
   const password = auth?.password ?? ""
   const authToken = connection.type === "http" ? connection.authToken : false
   const sameOrigin = new URL(url, location.href).origin === location.origin
@@ -563,7 +563,7 @@ export const Terminal = (props: TerminalProps) => {
               { ptyID: id, directory },
               {
                 throwOnError: false,
-                headers: { "x-opencode-ticket": "1" },
+                headers: { "x-overcode-ticket": "1" },
               },
             )
             .catch((err: unknown) => {
@@ -580,7 +580,7 @@ export const Terminal = (props: TerminalProps) => {
         //   .api.pty.connectToken({
         //     ptyID: id,
         //     location: { directory },
-        //     "x-opencode-ticket": "1",
+        //     "x-overcode-ticket": "1",
         //   })
         //   .then((result) => result.data.ticket)
       }

@@ -29,11 +29,11 @@ test("starts every configured WSL server on initialization", () => {
 test("rejects an update that did not install the desktop version", () => {
   expect(() => expectOpencodeVersion("1.16.2", "1.16.2")).not.toThrow()
   expect(() => expectOpencodeVersion("1.14.35", "1.16.2")).toThrow(
-    "OpenCode update finished but Debian still reports 1.14.35; expected 1.16.2",
+    "Overcode update finished but Debian still reports 1.14.35; expected 1.16.2",
   )
 })
 
-test("restarts an existing distro server after updating OpenCode", () => {
+test("restarts an existing distro server after updating Overcode", () => {
   expect(
     wslServerIdToRestart(
       [
@@ -55,7 +55,7 @@ test("clears cached distro probes when removing a WSL server", () => {
       {
         Debian: {
           distro: "Debian",
-          resolvedPath: "/home/luke/.opencode/bin/opencode",
+          resolvedPath: "/home/luke/.overcode/bin/overcode",
           version: "1.16.2",
           expectedVersion: "1.16.2",
           matchesDesktop: true,
@@ -64,7 +64,7 @@ test("clears cached distro probes when removing a WSL server", () => {
       },
       "Debian",
     ),
-  ).toEqual({ distroProbes: {}, opencodeChecks: {} })
+  ).toEqual({ distroProbes: {}, overcodeChecks: {} })
 })
 
 test("opens terminals for distro names containing spaces", () => {
@@ -104,7 +104,7 @@ test("derives a required Windows restart from the post-install runtime probe", (
   expect(pendingRestartAfterWslInstall({ available: true, version: "WSL version: 2.6.1", error: null })).toBe(false)
 })
 
-test("ignores stale background OpenCode checks after removing a WSL server", async () => {
+test("ignores stale background Overcode checks after removing a WSL server", async () => {
   persistedServers = []
   releaseOpencodeResolve = undefined
   const controller = createWslServersController(
@@ -115,7 +115,7 @@ test("ignores stale background OpenCode checks after removing a WSL server", asy
         onExit: () => undefined,
       },
       url: "http://127.0.0.1:4096",
-      username: "opencode",
+      username: "overcode",
       password: "secret",
     }),
     testControllerOptions(),
@@ -128,10 +128,10 @@ test("ignores stale background OpenCode checks after removing a WSL server", asy
   await new Promise((resolve) => setTimeout(resolve, 0))
 
   expect(controller.getState().servers).toEqual([])
-  expect(controller.getState().opencodeChecks).toEqual({})
+  expect(controller.getState().overcodeChecks).toEqual({})
 })
 
-test("ignores stale startup OpenCode checks after removing a WSL server", async () => {
+test("ignores stale startup Overcode checks after removing a WSL server", async () => {
   persistedServers = [{ id: "wsl:Debian", distro: "Debian" }]
   releaseOpencodeResolve = undefined
   const controller = createWslServersController(
@@ -147,14 +147,14 @@ test("ignores stale startup OpenCode checks after removing a WSL server", async 
   await new Promise((resolve) => setTimeout(resolve, 0))
 
   expect(controller.getState().servers).toEqual([])
-  expect(controller.getState().opencodeChecks).toEqual({})
+  expect(controller.getState().overcodeChecks).toEqual({})
 })
 
-test("probes addable distros in parallel before checking OpenCode", async () => {
+test("probes addable distros in parallel before checking Overcode", async () => {
   persistedServers = []
   const started: string[] = []
   const release = new Map<string, () => void>()
-  const opencode: string[] = []
+  const overcode: string[] = []
   const controller = createWslServersController("1.16.2", async () => new Promise<never>(() => undefined), {
     ...testControllerOptions(),
     probeDistro: async (distro) => {
@@ -163,27 +163,27 @@ test("probes addable distros in parallel before checking OpenCode", async () => 
       return { name: distro, canExecute: true, hasBash: true, hasCurl: true, error: null }
     },
     resolveOpencode: async (distro) => {
-      opencode.push(distro)
-      return "/home/me/.opencode/bin/opencode"
+      overcode.push(distro)
+      return "/home/me/.overcode/bin/overcode"
     },
   })
 
   const task = controller.probeAddable(["Debian", "Ubuntu"])
   await waitFor(() => started.length === 2)
   expect(started).toEqual(["Debian", "Ubuntu"])
-  expect(opencode).toEqual([])
+  expect(overcode).toEqual([])
   release.get("Debian")?.()
   release.get("Ubuntu")?.()
   await task
 
   expect(Object.keys(controller.getState().distroProbes)).toEqual(["Debian", "Ubuntu"])
-  expect(opencode).toEqual(["Debian", "Ubuntu"])
-  expect(Object.keys(controller.getState().opencodeChecks)).toEqual(["Debian", "Ubuntu"])
+  expect(overcode).toEqual(["Debian", "Ubuntu"])
+  expect(Object.keys(controller.getState().overcodeChecks)).toEqual(["Debian", "Ubuntu"])
 })
 
-test("does not check OpenCode in addable distros that cannot execute commands", async () => {
+test("does not check Overcode in addable distros that cannot execute commands", async () => {
   persistedServers = []
-  const opencode: string[] = []
+  const overcode: string[] = []
   const controller = createWslServersController("1.16.2", async () => new Promise<never>(() => undefined), {
     ...testControllerOptions(),
     probeDistro: async (distro) => ({
@@ -194,16 +194,16 @@ test("does not check OpenCode in addable distros that cannot execute commands", 
       error: distro === "Debian" ? null : "Open Ubuntu once to finish setup",
     }),
     resolveOpencode: async (distro) => {
-      opencode.push(distro)
-      return "/home/me/.opencode/bin/opencode"
+      overcode.push(distro)
+      return "/home/me/.overcode/bin/overcode"
     },
   })
 
   await controller.probeAddable(["Debian", "Ubuntu"])
 
   expect(Object.keys(controller.getState().distroProbes)).toEqual(["Debian", "Ubuntu"])
-  expect(opencode).toEqual(["Debian"])
-  expect(Object.keys(controller.getState().opencodeChecks)).toEqual(["Debian"])
+  expect(overcode).toEqual(["Debian"])
+  expect(Object.keys(controller.getState().overcodeChecks)).toEqual(["Debian"])
 })
 
 async function waitFor(check: () => boolean) {
@@ -225,7 +225,7 @@ function testControllerOptions() {
       await new Promise<void>((resolve) => {
         releaseOpencodeResolve = resolve
       })
-      return "/home/me/.opencode/bin/opencode"
+      return "/home/me/.overcode/bin/overcode"
     },
   }
 }

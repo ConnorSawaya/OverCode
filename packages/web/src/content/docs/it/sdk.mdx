@@ -1,13 +1,13 @@
 ---
 title: SDK
-description: Client JS type-safe per il server opencode.
+description: Client JS type-safe per il server overcode.
 ---
 
 import config from "../../../../config.mjs"
 export const typesUrl = `${config.github}/blob/dev/packages/sdk/js/src/gen/types.gen.ts`
 
-L'SDK JS/TS di opencode fornisce un client type-safe per interagire con il server.
-Usalo per creare integrazioni e controllare opencode in modo programmatico.
+L'SDK JS/TS di overcode fornisce un client type-safe per interagire con il server.
+Usalo per creare integrazioni e controllare overcode in modo programmatico.
 
 [Scopri di piu](/docs/server) su come funziona il server. Per esempi, guarda i [progetti](/docs/ecosystem#projects) creati dalla comunita.
 
@@ -25,7 +25,7 @@ npm install @opencode-ai/sdk
 
 ## Crea un client
 
-Crea un'istanza di opencode:
+Crea un'istanza di overcode:
 
 ```javascript
 import { createOpencode } from "@opencode-ai/sdk"
@@ -49,12 +49,12 @@ Questo avvia sia un server sia un client
 
 ## Configurazione
 
-Puoi passare un oggetto di configurazione per personalizzare il comportamento. L'istanza legge comunque `opencode.json`, ma puoi sovrascrivere o aggiungere configurazione inline:
+Puoi passare un oggetto di configurazione per personalizzare il comportamento. L'istanza legge comunque `overcode.json`, ma puoi sovrascrivere o aggiungere configurazione inline:
 
 ```javascript
 import { createOpencode } from "@opencode-ai/sdk"
 
-const opencode = await createOpencode({
+const overcode = await createOpencode({
   hostname: "127.0.0.1",
   port: 4096,
   config: {
@@ -62,14 +62,14 @@ const opencode = await createOpencode({
   },
 })
 
-console.log(`Server running at ${opencode.server.url}`)
+console.log(`Server running at ${overcode.server.url}`)
 
-opencode.server.close()
+overcode.server.close()
 ```
 
 ## Solo client
 
-Se hai gia un'istanza di opencode in esecuzione, puoi creare un client per collegarti:
+Se hai gia un'istanza di overcode in esecuzione, puoi creare un client per collegarti:
 
 ```javascript
 import { createOpencodeClient } from "@opencode-ai/sdk"
@@ -376,7 +376,7 @@ await client.session.prompt({
 ```javascript
 // Search and read files
 const textResults = await client.find.text({
-  query: { pattern: "function.*opencode" },
+  query: { pattern: "function.*overcode" },
 })
 
 const files = await client.find.files({

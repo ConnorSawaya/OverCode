@@ -23,7 +23,7 @@ const xml = `<?xml version="1.0" encoding="UTF-8"?>
 
   <description>
     <p>
-      Overcode is a community fork of the open source opencode agent that helps
+      Overcode is a community fork of the open source overcode agent that helps
       you write and run code with any AI model.
     </p>
   </description>
@@ -32,9 +32,9 @@ const xml = `<?xml version="1.0" encoding="UTF-8"?>
 
   <content_rating type="oars-1.1" />
 
-  <url type="bugtracker">https://github.com/ConnorSawaya/opencode/issues</url>
-  <url type="homepage">https://github.com/ConnorSawaya/opencode</url>
-  <url type="vcs-browser">https://github.com/ConnorSawaya/opencode</url>
+  <url type="bugtracker">https://github.com/ConnorSawaya/overcode/issues</url>
+  <url type="homepage">https://github.com/ConnorSawaya/overcode</url>
+  <url type="vcs-browser">https://github.com/ConnorSawaya/overcode</url>
 </component>
 `
 

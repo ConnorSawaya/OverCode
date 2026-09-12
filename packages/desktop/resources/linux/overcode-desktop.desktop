@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Overcode
+Exec=/opt/Overcode/ai.overcode.desktop %U
+Terminal=false
+Type=Application
+Icon=ai.overcode.desktop
+StartupWMClass=ai.overcode.desktop
+NoDisplay=true
+Comment=Open source AI coding agent
+Categories=Development;

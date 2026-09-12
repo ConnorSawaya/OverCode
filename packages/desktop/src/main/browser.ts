@@ -159,9 +159,9 @@ type BrowserActionRequest = {
   timeoutMs?: number
 }
 
-const STORE_NAME = "opencode.browser"
+const STORE_NAME = "overcode.browser"
 const STORE_KEY = "sessions"
-const BRIDGE_TOKEN_HEADER = "x-opencode-browser-token"
+const BRIDGE_TOKEN_HEADER = "x-overcode-browser-token"
 const MAX_TABS = 12
 const MAX_OUTPUT = 24_000
 
@@ -354,7 +354,7 @@ export class BrowserManager {
             profile: entry.profile,
             updatedAt: entry.updatedAt ?? Date.now(),
           },
-          partition: electronSession.fromPartition(`persist:opencode-browser-${entry.browserSessionId}`),
+          partition: electronSession.fromPartition(`persist:overcode-browser-${entry.browserSessionId}`),
           tabs: new Map(),
           attached: new Map(),
           restored: true,
@@ -380,8 +380,8 @@ export class BrowserManager {
     const address = this.bridge.address()
     if (!address || typeof address === "string") throw new Error("Browser bridge failed to bind")
     this.bridgeUrl = `http://127.0.0.1:${address.port}`
-    process.env.OPENCODE_BROWSER_BRIDGE_URL = this.bridgeUrl
-    process.env.OPENCODE_BROWSER_BRIDGE_TOKEN = this.bridgeToken
+    process.env.OVERCODE_BROWSER_BRIDGE_URL = this.bridgeUrl
+    process.env.OVERCODE_BROWSER_BRIDGE_TOKEN = this.bridgeToken
   }
 
   async stop() {
@@ -441,7 +441,7 @@ export class BrowserManager {
         tabs: [],
         updatedAt: Date.now(),
       },
-      partition: electronSession.fromPartition(`persist:opencode-browser-${id}`),
+      partition: electronSession.fromPartition(`persist:overcode-browser-${id}`),
       tabs: new Map(),
       attached: new Map(),
       restored: false,
@@ -1329,9 +1329,9 @@ function browserPage(action: string, target = "", value: string | boolean = "") 
   const rect = el.getBoundingClientRect()
   if (action === "highlight") {
     const overlay = document.createElement("div")
-    overlay.dataset.opencodeBrowserOverlay = "true"
+    overlay.dataset.overcodeBrowserOverlay = "true"
     overlay.style.cssText = `position:fixed;left:${rect.left - 3}px;top:${rect.top - 3}px;width:${rect.width + 6}px;height:${rect.height + 6}px;border:2px solid #9a8cff;border-radius:6px;pointer-events:none;z-index:2147483647;`
-    document.querySelectorAll("[data-opencode-browser-overlay]").forEach((item) => item.remove())
+    document.querySelectorAll("[data-overcode-browser-overlay]").forEach((item) => item.remove())
     document.documentElement.appendChild(overlay)
     window.setTimeout(() => overlay.remove(), 700)
   }

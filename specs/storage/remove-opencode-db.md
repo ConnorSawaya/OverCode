@@ -1,8 +1,8 @@
-# Remove `packages/opencode/src/storage/db.ts`
+# Remove `packages/overcode/src/storage/db.ts`
 
 ## Goal
 
-Remove all production usages of the legacy `packages/opencode/src/storage/db.ts` module.
+Remove all production usages of the legacy `packages/overcode/src/storage/db.ts` module.
 
 This means eliminating imports from `@/storage/db` or `./storage/db`, including:
 
@@ -14,46 +14,46 @@ This means eliminating imports from `@/storage/db` or `./storage/db`, including:
 - `Database.TxOrDb` / `Database.Transaction`
 - drizzle helpers re-exported from `@/storage/db`, such as `eq`
 
-This does not mean removing SQLite or Drizzle everywhere in one step. The smaller target is deleting the opencode legacy wrapper by moving call sites onto deeper modules or onto the core/effect database adapter directly.
+This does not mean removing SQLite or Drizzle everywhere in one step. The smaller target is deleting the overcode legacy wrapper by moving call sites onto deeper modules or onto the core/effect database adapter directly.
 
 ## Current Inventory
 
-Production imports from `packages/opencode/src/storage/db.ts` are concentrated in 22 source files:
+Production imports from `packages/overcode/src/storage/db.ts` are concentrated in 22 source files:
 
-- `packages/opencode/src/account/repo.ts`
-- `packages/opencode/src/cli/cmd/db.ts`
-- `packages/opencode/src/cli/cmd/import.ts`
-- `packages/opencode/src/cli/cmd/stats.ts`
-- `packages/opencode/src/control-plane/workspace.ts`
-- `packages/opencode/src/index.ts`
-- `packages/opencode/src/node.ts`
-- `packages/opencode/src/permission/index.ts`
-- `packages/opencode/src/project/project.ts`
-- `packages/opencode/src/server/projectors.ts`
-- `packages/opencode/src/server/routes/instance/httpapi/handlers/sync.ts`
-- `packages/opencode/src/server/shared/fence.ts`
-- `packages/opencode/src/session/message-v2.ts`
-- `packages/opencode/src/session/projectors.ts`
-- `packages/opencode/src/session/prompt.ts`
-- `packages/opencode/src/session/session.ts`
-- `packages/opencode/src/session/todo.ts`
-- `packages/opencode/src/share/share-next.ts`
-- `packages/opencode/src/storage/db.ts`
-- `packages/opencode/src/sync/index.ts`
-- `packages/opencode/src/worktree/index.ts`
+- `packages/overcode/src/account/repo.ts`
+- `packages/overcode/src/cli/cmd/db.ts`
+- `packages/overcode/src/cli/cmd/import.ts`
+- `packages/overcode/src/cli/cmd/stats.ts`
+- `packages/overcode/src/control-plane/workspace.ts`
+- `packages/overcode/src/index.ts`
+- `packages/overcode/src/node.ts`
+- `packages/overcode/src/permission/index.ts`
+- `packages/overcode/src/project/project.ts`
+- `packages/overcode/src/server/projectors.ts`
+- `packages/overcode/src/server/routes/instance/httpapi/handlers/sync.ts`
+- `packages/overcode/src/server/shared/fence.ts`
+- `packages/overcode/src/session/message-v2.ts`
+- `packages/overcode/src/session/projectors.ts`
+- `packages/overcode/src/session/prompt.ts`
+- `packages/overcode/src/session/session.ts`
+- `packages/overcode/src/session/todo.ts`
+- `packages/overcode/src/share/share-next.ts`
+- `packages/overcode/src/storage/db.ts`
+- `packages/overcode/src/sync/index.ts`
+- `packages/overcode/src/worktree/index.ts`
 
 There are 65 direct API/type references in those files. The references fall into the groups below.
 
 ## Group 1: Database Runtime And Startup
 
-Status: Completed. Startup, the public node export, and database CLI tooling no longer import the legacy opencode database wrapper; `packages/opencode/src/storage/db.ts` has been deleted.
+Status: Completed. Startup, the public node export, and database CLI tooling no longer import the legacy overcode database wrapper; `packages/overcode/src/storage/db.ts` has been deleted.
 
 Files:
 
-- `packages/opencode/src/storage/db.ts`
-- `packages/opencode/src/index.ts`
-- `packages/opencode/src/node.ts`
-- `packages/opencode/src/cli/cmd/db.ts`
+- `packages/overcode/src/storage/db.ts`
+- `packages/overcode/src/index.ts`
+- `packages/overcode/src/node.ts`
+- `packages/overcode/src/cli/cmd/db.ts`
 
 Current usage:
 
@@ -69,20 +69,20 @@ Why this group comes first:
 
 Target shape:
 
-- Move database path and client startup behind the core/effect database module rather than the opencode wrapper.
+- Move database path and client startup behind the core/effect database module rather than the overcode wrapper.
 - Replace `Database.Client()` with an Effect-provided database service or a narrow startup-only adapter.
 - Replace the public `node.ts` re-export with either no export or a stable non-legacy database capability.
 - Keep `cli/cmd/db.ts` as an admin/raw SQLite tool, but make it ask the replacement database path provider instead of importing `@/storage/db`.
 
 ## Group 2: Sync Event Transaction Boundary
 
-Status: Completed. `SyncEvent` and the opencode projector boundary were removed; session/message event projection now lives in core EventV2/projector infrastructure.
+Status: Completed. `SyncEvent` and the overcode projector boundary were removed; session/message event projection now lives in core EventV2/projector infrastructure.
 
 Files:
 
-- `packages/opencode/src/sync/index.ts`
-- `packages/opencode/src/session/projectors.ts`
-- `packages/opencode/src/server/projectors.ts`
+- `packages/overcode/src/sync/index.ts`
+- `packages/overcode/src/session/projectors.ts`
+- `packages/overcode/src/server/projectors.ts`
 
 Current usage:
 
@@ -109,14 +109,14 @@ Suggested first step:
 
 ## Group 3: Domain Repositories Already Behind Services
 
-Status: Completed. These services no longer import the legacy opencode database wrapper.
+Status: Completed. These services no longer import the legacy overcode database wrapper.
 
 Files:
 
-- `packages/opencode/src/account/repo.ts`
-- `packages/opencode/src/project/project.ts`
-- `packages/opencode/src/control-plane/workspace.ts`
-- `packages/opencode/src/share/share-next.ts`
+- `packages/overcode/src/account/repo.ts`
+- `packages/overcode/src/project/project.ts`
+- `packages/overcode/src/control-plane/workspace.ts`
+- `packages/overcode/src/share/share-next.ts`
 
 Current usage:
 
@@ -144,15 +144,15 @@ Suggested order:
 
 ## Group 4: Session And Message Read Models
 
-Status: Completed. Session/message reads and projector writes have moved off the legacy opencode database wrapper.
+Status: Completed. Session/message reads and projector writes have moved off the legacy overcode database wrapper.
 
 Files:
 
-- `packages/opencode/src/session/session.ts`
-- `packages/opencode/src/session/message-v2.ts`
-- `packages/opencode/src/session/prompt.ts`
-- `packages/opencode/src/session/todo.ts`
-- `packages/opencode/src/session/projectors.ts`
+- `packages/overcode/src/session/session.ts`
+- `packages/overcode/src/session/message-v2.ts`
+- `packages/overcode/src/session/prompt.ts`
+- `packages/overcode/src/session/todo.ts`
+- `packages/overcode/src/session/projectors.ts`
 
 Current usage:
 
@@ -183,16 +183,16 @@ Suggested order:
 
 ## Group 5: Legacy CLI And One-Off Admin Reads
 
-Status: Completed. Remaining one-off CLI/admin reads and writes now use core database services or domain services instead of the legacy opencode database wrapper.
+Status: Completed. Remaining one-off CLI/admin reads and writes now use core database services or domain services instead of the legacy overcode database wrapper.
 
 Files:
 
-- `packages/opencode/src/cli/cmd/import.ts`
-- `packages/opencode/src/cli/cmd/stats.ts`
-- `packages/opencode/src/server/shared/fence.ts`
-- `packages/opencode/src/server/routes/instance/httpapi/handlers/sync.ts`
-- `packages/opencode/src/worktree/index.ts`
-- `packages/opencode/src/permission/index.ts`
+- `packages/overcode/src/cli/cmd/import.ts`
+- `packages/overcode/src/cli/cmd/stats.ts`
+- `packages/overcode/src/server/shared/fence.ts`
+- `packages/overcode/src/server/routes/instance/httpapi/handlers/sync.ts`
+- `packages/overcode/src/worktree/index.ts`
+- `packages/overcode/src/permission/index.ts`
 
 Current usage:
 
@@ -217,23 +217,23 @@ Target shape:
 
 ## Recommended Migration Sequence
 
-All migration groups are complete or superseded. `packages/opencode/src/storage/db.ts` has been deleted.
+All migration groups are complete or superseded. `packages/overcode/src/storage/db.ts` has been deleted.
 
 ## Superseded: Data Migrations
 
-Status: Superseded. No opencode data-migration group remains.
+Status: Superseded. No overcode data-migration group remains.
 
-The previous opencode `data-migration.ts` service only backfilled session usage from message rows. That work is now covered by core database migration `packages/core/src/database/migration/20260510033149_session_usage.ts`, so there is no separate opencode data-migration group.
+The previous overcode `data-migration.ts` service only backfilled session usage from message rows. That work is now covered by core database migration `packages/core/src/database/migration/20260510033149_session_usage.ts`, so there is no separate overcode data-migration group.
 
 ## Invariants To Preserve
 
 - Nested reads inside a transaction must use the active transaction, not the root client.
 - `SyncEvent.run` sequence allocation must keep immediate transaction behavior.
 - Post-commit publish effects must not run before the transaction commits.
-- Existing schema ownership remains in `packages/core/src/**/*.sql.ts`; do not move table definitions back into `packages/opencode`.
+- Existing schema ownership remains in `packages/core/src/**/*.sql.ts`; do not move table definitions back into `packages/overcode`.
 
 ## Verification Commands
 
-- `rg "@/storage/db|./storage/db|Database\.(use|transaction|effect|Client|getPath)|\bTxOrDb\b|\bTransaction\b" packages/opencode/src`
-- `bun typecheck` from `packages/opencode`
-- Relevant package tests from `packages/opencode`, not the repo root
+- `rg "@/storage/db|./storage/db|Database\.(use|transaction|effect|Client|getPath)|\bTxOrDb\b|\bTransaction\b" packages/overcode/src`
+- `bun typecheck` from `packages/overcode`
+- Relevant package tests from `packages/overcode`, not the repo root

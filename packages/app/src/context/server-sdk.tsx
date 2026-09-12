@@ -355,7 +355,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
         `Basic ${authTokenFromCredentials({ username: server.http.username, password: server.http.password })}`,
       )
     }
-    if (input.directory) headers.set("x-opencode-directory", encodeURIComponent(input.directory))
+    if (input.directory) headers.set("x-overcode-directory", encodeURIComponent(input.directory))
     const response = await (platform.fetch ?? globalThis.fetch)(new URL(input.path, server.http.url), {
       method: input.method,
       headers,

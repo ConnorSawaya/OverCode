@@ -330,7 +330,7 @@ function LayoutCompatibility(props: ParentProps) {
 
 declare global {
   interface Window {
-    __OPENCODE__?: {
+    __OVERCODE__?: {
       deepLinks?: string[]
     }
   }
@@ -366,7 +366,7 @@ function BodyDesignClass() {
       settings.appearance.backgroundPreset(),
       settings.appearance.backgroundImage(),
     )
-    document.documentElement.style.setProperty("--opencode-custom-background", backgroundImage)
+    document.documentElement.style.setProperty("--overcode-custom-background", backgroundImage)
     document.body.toggleAttribute("data-custom-background", backgroundImage !== "none")
   })
 

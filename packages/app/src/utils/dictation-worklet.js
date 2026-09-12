@@ -23,4 +23,4 @@ class DictationCapture extends AudioWorkletProcessor {
     return true
   }
 }
-registerProcessor("opencode-dictation", DictationCapture)
+registerProcessor("overcode-dictation", DictationCapture)

@@ -148,7 +148,7 @@ export default function StatsModel() {
       <Meta name="description" content={modelDescription()} />
       <LocaleLinks path={modelPath()} />
       <Meta property="og:type" content="website" />
-      <Meta property="og:site_name" content="OpenCode" />
+      <Meta property="og:site_name" content="Overcode" />
       <Meta property="og:title" content={modelTitle()} />
       <Meta property="og:description" content={modelDescription()} />
       <Meta property="og:url" content={modelUrl()} />
@@ -363,7 +363,7 @@ function ModelHero(props: {
               <ModelHeroSparkline data={data()} />
             </span>
             <span>across last week's</span>
-            <span data-slot="model-hero-pill">OpenCode</span>
+            <span data-slot="model-hero-pill">Overcode</span>
             <span>usage with</span>
             <span data-slot="model-hero-pill">{formatPercent(data().tokenShare)}</span>
             <span>of observed</span>

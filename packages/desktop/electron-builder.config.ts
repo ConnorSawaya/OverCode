@@ -10,10 +10,10 @@ const packageDir = path.dirname(fileURLToPath(import.meta.url))
 const rootDir = path.resolve(packageDir, "../..")
 const signScript = path.join(rootDir, "script", "sign-windows.ps1")
 // The Electron 42 packaging update briefly installed Linux launchers/icons under
-// "opencode-desktop". Keep that hidden desktop entry around so existing GNOME/KDE
+// "overcode-desktop". Keep that hidden desktop entry around so existing GNOME/KDE
 // pins still resolve after the canonical app id changes to ai.overcode.desktop.
-const legacyDesktopEntry = path.join(packageDir, "resources", "linux", "opencode-desktop.desktop")
-const legacyDesktopEntryFpm = `${legacyDesktopEntry}=/usr/share/applications/opencode-desktop.desktop`
+const legacyDesktopEntry = path.join(packageDir, "resources", "linux", "overcode-desktop.desktop")
+const legacyDesktopEntryFpm = `${legacyDesktopEntry}=/usr/share/applications/overcode-desktop.desktop`
 
 const metainfoFpm = (appId: string) =>
   `${path.join(packageDir, "resources", `${appId}.metainfo.xml`)}=/usr/share/metainfo/${appId}.metainfo.xml`
@@ -30,7 +30,7 @@ async function signWindows(configuration: { path: string }) {
 }
 
 const channel = (() => {
-  const raw = process.env.OPENCODE_CHANNEL
+  const raw = process.env.OVERCODE_CHANNEL
   if (raw === "dev" || raw === "beta" || raw === "prod") return raw
   return "dev"
 })()
@@ -87,7 +87,7 @@ const getBase = (appId: string): Configuration => ({
   },
   protocols: {
     name: "Overcode",
-    schemes: ["opencode"],
+    schemes: ["overcode"],
   },
   win: {
     extraResources: [{ from: "resources/computer-use", to: "computer-use", filter: ["overcode-computer-use.exe"] }],
@@ -138,7 +138,7 @@ function getConfig() {
         ...base,
         appId,
         productName: "Overcode Beta",
-        protocols: { name: "Overcode Beta", schemes: ["opencode"] },
+        protocols: { name: "Overcode Beta", schemes: ["overcode"] },
         deb: { fpm: [metainfoFpm(appId)] },
         rpm: { packageName: "overcode-beta", fpm: [metainfoFpm(appId)] },
       }
@@ -148,7 +148,7 @@ function getConfig() {
         ...base,
         appId,
         productName: "Overcode",
-        protocols: { name: "Overcode", schemes: ["opencode"] },
+        protocols: { name: "Overcode", schemes: ["overcode"] },
         deb: { fpm: [metainfoFpm(appId), legacyDesktopEntryFpm] },
         rpm: { packageName: "overcode", fpm: [metainfoFpm(appId), legacyDesktopEntryFpm] },
       }

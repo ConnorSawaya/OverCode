@@ -207,7 +207,7 @@ export function BrowserPanel(props: { sessionID?: string }) {
             onChange={(event) => setState("selectedProfile", event.currentTarget.value)}
             class="min-w-0 flex-1 rounded-md bg-surface-weak px-2 py-1 text-11-regular text-text-weak outline-none focus:ring-1 focus:ring-border-focus"
           >
-            <option value="">Isolated OpenCode profile</option>
+            <option value="">Isolated Overcode profile</option>
             <For each={state.profiles}>{(profile) => <option value={profile.id}>{profile.name}</option>}</For>
           </select>
           <button

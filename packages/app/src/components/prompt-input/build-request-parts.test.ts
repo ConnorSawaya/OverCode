@@ -117,8 +117,8 @@ describe("buildRequestParts", () => {
         (part) =>
           part.type === "text" &&
           part.synthetic &&
-          part.metadata?.opencodeComment &&
-          (part.metadata.opencodeComment as { comment?: string }).comment === "check this",
+          part.metadata?.overcodeComment &&
+          (part.metadata.overcodeComment as { comment?: string }).comment === "check this",
       ),
     ).toBe(true)
 
@@ -160,8 +160,8 @@ describe("buildRequestParts", () => {
         {
           type: "image",
           id: "img_external",
-          filename: "opencode.global.dat",
-          sourcePath: "C:\\Users\\Luke\\AppData\\Roaming\\ai.opencode.desktop.beta\\opencode.global.dat",
+          filename: "overcode.global.dat",
+          sourcePath: "C:\\Users\\Luke\\AppData\\Roaming\\ai.overcode.desktop.beta\\overcode.global.dat",
           mime: "text/plain",
           dataUrl: "data:text/plain;base64,AAA",
         },
@@ -169,11 +169,11 @@ describe("buildRequestParts", () => {
       text: "inspect this",
       messageID: "msg_external",
       sessionID: "ses_external",
-      sessionDirectory: "C:\\Repos\\sst\\opencode",
+      sessionDirectory: "C:\\Repos\\sst\\overcode",
     })
 
     expect(result.requestParts.find((part) => part.type === "file")?.filename).toBe(
-      "C:\\Users\\Luke\\AppData\\Roaming\\ai.opencode.desktop.beta\\opencode.global.dat",
+      "C:\\Users\\Luke\\AppData\\Roaming\\ai.overcode.desktop.beta\\overcode.global.dat",
     )
   })
 
@@ -345,7 +345,7 @@ describe("buildRequestParts", () => {
       text: "@README.md",
       messageID: "msg_mac_1",
       sessionID: "ses_mac_1",
-      sessionDirectory: "/Users/kelvin/Projects/opencode",
+      sessionDirectory: "/Users/kelvin/Projects/overcode",
     })
 
     const filePart = result.requestParts.find((part) => part.type === "file")
@@ -354,7 +354,7 @@ describe("buildRequestParts", () => {
       // URL should be parseable
       expect(() => new URL(filePart.url)).not.toThrow()
       // Should be a normal Unix path
-      expect(filePart.url).toBe("file:///Users/kelvin/Projects/opencode/README.md")
+      expect(filePart.url).toBe("file:///Users/kelvin/Projects/overcode/README.md")
     }
   })
 

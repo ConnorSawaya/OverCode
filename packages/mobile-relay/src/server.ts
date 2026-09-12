@@ -512,7 +512,7 @@ function headersFromRequest(request: Request, deviceId?: string): RelayHeaders {
 function cors(response: Response, request: Request) {
   const headers = new Headers(response.headers)
   headers.set("access-control-allow-origin", request.headers.get("origin") ?? "*")
-  headers.set("access-control-allow-headers", "authorization, content-type, x-opencode-directory, x-overcode-channel-token")
+  headers.set("access-control-allow-headers", "authorization, content-type, x-overcode-directory, x-overcode-channel-token")
   headers.set("access-control-allow-methods", "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS")
   headers.set("access-control-max-age", "86400")
   return new Response(response.body, { status: response.status, headers })

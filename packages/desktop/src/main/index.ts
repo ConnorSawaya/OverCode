@@ -68,8 +68,8 @@ const APP_IDS: Record<string, string> = {
   beta: "ai.overcode.desktop.beta",
   prod: "ai.overcode.desktop",
 }
-const TEST_ONBOARDING = process.env.OPENCODE_TEST_ONBOARDING === "1"
-const SIDECAR_VERSION = process.env.OPENCODE_SIDECAR_V2 === "1" ? "v2" : "v1"
+const TEST_ONBOARDING = process.env.OVERCODE_TEST_ONBOARDING === "1"
+const SIDECAR_VERSION = process.env.OVERCODE_SIDECAR_V2 === "1" ? "v2" : "v1"
 const jsCallStackFeature = "DocumentPolicyIncludeJSCallStacksInCrashReports"
 
 let logger: ReturnType<typeof initLogging>
@@ -139,18 +139,18 @@ const main = Effect.gen(function* () {
     process.chdir(homedir())
   } catch {}
 
-  process.env.OPENCODE_DISABLE_EMBEDDED_WEB_UI = "true"
+  process.env.OVERCODE_DISABLE_EMBEDDED_WEB_UI = "true"
 
   const appId = app.isPackaged ? APP_IDS[CHANNEL] : "ai.overcode.desktop.dev"
   const onboardingTestRoot = ((): string | undefined => {
     if (!TEST_ONBOARDING) return
 
-    const root = join(tmpdir(), `opencode-onboarding-${randomUUID()}`)
+    const root = join(tmpdir(), `overcode-onboarding-${randomUUID()}`)
     rmSync(root, { recursive: true, force: true })
     ;["data", "config", "cache", "state", "desktop", "session"].forEach((dir) =>
       mkdirSync(join(root, dir), { recursive: true }),
     )
-    process.env.OPENCODE_DB = ":memory:"
+    process.env.OVERCODE_DB = ":memory:"
     process.env.XDG_DATA_HOME = join(root, "data")
     process.env.XDG_CONFIG_HOME = join(root, "config")
     process.env.XDG_CACHE_HOME = join(root, "cache")
@@ -222,7 +222,7 @@ const main = Effect.gen(function* () {
   const shellEnv = preferAppEnv(app.getPath("userData"))
 
   app.on("second-instance", (_event: Event, argv: string[]) => {
-    const urls = argv.filter((arg: string) => arg.startsWith("opencode://"))
+    const urls = argv.filter((arg: string) => arg.startsWith("overcode://"))
     if (urls.length) {
       logger.log("deep link received via second-instance", { urls })
       emitDeepLinks(urls)
@@ -300,7 +300,7 @@ const main = Effect.gen(function* () {
       if (local.password)
         headers.set(
           "Authorization",
-          `Basic ${Buffer.from(`${local.username ?? "opencode"}:${local.password}`).toString("base64")}`,
+          `Basic ${Buffer.from(`${local.username ?? "overcode"}:${local.password}`).toString("base64")}`,
         )
       const target = (path: string, init?: RequestInit) => {
         const url = new URL(path, local.url)
@@ -343,7 +343,7 @@ const main = Effect.gen(function* () {
       }),
     ),
   )
-  app.setAsDefaultProtocolClient("opencode")
+  app.setAsDefaultProtocolClient("overcode")
   registerRendererProtocol()
   setDockIcon()
   const updater = setupAutoUpdater(stopSidecars)
@@ -430,7 +430,7 @@ const main = Effect.gen(function* () {
     }
 
     const port = yield* Effect.gen(function* () {
-      const fromEnv = process.env.OPENCODE_PORT
+      const fromEnv = process.env.OVERCODE_PORT
       if (fromEnv) {
         const parsed = Number.parseInt(fromEnv, 10)
         if (!Number.isNaN(parsed)) return parsed
@@ -469,10 +469,10 @@ const main = Effect.gen(function* () {
       }),
     )
     server = listener
-    computerUse?.setServer({ url, username: "opencode", password })
+    computerUse?.setServer({ url, username: "overcode", password })
     yield* Deferred.succeed(serverReady, {
       url,
-      username: "opencode",
+      username: "overcode",
       password,
     })
 

@@ -4,10 +4,10 @@
   "version": "1.18.27",
   "type": "module",
   "license": "MIT",
-  "homepage": "https://opencode.ai",
+  "homepage": "https://github.com/ConnorSawaya/overcode",
   "author": {
-    "name": "OpenCode",
-    "email": "hello@opencode.ai"
+    "name": "Overcode",
+    "email": "hello@overcode.ai"
   },
   "scripts": {
     "typecheck": "tsgo -b",

@@ -3,7 +3,7 @@ import { join } from "node:path"
 
 // Stable across restarts: native sessions retain their own IDs and histories.
 export async function prepareQuickStart(documents: string) {
-  const directory = join(documents, "OpenCode", "Quick start")
+  const directory = join(documents, "Overcode", "Quick start")
   await mkdir(directory, { recursive: true })
   await writeFile(join(directory, "AGENTS.md"), `# Quick start workspace
 

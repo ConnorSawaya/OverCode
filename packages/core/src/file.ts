@@ -7,7 +7,7 @@ import { Revert } from "@opencode-ai/schema/revert"
  * tools instead of being sent as provider media. It is intentionally not a
  * real document MIME type.
  */
-export const LOCAL_FILE_REFERENCE_MIME = "application/x-opencode-file-reference"
+export const LOCAL_FILE_REFERENCE_MIME = "application/x-overcode-file-reference"
 
 export const Diff = Revert.FileDiff
 export type Diff = typeof Diff.Type

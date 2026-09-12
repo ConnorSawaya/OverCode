@@ -71,7 +71,7 @@ const DEFAULT_RELAY_URL = process.env.OVERCODE_RELAY_URL ?? "https://overcode-re
 const REQUEST_TIMEOUT_MS = 20_000
 const SYNC_INTERVAL_MS = 5_000
 const SYNC_BATCH_SIZE = 1_000
-const GLOBAL_STORE = "opencode.global.dat"
+const GLOBAL_STORE = "overcode.global.dat"
 
 /**
  * Synchronizes portable event history between trusted Overcode installations.
@@ -364,7 +364,7 @@ export class SyncDevicesController implements SyncDevicesPlatform {
 async function requestLocalEnvelope(local: LocalServer, cursor: number) {
   const url = new URL(cursor === 0 ? "/sync/snapshot" : "/sync/changes", local.url)
   const headers = new Headers({ accept: "application/json" })
-  if (local.password) headers.set("authorization", basicAuth(local.username ?? "opencode", local.password))
+  if (local.password) headers.set("authorization", basicAuth(local.username ?? "overcode", local.password))
   if (cursor !== 0) {
     headers.set("content-type", "application/json")
     const response = await fetch(url, {
@@ -446,7 +446,7 @@ async function readEnvelope(response: Response): Promise<SyncEnvelope> {
 
 async function importChanges(local: LocalServer, sourceDevice: string, changes: SyncChange[]) {
   const headers = new Headers({ "content-type": "application/json" })
-  if (local.password) headers.set("authorization", basicAuth(local.username ?? "opencode", local.password))
+  if (local.password) headers.set("authorization", basicAuth(local.username ?? "overcode", local.password))
   const response = await fetch(new URL("/sync/import", local.url), {
     method: "POST",
     headers,
@@ -476,7 +476,7 @@ async function importRemoteChanges(peer: StoredPeer, sourceDevice: string, chang
 
 async function requestLocalProjectMappings(local: LocalServer): Promise<SyncProjectMapping[]> {
   const headers = new Headers({ accept: "application/json" })
-  if (local.password) headers.set("authorization", basicAuth(local.username ?? "opencode", local.password))
+  if (local.password) headers.set("authorization", basicAuth(local.username ?? "overcode", local.password))
   const response = await fetch(new URL("/sync/project-mappings", local.url), {
     headers,
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -503,7 +503,7 @@ async function requestLocalProjectMappings(local: LocalServer): Promise<SyncProj
 
 async function requestLocalProjects(local: LocalServer): Promise<LocalProject[]> {
   const headers = new Headers({ accept: "application/json" })
-  if (local.password) headers.set("authorization", basicAuth(local.username ?? "opencode", local.password))
+  if (local.password) headers.set("authorization", basicAuth(local.username ?? "overcode", local.password))
   const response = await fetch(new URL("/project", local.url), {
     headers,
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -522,7 +522,7 @@ async function requestLocalProjects(local: LocalServer): Promise<LocalProject[]>
 
 async function putLocalProjectMapping(local: LocalServer, input: { projectID: string; localWorktree: string }) {
   const headers = new Headers({ "content-type": "application/json" })
-  if (local.password) headers.set("authorization", basicAuth(local.username ?? "opencode", local.password))
+  if (local.password) headers.set("authorization", basicAuth(local.username ?? "overcode", local.password))
   const response = await fetch(new URL("/sync/project-mappings", local.url), {
     method: "POST",
     headers,
@@ -865,7 +865,7 @@ function isNewerProfile(profile: { deviceID: string; updatedAt: number }, curren
 
 async function putLocalProfile(local: LocalServer, profile: SyncProfileEnvelope) {
   const headers = new Headers({ accept: "application/json", "content-type": "application/json" })
-  if (local.password) headers.set("authorization", basicAuth(local.username ?? "opencode", local.password))
+  if (local.password) headers.set("authorization", basicAuth(local.username ?? "overcode", local.password))
   const response = await fetch(new URL("/sync/profile", local.url), {
     method: "POST",
     headers,
@@ -912,7 +912,7 @@ async function requestRemoteProfile(peer: StoredPeer): Promise<SyncProfileEnvelo
 
 async function requestLocalIncomingProfiles(local: LocalServer): Promise<SyncProfileIncomingEnvelope | undefined> {
   const headers = new Headers({ accept: "application/json" })
-  if (local.password) headers.set("authorization", basicAuth(local.username ?? "opencode", local.password))
+  if (local.password) headers.set("authorization", basicAuth(local.username ?? "overcode", local.password))
   const response = await fetch(new URL("/sync/profile/incoming", local.url), {
     headers,
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),

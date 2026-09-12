@@ -4,7 +4,7 @@ ok we need to work towards a launch of v2 so we can get out of this rebuild phas
 
 ## Post-Hono cleanup - Kit
 
-The opencode server has moved to the Effect HttpApi backend. Remaining work is
+The overcode server has moved to the Effect HttpApi backend. Remaining work is
 mostly cleanup: delete compatibility shims, shrink Zod surfaces, and simplify
 test harnesses that used to compare Hono and HttpApi behavior.
 
@@ -80,9 +80,9 @@ We need to figure out how we want server plugins to work and what hooks are usef
 Some ideas:
 
 - plugins get immer drafts so bad mutations can be thrown away
-- plugins get global "opencode" instance like in that post i showed
-- opencode instance has stuff like `opencode.session.prompt()` or
-  `opencode.tool.register({...})`
+- plugins get global "overcode" instance like in that post i showed
+- overcode instance has stuff like `overcode.session.prompt()` or
+  `overcode.tool.register({...})`
 
 ## Rework Config - ???
 

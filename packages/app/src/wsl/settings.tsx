@@ -94,9 +94,9 @@ export function WslServerSettings(props: {
       <For each={props.servers()}>
         {(item) => {
           const key = ServerConnection.Key.make(item.config.id)
-          const check = () => wsl.data?.opencodeChecks[item.config.distro]
-          const opencodeAction = () => wslOpencodeAction(check())
-          const busy = () => wsl.data?.job?.kind === "install-opencode" && wsl.data.job.distro === item.config.distro
+          const check = () => wsl.data?.overcodeChecks[item.config.distro]
+          const overcodeAction = () => wslOpencodeAction(check())
+          const busy = () => wsl.data?.job?.kind === "install-overcode" && wsl.data.job.distro === item.config.distro
           return (
             <div class="settings-v2-servers-row">
               <div class="settings-v2-servers-lead">
@@ -117,7 +117,7 @@ export function WslServerSettings(props: {
                 <Show when={props.controller.canDefault() && props.controller.defaultKey() === key}>
                   <Tag>{language.t("dialog.server.status.default")}</Tag>
                 </Show>
-                <Show when={opencodeAction()}>
+                <Show when={overcodeAction()}>
                   {(label) => (
                     <ButtonV2
                       size="small"

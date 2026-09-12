@@ -100,10 +100,10 @@ export async function handler(
     const ip = rawIp.includes(":") ? rawIp.split(":").slice(0, 4).join(":") : rawIp
     const rawZenApiKey = opts.parseApiKey(input.request.headers)
     const zenApiKey = rawZenApiKey === "public" ? undefined : rawZenApiKey
-    const sessionId = input.request.headers.get("x-opencode-session") ?? ""
-    const requestId = input.request.headers.get("x-opencode-request") ?? ""
+    const sessionId = input.request.headers.get("x-overcode-session") ?? ""
+    const requestId = input.request.headers.get("x-overcode-request") ?? ""
     const ocClient = input.request.headers.get("x-opencode-client") ?? ""
-    const projectId = input.request.headers.get("x-opencode-project") ?? ""
+    const projectId = input.request.headers.get("x-overcode-project") ?? ""
     const userAgent = input.request.headers.get("user-agent") ?? ""
     logger.metric({
       session: sessionId,
@@ -126,7 +126,7 @@ export async function handler(
     if (authInfo && opts.modelList === "lite" && requiresGoTrainingConsent(modelInfo.id) && !authInfo.allowTraining)
       throw new DataPolicyError(
         t("zen.api.error.trainingNotAllowed", {
-          consoleGoUrl: `https://opencode.ai/workspace/${authInfo.workspaceID}/go`,
+          consoleGoUrl: `https://github.com/ConnorSawaya/overcode/workspace/${authInfo.workspaceID}/go`,
         }),
       )
     const allowedRegions = authInfo?.region
@@ -145,7 +145,7 @@ export async function handler(
     )
       throw new RegionError(
         t("zen.api.error.regionNotAllowed", {
-          consoleGoUrl: `https://opencode.ai/workspace/${authInfo.workspaceID}/go`,
+          consoleGoUrl: `https://github.com/ConnorSawaya/overcode/workspace/${authInfo.workspaceID}/go`,
         }),
       )
     const stickyId = sessionId ? sessionId : (authInfo?.workspaceID ?? ip)
@@ -236,10 +236,10 @@ export async function handler(
           headers.delete("host")
           headers.delete("content-length")
           if (!isNewInference) {
-            headers.delete("x-opencode-session")
-            headers.delete("x-opencode-project")
+            headers.delete("x-overcode-session")
+            headers.delete("x-overcode-project")
             headers.delete("x-opencode-client")
-            headers.delete("x-opencode-request")
+            headers.delete("x-overcode-request")
             headers.delete("x-zen-model")
           }
           return headers
@@ -254,8 +254,8 @@ export async function handler(
       logger.metric({ is_stream: isStream })
 
       if (isNewInference) {
-        const resEndpointId = res.headers.get("x-opencode-endpoint-id")
-        const resEndpointModelId = res.headers.get("x-opencode-upstream-model-id")
+        const resEndpointId = res.headers.get("x-overcode-endpoint-id")
+        const resEndpointModelId = res.headers.get("x-overcode-upstream-model-id")
         if (resEndpointId && resEndpointModelId)
           logger.metric({
             provider: resEndpointId,
@@ -539,7 +539,7 @@ export async function handler(
       throw new ModelError(
         `${t("zen.api.error.trialEnded", {
           model: modelData.name,
-          link: "https://opencode.ai/go",
+          link: "https://github.com/ConnorSawaya/overcode/go",
         })}`,
       )
 
@@ -871,7 +871,7 @@ export async function handler(
       if (Object.values(modelInfo.cost).every((price) => price === 0)) return "lite"
 
       try {
-        const consoleGoUrl = `https://opencode.ai/workspace/${authInfo.workspaceID}/go`
+        const consoleGoUrl = `https://github.com/ConnorSawaya/overcode/workspace/${authInfo.workspaceID}/go`
         const sub = authInfo.lite
         const liteData = LiteData.getLimits()
 
@@ -942,8 +942,8 @@ export async function handler(
 
     // Validate pay as you go billing
     const billing = authInfo.billing
-    const billingUrl = `https://opencode.ai/workspace/${authInfo.workspaceID}/billing`
-    const membersUrl = `https://opencode.ai/workspace/${authInfo.workspaceID}/members`
+    const billingUrl = `https://github.com/ConnorSawaya/overcode/workspace/${authInfo.workspaceID}/billing`
+    const membersUrl = `https://github.com/ConnorSawaya/overcode/workspace/${authInfo.workspaceID}/members`
     if (!billing.paymentMethodID && billing.balance <= 0)
       throw new CreditsError(t("zen.api.error.noPaymentMethod", { billingUrl }))
     if (billing.balance <= 0) throw new CreditsError(t("zen.api.error.insufficientBalance", { billingUrl }))

@@ -22,7 +22,7 @@ export default defineConfig({
     format: "es",
   },
   define: {
-    "import.meta.env.VITE_OPENCODE_CHANNEL": JSON.stringify("prod"),
+    "import.meta.env.VITE_OVERCODE_CHANNEL": JSON.stringify("prod"),
     "import.meta.env.VITE_OVERCODE_MOBILE_UPDATE_URL": JSON.stringify(
       process.env.VITE_OVERCODE_MOBILE_UPDATE_URL ??
         "https://raw.githubusercontent.com/ConnorSawaya/overcode/overcode-rebrand/packages/mobile/update.json",

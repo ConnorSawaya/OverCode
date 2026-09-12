@@ -53,7 +53,7 @@ if (import.meta.env.VITE_SENTRY_DSN) {
         (i) =>
           i.name !== "Breadcrumbs" &&
           !(
-            import.meta.env.OPENCODE_CHANNEL === "prod" &&
+            import.meta.env.OVERCODE_CHANNEL === "prod" &&
             (i.name === "GlobalHandlers" || i.name === "BrowserApiErrors")
           ),
       )
@@ -64,7 +64,7 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 const [updaterState, setUpdaterState] = createSignal<UpdaterState>({ status: "disabled" })
 void window.api.updater.subscribe(setUpdaterState)
 
-const deepLinkEvent = "opencode:deep-link"
+const deepLinkEvent = "overcode:deep-link"
 
 type DesktopWindowState = {
   id?: string
@@ -72,14 +72,14 @@ type DesktopWindowState = {
 
 const emitDeepLinks = (urls: string[]) => {
   if (urls.length === 0) return
-  window.__OPENCODE__ ??= {}
-  const pending = window.__OPENCODE__.deepLinks ?? []
-  window.__OPENCODE__.deepLinks = [...pending, ...urls]
+  window.__OVERCODE__ ??= {}
+  const pending = window.__OVERCODE__.deepLinks ?? []
+  window.__OVERCODE__.deepLinks = [...pending, ...urls]
   window.dispatchEvent(new CustomEvent(deepLinkEvent, { detail: { urls } }))
 }
 
 const isQuickChatWindow = new URLSearchParams(location.search).get("window") === "quick-chat"
-if (isQuickChatWindow) document.documentElement.dataset.opencodeWindow = "quick-chat"
+if (isQuickChatWindow) document.documentElement.dataset.overcodeWindow = "quick-chat"
 
 function base64Encode(value: string) {
   const bytes = new TextEncoder().encode(value)
@@ -93,7 +93,7 @@ const listenForDeepLinks = () => {
 }
 
 function windowLastActiveUrlKey(windowID: string) {
-  return `opencode.desktop.window.${windowID}.last-active-url`
+  return `overcode.desktop.window.${windowID}.last-active-url`
 }
 
 function getLastActiveUrl(windowID: string) {
@@ -304,7 +304,7 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
 
       const notification = new Notification(title, {
         body: description ?? "",
-        icon: "https://opencode.ai/favicon-96x96-v3.png",
+        icon: "https://github.com/ConnorSawaya/overcode/favicon-96x96-v3.png",
       })
       notification.onclick = () => {
         void window.api.showWindow()
@@ -381,7 +381,7 @@ function LoadingSplash() {
 function DesktopRoot(props: { windowState: DesktopWindowState }) {
   const platform = createPlatform(props.windowState)
   const loadLocale = async () => {
-    const current = await platform.storage?.("opencode.global.dat").getItem("language")
+    const current = await platform.storage?.("overcode.global.dat").getItem("language")
     const legacy = current ? undefined : await platform.storage?.().getItem("language.v1")
     const raw = current ?? legacy
     if (!raw) return
@@ -475,7 +475,7 @@ function DesktopRoot(props: { windowState: DesktopWindowState }) {
     <PlatformProvider value={platform}>
       <AppBaseProviders
         locale={locale.latest}
-        defaultTheme="opencode-codex"
+        defaultTheme="overcode-codex"
         onNativeTranslations={(bundle) => void window.api.setNativeTranslations(bundle).catch(() => undefined)}
       >
         <Show when={true}>{(_) => <App />}</Show>

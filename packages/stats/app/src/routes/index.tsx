@@ -126,7 +126,7 @@ export default function StatsHome() {
       <Meta name="description" content={i18n.t("app.description")} />
       <LocaleLinks path="/data/" />
       <Meta property="og:type" content="website" />
-      <Meta property="og:site_name" content="OpenCode" />
+      <Meta property="og:site_name" content="Overcode" />
       <Meta property="og:title" content={i18n.t("app.title")} />
       <Meta property="og:description" content={i18n.t("app.description")} />
       <Meta property="og:url" content={statsHomeUrl} />

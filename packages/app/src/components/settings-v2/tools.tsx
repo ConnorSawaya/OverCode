@@ -86,7 +86,7 @@ export const SettingsToolsV2: Component<{
   const skillOrigin = (location: string) => {
     if (location === "<built-in>") return language.t("settings.tools.skill.builtIn")
     if (location.includes(".agents") || location.includes(".claude")) return language.t("settings.tools.skill.external")
-    if (location.includes(".opencode")) return language.t("settings.tools.skill.project")
+    if (location.includes(".overcode")) return language.t("settings.tools.skill.project")
     return language.t("settings.tools.skill.local")
   }
 

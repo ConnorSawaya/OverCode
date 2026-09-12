@@ -54,3 +54,6 @@ export const EventGroup = event.group
 export const OpenCodeEvent = event.schema
 export type OpenCodeEvent = typeof OpenCodeEvent.Type
 export type OpenCodeEventEncoded = typeof OpenCodeEvent.Encoded
+export const OvercodeEvent = OpenCodeEvent
+export type OvercodeEvent = OpenCodeEvent
+export type OvercodeEventEncoded = OpenCodeEventEncoded

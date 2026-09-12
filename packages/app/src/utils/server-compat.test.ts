@@ -50,7 +50,7 @@ function setup(
     directory: "/repo",
     request: async ({ path, method, directory }) => {
       const headers = new Headers()
-      if (directory) headers.set("x-opencode-directory", encodeURIComponent(directory))
+      if (directory) headers.set("x-overcode-directory", encodeURIComponent(directory))
       const response = await fetcher(new URL(path, server.url), { method, headers })
       if (!response.ok) throw new Error(`Request failed: ${response.status}`)
     },
@@ -66,7 +66,7 @@ describe("createCompatibleApi", () => {
 
     const url = new URL(requests[0]!.url)
     expect(url.pathname).toBe("/session/ses_1")
-    expect(requests[0]!.headers.get("x-opencode-directory")).toBe("%2Frepo")
+    expect(requests[0]!.headers.get("x-overcode-directory")).toBe("%2Frepo")
     expect(requests[0]!.method).toBe("PATCH")
     expect(await requests[0]!.json()).toMatchObject({ time: { archived: expect.any(Number) } })
   })
@@ -132,7 +132,7 @@ describe("createCompatibleApi", () => {
       requests.every((request) => {
         const url = new URL(request.url)
         return (
-          request.headers.get("x-opencode-directory") === "%2Frepo" || url.searchParams.get("directory") === "/repo"
+          request.headers.get("x-overcode-directory") === "%2Frepo" || url.searchParams.get("directory") === "/repo"
         )
       }),
     ).toBe(true)
@@ -186,7 +186,7 @@ describe("createCompatibleApi", () => {
       "/session/ses_computer/prompt_async",
       "/session/ses_default/prompt_async",
     ])
-    expect(requests.map((request) => request.headers.get("x-opencode-directory"))).toEqual([
+    expect(requests.map((request) => request.headers.get("x-overcode-directory"))).toEqual([
       encodeURIComponent("C:\\work trees\\task"),
       encodeURIComponent("/repo"),
     ])
@@ -274,8 +274,8 @@ describe("createCompatibleApi", () => {
       "/instance/dispose",
       "/instance/dispose",
     ])
-    expect(requests[1]!.headers.get("x-opencode-directory")).toBe("%2Frepo")
-    expect(requests[2]!.headers.get("x-opencode-directory")).toBeNull()
+    expect(requests[1]!.headers.get("x-overcode-directory")).toBe("%2Frepo")
+    expect(requests[2]!.headers.get("x-overcode-directory")).toBeNull()
   })
 
   test("disposes the V1 instance after completing provider OAuth", async () => {
@@ -293,7 +293,7 @@ describe("createCompatibleApi", () => {
       "/instance/dispose",
       "/instance/dispose",
     ])
-    expect(requests[1]!.headers.get("x-opencode-directory")).toBe("%2Frepo")
-    expect(requests[2]!.headers.get("x-opencode-directory")).toBeNull()
+    expect(requests[1]!.headers.get("x-overcode-directory")).toBe("%2Frepo")
+    expect(requests[2]!.headers.get("x-overcode-directory")).toBeNull()
   })
 })

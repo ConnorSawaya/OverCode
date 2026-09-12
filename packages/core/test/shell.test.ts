@@ -44,8 +44,8 @@ describe("shell", () => {
     await withShell(undefined, async () => {
       const preferred = Shell.preferred()
       const acceptable = Shell.acceptable()
-      expect(Shell.preferred("opencode-missing-shell")).toBe(preferred)
-      expect(Shell.acceptable("opencode-missing-shell")).toBe(acceptable)
+      expect(Shell.preferred("overcode-missing-shell")).toBe(preferred)
+      expect(Shell.acceptable("overcode-missing-shell")).toBe(acceptable)
     })
   })
 

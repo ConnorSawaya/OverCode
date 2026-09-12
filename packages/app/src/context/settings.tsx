@@ -65,7 +65,7 @@ export const monoDefault = "System Mono"
 export const sansDefault = "System Sans"
 export const terminalDefault = "JetBrainsMono Nerd Font Mono"
 export const normalizeFollowupMode = (value: unknown): "queue" | "steer" => (value === "queue" ? "queue" : "steer")
-const legacyNewLayoutDesignsDefault = import.meta.env.VITE_OPENCODE_CHANNEL !== "prod"
+const legacyNewLayoutDesignsDefault = import.meta.env.VITE_OVERCODE_CHANNEL !== "prod"
 export const newLayoutDesignsDefault = true
 // Existing users can switch layouts until local midnight on this date. Set new Date(YYYY, M-1, D) to show.
 export const oldInterfaceSunset = new Date(2026, 8, 14)

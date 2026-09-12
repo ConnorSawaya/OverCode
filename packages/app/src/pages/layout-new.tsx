@@ -10,7 +10,7 @@ import { setV2Toast, ToastRegion } from "@/utils/toast"
 export default function NewLayout(props: ParentProps) {
   const platform = usePlatform()
   const [state, setState] = createStore({ debugTools: false })
-  const compact = typeof document !== "undefined" && document.documentElement.dataset.opencodeWindow === "quick-chat"
+  const compact = typeof document !== "undefined" && document.documentElement.dataset.overcodeWindow === "quick-chat"
 
   createEffect(() => setV2Toast(true))
 

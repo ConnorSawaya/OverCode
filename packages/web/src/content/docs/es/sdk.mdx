@@ -1,13 +1,13 @@
 ---
 title: SDK
-description: Cliente JS con seguridad de tipos para el servidor opencode.
+description: Cliente JS con seguridad de tipos para el servidor overcode.
 ---
 
 import config from "../../../../config.mjs"
 export const typesUrl = `${config.github}/blob/dev/packages/sdk/js/src/gen/types.gen.ts`
 
-El SDK opencode JS/TS proporciona un cliente con seguridad de tipos para interactuar con el servidor.
-Úselo para crear integraciones y controlar opencode mediante programación.
+El SDK overcode JS/TS proporciona un cliente con seguridad de tipos para interactuar con el servidor.
+Úselo para crear integraciones y controlar overcode mediante programación.
 
 [Más información](/docs/server) sobre cómo funciona el servidor. Para ver ejemplos, consulte los [proyectos](/docs/ecosystem#projects) creados por la comunidad.
 
@@ -25,7 +25,7 @@ npm install @opencode-ai/sdk
 
 ## Crear cliente
 
-Cree una instancia de opencode:
+Cree una instancia de overcode:
 
 ```javascript
 import { createOpencode } from "@opencode-ai/sdk"
@@ -49,12 +49,12 @@ Esto inicia tanto un servidor como un cliente.
 
 ## Configuración
 
-Puede pasar un objeto de configuración para personalizar el comportamiento. La instancia aún recoge su `opencode.json`, pero puede anular o agregar configuración en línea:
+Puede pasar un objeto de configuración para personalizar el comportamiento. La instancia aún recoge su `overcode.json`, pero puede anular o agregar configuración en línea:
 
 ```javascript
 import { createOpencode } from "@opencode-ai/sdk"
 
-const opencode = await createOpencode({
+const overcode = await createOpencode({
   hostname: "127.0.0.1",
   port: 4096,
   config: {
@@ -62,14 +62,14 @@ const opencode = await createOpencode({
   },
 })
 
-console.log(`Server running at ${opencode.server.url}`)
+console.log(`Server running at ${overcode.server.url}`)
 
-opencode.server.close()
+overcode.server.close()
 ```
 
 ## Solo cliente
 
-Si ya tiene una instancia en ejecución de opencode, puede crear una instancia de cliente para conectarse a ella:
+Si ya tiene una instancia en ejecución de overcode, puede crear una instancia de cliente para conectarse a ella:
 
 ```javascript
 import { createOpencodeClient } from "@opencode-ai/sdk"
@@ -376,7 +376,7 @@ await client.session.prompt({
 ```javascript
 // Search and read files
 const textResults = await client.find.text({
-  query: { pattern: "function.*opencode" },
+  query: { pattern: "function.*overcode" },
 })
 
 const files = await client.find.files({

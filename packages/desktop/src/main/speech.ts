@@ -30,14 +30,14 @@ using System.Speech.Recognition;
 using System.Text;
 using System.Threading;
 
-public sealed class OpenCodeSpeechBridge : IDisposable
+public sealed class OvercodeSpeechBridge : IDisposable
 {
     private readonly SpeechRecognitionEngine engine;
     private readonly object outputGate = new object();
     private readonly ManualResetEvent completed = new ManualResetEvent(false);
     private bool stopping;
 
-    public OpenCodeSpeechBridge(string culture)
+    public OvercodeSpeechBridge(string culture)
     {
         engine = new SpeechRecognitionEngine(CultureInfo.GetCultureInfo(culture));
         engine.SetInputToDefaultAudioDevice();
@@ -142,7 +142,7 @@ public sealed class OpenCodeSpeechBridge : IDisposable
 '@
 Add-Type -TypeDefinition $bridgeSource -ReferencedAssemblies System.Speech
 
-$requestedLanguage = $env:OPENCODE_SPEECH_LANGUAGE
+$requestedLanguage = $env:OVERCODE_SPEECH_LANGUAGE
 $requestedCulture = $null
 try {
   if ($requestedLanguage) {
@@ -167,7 +167,7 @@ if (-not $recognizerInfo) {
   throw "No Windows speech recognizer is installed."
 }
 
-$bridge = New-Object OpenCodeSpeechBridge($recognizerInfo.Culture.Name)
+$bridge = New-Object OvercodeSpeechBridge($recognizerInfo.Culture.Name)
 try {
   [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
   $bridge.Start()
@@ -224,7 +224,7 @@ export function startWindowsSpeech(options: WindowsSpeechSessionOptions): Window
     {
       windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env, OPENCODE_SPEECH_LANGUAGE: options.language ?? "en-US" },
+      env: { ...process.env, OVERCODE_SPEECH_LANGUAGE: options.language ?? "en-US" },
     },
   )
 

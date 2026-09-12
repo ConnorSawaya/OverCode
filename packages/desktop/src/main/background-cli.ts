@@ -13,11 +13,11 @@ const desktopStateNames = [
   "ai.overcode.desktop.dev",
   "ai.overcode.desktop.beta",
   "ai.overcode.desktop",
-  // Legacy OpenCode state dirs — still probed so a service started by either
+  // Legacy Overcode state dirs — still probed so a service started by either
   // app is reused instead of duplicated.
-  "ai.opencode.desktop.dev",
-  "ai.opencode.desktop.beta",
-  "ai.opencode.desktop",
+  "ai.overcode.desktop.dev",
+  "ai.overcode.desktop.beta",
+  "ai.overcode.desktop",
 ]
 
 type Logger = {
@@ -56,12 +56,12 @@ export async function startBackgroundCli(logger: Logger, shellStateHome?: string
   })
   logger.log("v2 CLI background service ready", {
     existing: Boolean(found),
-    username: "opencode",
+    username: "overcode",
     ...endpoint(url),
   })
   return {
     url,
-    username: "opencode",
+    username: "overcode",
     password,
   }
 }

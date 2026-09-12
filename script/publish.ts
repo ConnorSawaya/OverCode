@@ -36,7 +36,7 @@ if (Script.release && !Script.preview) {
 await prepareReleaseFiles()
 
 console.log("\n=== cli ===\n")
-await $`bun ./packages/opencode/script/publish.ts`
+await $`bun ./packages/overcode/script/publish.ts`
 
 console.log("\n=== sdk ===\n")
 await $`bun ./packages/sdk/js/script/publish.ts`

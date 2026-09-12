@@ -251,7 +251,7 @@ export class MobileAccessController implements MobileAccessPlatform {
       headers.delete("host")
       headers.delete("x-overcode-channel-token")
       if (local.password) {
-        headers.set("authorization", basicAuth(local.username ?? "opencode", local.password))
+        headers.set("authorization", basicAuth(local.username ?? "overcode", local.password))
       }
       const response = await fetch(new URL(frame.path, local.url), {
         method: frame.method,
@@ -288,7 +288,7 @@ export class MobileAccessController implements MobileAccessPlatform {
       const local = await this.options.getLocalServer()
       const target = new URL(frame.path, local.url)
       target.searchParams.delete("token")
-      if (local.password) target.searchParams.set("auth_token", Buffer.from(`${local.username ?? "opencode"}:${local.password}`).toString("base64"))
+      if (local.password) target.searchParams.set("auth_token", Buffer.from(`${local.username ?? "overcode"}:${local.password}`).toString("base64"))
       target.protocol = target.protocol === "https:" ? "wss:" : "ws:"
       const socket = new WebSocket(target)
       socket.binaryType = "arraybuffer"

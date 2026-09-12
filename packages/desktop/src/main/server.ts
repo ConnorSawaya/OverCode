@@ -16,7 +16,7 @@ type SidecarMessage =
 
 export type SidecarListener = { stop: () => Promise<void> }
 
-const SIDECAR_SERVICE_NAME = "opencode server"
+const SIDECAR_SERVICE_NAME = "overcode server"
 const SIDECAR_START_STALL_TIMEOUT = 60_000
 const SIDECAR_STOP_TIMEOUT = 6_000
 
@@ -46,9 +46,9 @@ export function preferAppEnv(userDataPath: string) {
   const shellEnv = shell ? loadShellEnv(shell, getLogger()) : null
   Object.assign(process.env, {
     ...shellEnv,
-    OPENCODE_EXPERIMENTAL_ICON_DISCOVERY: "true",
-    OPENCODE_EXPERIMENTAL_FILEWATCHER: "true",
-    OPENCODE_CLIENT: "desktop",
+    OVERCODE_EXPERIMENTAL_ICON_DISCOVERY: "true",
+    OVERCODE_EXPERIMENTAL_FILEWATCHER: "true",
+    OVERCODE_CLIENT: "desktop",
     XDG_STATE_HOME: process.env.XDG_STATE_HOME ?? userDataPath,
   })
   return shellEnv
@@ -193,7 +193,7 @@ export async function checkHealth(url: string, password?: string | null): Promis
 
   const headers = new Headers()
   if (password) {
-    const auth = Buffer.from(`opencode:${password}`).toString("base64")
+    const auth = Buffer.from(`overcode:${password}`).toString("base64")
     headers.set("authorization", `Basic ${auth}`)
   }
 

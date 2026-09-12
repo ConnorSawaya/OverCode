@@ -1,7 +1,7 @@
 import { app } from "electron"
 
 type Channel = "dev" | "beta" | "prod"
-const raw = import.meta.env.OPENCODE_CHANNEL
+const raw = import.meta.env.OVERCODE_CHANNEL
 export const CHANNEL: Channel = raw === "dev" || raw === "beta" || raw === "prod" ? raw : "dev"
 
 // Overcode publishes a small JSON manifest alongside its release artifacts.
