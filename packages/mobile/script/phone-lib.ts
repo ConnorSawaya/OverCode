@@ -45,12 +45,28 @@ export async function adbPath(): Promise<string> {
   throw new Error("adb not found (checked PATH, platform-tools, Android SDK)");
 }
 
+// Every adb call carries a hard timeout so a wedged transport fails loudly
+// instead of hanging the session. Override per-run with OCPHONE_ADB_TIMEOUT_MS.
+function adbTimeoutMs(): number {
+  const raw = Number(process.env.OCPHONE_ADB_TIMEOUT_MS ?? "60000");
+  return Number.isFinite(raw) && raw > 0 ? raw : 60000;
+}
+
 export async function adb(...args: string[]): Promise<string> {
   const bin = await adbPath();
   const serial = process.env.OCPHONE_SERIAL;
   const full = serial && !SERVER_COMMANDS.has(args[0] ?? "") ? ["-s", serial, ...args] : args;
-  const result = await $`${bin} ${full}`.quiet().nothrow();
-  return result.text();
+  // Bun.spawn (not Bun.$): `timeout` kills wedged transports, and the
+  // promise shape below never rejects — callers get output or empty string.
+  const proc = Bun.spawn([bin, ...full], { stdout: "pipe", stderr: "pipe", timeout: adbTimeoutMs() });
+  const [out] = await Promise.all([
+    new Response(proc.stdout).text().catch(() => ""),
+    proc.exited.then(
+      () => undefined,
+      () => undefined,
+    ),
+  ]);
+  return out;
 }
 
 export async function deviceSize(): Promise<{ width: number; height: number }> {
