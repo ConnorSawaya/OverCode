@@ -32,3 +32,23 @@ When a GitHub release is published, `.github/workflows/overcode-mobile-release.y
 ## Relay override
 
 Desktop builds use the production relay by default. Set `OVERCODE_RELAY_URL` before launching the desktop app to use another compatible relay during development.
+
+## Phone E2E tooling
+
+Two dev scripts (never shipped) replace hand-typed adb sessions:
+
+```bash
+# terminal 1: fake connector (prints PAIRING_CODE, answers project/health)
+bun run --cwd ../mobile-relay script/fake-connector.ts
+
+# terminal 2: drive the plugged-in phone
+bun run script/phone.ts devices   # list phones
+bun run script/phone.ts install   # reinstall the debug APK
+bun run script/phone.ts launch    # open the app
+bun run script/phone.ts pair 123456  # type code + submit, then screenshot
+bun run script/phone.ts shot      # screenshot, prints the png path
+bun run script/phone.ts crashes   # recent native/JS crashes from logcat
+```
+
+`tap` takes 450-wide preview coordinates (as printed screenshots) and scales
+them to the device, so copy positions straight from a screenshot.
