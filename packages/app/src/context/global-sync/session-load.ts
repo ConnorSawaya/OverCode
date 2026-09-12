@@ -10,7 +10,7 @@ export async function loadRootSessions(input: { api: Pick<SessionApi, "list">; d
     order: "desc",
   })
   return {
-    data: result.data.map(normalizeSessionInfo),
+    data: (result.data ?? []).map(normalizeSessionInfo),
     limit: input.limit,
     limited: true,
   } as const

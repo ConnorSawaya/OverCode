@@ -326,8 +326,8 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
           },
         ]
       : []),
-    ...sync()
-      .data.command.filter((item) => item.name !== "computer-use")
+    ...(sync().data.command ?? [])
+      .filter((item) => item.name !== "computer-use")
       .map((item) => ({
         id: `custom.${item.name}`,
         trigger: item.name,

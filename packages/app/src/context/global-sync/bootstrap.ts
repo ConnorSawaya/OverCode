@@ -267,7 +267,7 @@ export const loadAgentsQuery = (
     queryFn: () =>
       retry(async () => {
         if ((await protocol) === "v1" && legacy) return normalizeAgentList((await legacy.app.agents()).data ?? [])
-        return sdk.list({ location: { directory } }).then((result) => normalizeAgentList(result.data))
+        return sdk.list({ location: { directory } }).then((result) => normalizeAgentList(result.data ?? []))
       }),
   })
 
@@ -322,7 +322,7 @@ export const loadReferencesQuery = (
     queryFn: () =>
       retry(async () => {
         if ((await protocol) === "v1" && legacy) return (await legacy.v2.reference.list()).data?.data ?? []
-        return api.list({ location: { directory } }).then((result) => result.data)
+    return api.list({ location: { directory } }).then((result) => result.data ?? [])
       }).catch(() => []),
     placeholderData: [],
   })
@@ -447,7 +447,7 @@ export async function bootstrapDirectory(input: {
             if ((await input.protocol) === "v1") return (await input.sdk.permission.list()).data ?? []
             return input.api.permission.request
               .list({ location: { directory: input.directory } })
-              .then((result) => result.data.map(normalizePermissionRequest))
+              .then((result) => (result.data ?? []).map(normalizePermissionRequest))
           })().then((permissions) => {
             const ids = permissions.map((permission) => permission.sessionID)
             const grouped = groupBySession(
@@ -483,7 +483,7 @@ export async function bootstrapDirectory(input: {
             if ((await input.protocol) === "v1") return (await input.sdk.question.list()).data ?? []
             return input.api.question.request
               .list({ location: { directory: input.directory } })
-              .then((result) => result.data)
+              .then((result) => result.data ?? [])
           })().then((questions) => {
             const ids = questions.map((question) => question.sessionID)
             const grouped = groupBySession(
