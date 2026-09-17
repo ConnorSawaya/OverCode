@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "name": "@opencode-ai/mobile-relay",
+  "name": "@overcode-ai/mobile-relay",
   "version": "1.18.27",
   "private": true,
   "type": "module",

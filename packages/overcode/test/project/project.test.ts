@@ -4,22 +4,22 @@ import { $ } from "bun"
 import path from "path"
 import { tmpdirScoped } from "../fixture/fixture"
 import { GlobalBus } from "../../src/bus/global"
-import { Database } from "@opencode-ai/core/database/database"
-import { ProjectTable } from "@opencode-ai/core/project/sql"
-import { SessionTable } from "@opencode-ai/core/session/sql"
-import { WorkspaceTable } from "@opencode-ai/core/control-plane/workspace.sql"
+import { Database } from "@overcode-ai/core/database/database"
+import { ProjectTable } from "@overcode-ai/core/project/sql"
+import { SessionTable } from "@overcode-ai/core/session/sql"
+import { WorkspaceTable } from "@overcode-ai/core/control-plane/workspace.sql"
 import { eq } from "drizzle-orm"
-import { Hash } from "@opencode-ai/core/util/hash"
+import { Hash } from "@overcode-ai/core/util/hash"
 import { SessionID } from "@/session/schema"
-import { WorkspaceV2 } from "@opencode-ai/core/workspace"
+import { WorkspaceV2 } from "@overcode-ai/core/workspace"
 import { Cause, Effect, Exit, Layer, Stream } from "effect"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
-import { ProjectV2 } from "@opencode-ai/core/project"
-import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
+import { ProjectV2 } from "@overcode-ai/core/project"
+import { CrossSpawnSpawner } from "@overcode-ai/core/cross-spawn-spawner"
 import { testEffect } from "../lib/effect"
 import { RuntimeFlags } from "@/effect/runtime-flags"
-import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
-import { LayerNode } from "@opencode-ai/core/effect/layer-node"
+import { AppNodeBuilder } from "@overcode-ai/core/effect/app-node-builder"
+import { LayerNode } from "@overcode-ai/core/effect/layer-node"
 
 const encoder = new TextEncoder()
 
@@ -403,7 +403,7 @@ describe("Project.discover", () => {
     Effect.gen(function* () {
       const project = yield* Project.Service
       const tmp = yield* tmpdirScoped({ git: true })
-      const pngData = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+      const pngData = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
       yield* Effect.promise(() => Bun.write(path.join(tmp, "favicon.png"), pngData))
 
       const result = yield* project.fromDirectory(tmp)
@@ -420,7 +420,7 @@ describe("Project.discover", () => {
       const tmp = yield* tmpdirScoped({ git: true })
       const result = yield* project.fromDirectory(tmp)
 
-      const pngData = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+      const pngData = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
       yield* Effect.promise(() => Bun.write(path.join(tmp, "favicon.png"), pngData))
 
       yield* project.discover(result.project)
@@ -464,7 +464,7 @@ describe("Project.discover", () => {
       const updatedProject = yield* project.get(result.project.id)
       if (!updatedProject) throw new Error("Project not found")
 
-      const pngData = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+      const pngData = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
       yield* Effect.promise(() => Bun.write(path.join(tmp, "favicon.png"), pngData))
 
       yield* project.discover(updatedProject)

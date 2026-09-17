@@ -17,6 +17,8 @@ ts-dist
 .serena/
 **/.omo
 .omo/
+**/.ai
+.ai/
 /result
 refs
 Session.vim
@@ -25,6 +27,30 @@ a.out
 target
 .scripts
 .direnv/
+
+# Repository-local agent instructions and generated workspace state
+AGENTS.md
+**/AGENTS.md
+CLAUDE.md
+**/CLAUDE.md
+GEMINI.md
+**/GEMINI.md
+**/.opencode/agent/
+**/.overcode/agent/
+**/.overcode/skills/
+**/.overcode/plugins/*smoke*
+**/.overcode/themes/mytheme.json
+**/.overcode/package-lock.json
+*.log
+
+# Local credentials and key material
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.p12
+*.pfx
 
 # Local dev files
 overcode-dev

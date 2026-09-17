@@ -48,6 +48,13 @@ export function recentModels(
     .map((item) => ({ providerID: item.providerID, modelID: item.modelID }))
 }
 
+export type ExecutionMode = "normal" | "deep" | "swarm"
+export const ExecutionModes: ExecutionMode[] = ["normal", "deep", "swarm"]
+
+export function executionModeLabel(mode: ExecutionMode): string {
+  return mode === "normal" ? "Normal" : mode === "deep" ? "Deep Think" : "Swarm"
+}
+
 export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
   name: "Local",
   init: () => {
@@ -153,12 +160,14 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           modelID: string
         }[]
         variant: Record<string, string | undefined>
+        mode: ExecutionMode
       }>({
         ready: false,
         model: {},
         recent: [],
         favorite: [],
         variant: {},
+        mode: "normal",
       })
 
       const filePath = path.join(paths.state, "model.json")
@@ -176,6 +185,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           recent: modelStore.recent,
           favorite: modelStore.favorite,
           variant: modelStore.variant,
+          mode: modelStore.mode,
         })
       }
 
@@ -187,6 +197,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           if (Array.isArray(value.favorite)) setModelStore("favorite", value.favorite)
           if (typeof value.variant === "object" && value.variant !== null)
             setModelStore("variant", value.variant as Record<string, string | undefined>)
+          if (value.mode === "normal" || value.mode === "deep" || value.mode === "swarm") setModelStore("mode", value.mode)
         })
         .catch(() => {})
         .finally(() => {
@@ -401,6 +412,20 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
               return
             }
             this.set(variants[index + 1])
+          },
+        },
+        mode: {
+          list: ExecutionModes,
+          current: () => modelStore.mode,
+          set(value: ExecutionMode) {
+            setModelStore("mode", value)
+            save()
+          },
+          cycle() {
+            const current = modelStore.mode
+            const index = ExecutionModes.indexOf(current)
+            setModelStore("mode", ExecutionModes[(index + 1) % ExecutionModes.length]!)
+            save()
           },
         },
       }

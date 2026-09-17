@@ -1,13 +1,13 @@
-import { Button } from "@opencode-ai/ui/button"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
-import { Dialog } from "@opencode-ai/ui/dialog"
-import { List, type ListRef } from "@opencode-ai/ui/list"
-import { ProviderIcon } from "@opencode-ai/ui/provider-icon"
-import { Tag } from "@opencode-ai/ui/tag"
-import { Tooltip } from "@opencode-ai/ui/tooltip"
+import { Button } from "@overcode-ai/ui/button"
+import { useDialog } from "@overcode-ai/ui/context/dialog"
+import { Dialog } from "@overcode-ai/ui/dialog"
+import { List, type ListRef } from "@overcode-ai/ui/list"
+import { ProviderIcon } from "@overcode-ai/ui/provider-icon"
+import { Tag } from "@overcode-ai/ui/tag"
+import { Tooltip } from "@overcode-ai/ui/tooltip"
 import { type Component, Show } from "solid-js"
 import { useLocal } from "@/context/local"
-import { popularProviders, useProviders } from "@/hooks/use-providers"
+import { isOvercodeProvider, popularProviders, useProviders } from "@/hooks/use-providers"
 import { ModelTooltip } from "./model-tooltip"
 import { useLanguage } from "@/context/language"
 import { decode64 } from "@/utils/base64"
@@ -61,7 +61,7 @@ export const DialogSelectModelUnpaid: Component<{ model?: ModelState }> = (props
                 <ModelTooltip
                   model={item}
                   latest={item.latest}
-                  free={item.provider.id === "overcode" && (!item.cost || item.cost.input === 0)}
+                  free={isOvercodeProvider(item.provider.id) && (!item.cost || item.cost.input === 0)}
                 />
               }
             >

@@ -1,4 +1,4 @@
-import type { Message, Part, Session } from "@opencode-ai/sdk/v2/client"
+import type { Message, Part, Session } from "@overcode-ai/sdk/v2/client"
 
 // Matches the exact `{ info, messages: [{ info, parts }] }` structure produced by `overcode export` CLI
 export type SessionExportData = {

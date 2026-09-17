@@ -1,5 +1,5 @@
 import { Effect } from "effect"
-import { ComputerUse } from "@opencode-ai/core/computer-use"
+import { ComputerUse } from "@overcode-ai/core/computer-use"
 
 export const frame = { id: "frame-local-1", data: "/9j/2Q==", mime: "image/jpeg" as const, width: 1600, height: 900 }
 export const grantID = crypto.randomUUID()

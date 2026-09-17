@@ -1,4 +1,4 @@
-import type { OvercodeEventEncoded } from "@opencode-ai/protocol/groups/event"
+import type { OvercodeEventEncoded } from "@overcode-ai/protocol/groups/event"
 
 export type JsonValue =
   | null

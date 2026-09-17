@@ -1,4 +1,4 @@
-import type { useLocal } from "@/context/local"
+import type { ExecutionMode, useLocal } from "@/context/local"
 import type { Prompt, usePrompt } from "@/context/prompt"
 import type { PromptInputHistory } from "./history-store"
 import type { FollowupDraft } from "./submit"
@@ -23,6 +23,11 @@ export type PromptInputControls = {
     selection: ReturnType<typeof useLocal>["model"]
     paid: boolean
     loading: boolean
+  }
+  executionMode: {
+    options: ExecutionMode[]
+    current: ExecutionMode
+    select: (mode: ExecutionMode) => void
   }
   session: {
     id?: string

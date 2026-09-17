@@ -1,5 +1,5 @@
-import type { NamedError } from "@opencode-ai/core/util/error"
-import { SessionV1 } from "@opencode-ai/core/v1/session"
+import type { NamedError } from "@overcode-ai/core/util/error"
+import { SessionV1 } from "@overcode-ai/core/v1/session"
 import { Cause, Clock, Duration, Effect, Schedule } from "effect"
 import { MessageV2 } from "./message-v2"
 import { iife } from "@/util/iife"
@@ -86,6 +86,11 @@ export function retryable(error: Err, provider: string) {
   // context overflow errors should not be retried
   if (SessionV1.ContextOverflowError.isInstance(error)) return undefined
   if (SessionV1.APIError.isInstance(error)) {
+    // The public Overcode/free routes have a bounded stream timeout. Retrying
+    // a transport timeout here would multiply that bound by every retry
+    // attempt and leave clients showing a permanently busy session. Other
+    // providers keep the existing retry behavior.
+    if (isBoundedProvider(provider) && isTransportTimeout(error)) return undefined
     const status = error.data.statusCode
     // 5xx errors are transient server failures and should always be retried,
     // even when the provider SDK doesn't explicitly mark them as retryable.
@@ -152,6 +157,16 @@ export function retryable(error: Err, provider: string) {
   if (lower.includes("exhausted") || lower.includes("unavailable")) return { message: "Provider is overloaded" }
   if (matchesRetryableMessage(message)) return { message }
   return undefined
+}
+
+function isTransportTimeout(error: SessionV1.APIError) {
+  const code = isRecord(error.data.metadata) ? error.data.metadata.code : undefined
+  if (code === "ProviderHeaderTimeoutError" || code === "ProviderResponseStreamError") return true
+  return /\b(?:timed out|timeout)\b/i.test(error.data.message)
+}
+
+function isBoundedProvider(provider: string) {
+  return provider.startsWith("overcode") || provider.startsWith("opencode")
 }
 
 function matchesRetryableMessage(value: unknown) {

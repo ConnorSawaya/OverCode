@@ -1,6 +1,6 @@
-import type { FilePart, Project, UserMessage, VcsFileDiff } from "@opencode-ai/sdk/v2"
-import { getFilename } from "@opencode-ai/core/util/path"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import type { FilePart, Project, UserMessage, VcsFileDiff } from "@overcode-ai/sdk/v2"
+import { getFilename } from "@overcode-ai/core/util/path"
+import { useDialog } from "@overcode-ai/ui/context/dialog"
 import { createQuery, skipToken, useMutation, useQueryClient } from "@tanstack/solid-query"
 import {
   batch,
@@ -26,18 +26,17 @@ import { debounce } from "@solid-primitives/scheduled"
 import { useLocal } from "@/context/local"
 import { FileProvider, selectionFromLines, useFile, type FileSelection, type SelectedLineRange } from "@/context/file"
 import { createStore } from "solid-js/store"
-import type { SessionReviewLineComment } from "@opencode-ai/session-ui/session-review"
-import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
-import { Select } from "@opencode-ai/ui/select"
-import { SelectV2 } from "@opencode-ai/ui/v2/select-v2"
-import { isScrollKeyTarget, scrollKey, scrollKeyOwner } from "@opencode-ai/ui/scroll-view"
-import { Tabs } from "@opencode-ai/ui/tabs"
-import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
-import { createAutoScroll } from "@opencode-ai/ui/hooks"
-import { previewSelectedLines } from "@opencode-ai/session-ui/pierre/selection-bridge"
-import { Button } from "@opencode-ai/ui/button"
+import type { SessionReviewLineComment } from "@overcode-ai/session-ui/session-review"
+import { ResizeHandle } from "@overcode-ai/ui/resize-handle"
+import { Select } from "@overcode-ai/ui/select"
+import { SelectV2 } from "@overcode-ai/ui/v2/select-v2"
+import { isScrollKeyTarget, scrollKey, scrollKeyOwner } from "@overcode-ai/ui/scroll-view"
+import { ButtonV2 } from "@overcode-ai/ui/v2/button-v2"
+import { createAutoScroll } from "@overcode-ai/ui/hooks"
+import { previewSelectedLines } from "@overcode-ai/session-ui/pierre/selection-bridge"
+import { Button } from "@overcode-ai/ui/button"
 import { showToast } from "@/utils/toast"
-import { base64Encode, checksum } from "@opencode-ai/core/util/encode"
+import { base64Encode, checksum } from "@overcode-ai/core/util/encode"
 import { useLocation, useNavigate, useParams, useSearchParams } from "@solidjs/router"
 import { NewSessionView, SessionHeader } from "@/components/session"
 import { ErrorPage } from "@/pages/error"
@@ -71,6 +70,7 @@ import {
   SessionComposerRegion,
 } from "@/pages/session/composer"
 import { SessionGoalDock } from "@/pages/session/composer/session-goal-dock"
+import { useSwarmStatus } from "@/components/swarm-status"
 import { createOpenReviewFile, createSessionTabs, createSizing, shouldShowFileTree } from "@/pages/session/helpers"
 import { MessageTimeline } from "@/pages/session/timeline/message-timeline"
 import { createTimelineModel } from "@/pages/session/timeline/model"
@@ -85,9 +85,9 @@ import {
 } from "@/pages/session/session-panel-width"
 import { SessionSidePanel } from "@/pages/session/session-side-panel"
 import { sessionPanelLayout } from "@/pages/session/session-panel-layout"
-import { SessionReviewEmptyChangesV2 } from "@opencode-ai/session-ui/v2/session-review-empty-changes-v2"
-import { SessionReviewEmptyNoGitV2 } from "@opencode-ai/session-ui/v2/session-review-empty-no-git-v2"
-import { SessionReviewV2SidebarToggle } from "@opencode-ai/session-ui/v2/session-review-v2"
+import { SessionReviewEmptyChangesV2 } from "@overcode-ai/session-ui/v2/session-review-empty-changes-v2"
+import { SessionReviewEmptyNoGitV2 } from "@overcode-ai/session-ui/v2/session-review-empty-no-git-v2"
+import { SessionReviewV2SidebarToggle } from "@overcode-ai/session-ui/v2/session-review-v2"
 import { ReviewPanelV2 } from "@/pages/session/v2/review-panel-v2"
 import { createReviewPanelV2State } from "@/pages/session/v2/review-panel-v2-state"
 import { reviewDiffDirectory, reviewDiffNeedsLoad, reviewRootDirectory } from "@/pages/session/v2/review-diff-kinds"
@@ -118,7 +118,6 @@ type VcsMode = "git" | "branch"
 
 const sessionViewState = () => ({
   messageId: undefined as string | undefined,
-  mobileTab: "session" as "session" | "changes",
 })
 
 function isCurrentSessionNotFoundError(error: unknown, sessionID: string | undefined) {
@@ -692,12 +691,11 @@ export default function Page() {
     list.push("turn")
     return list
   })
-  const mobileChanges = createMemo(() => !isDesktop() && store.mobileTab === "changes")
-  const wantsReview = createMemo(() =>
-    isDesktop()
-      ? desktopFileTreeOpen() ||
-        (desktopReviewOpen() && (activeTab() === "review" || (newSessionDesign() && !!activeFileTab())))
-      : store.mobileTab === "changes",
+  const wantsReview = createMemo(
+    () =>
+      isDesktop() &&
+      (desktopFileTreeOpen() ||
+        (desktopReviewOpen() && (activeTab() === "review" || (newSessionDesign() && !!activeFileTab())))),
   )
   const vcsMode = createMemo<VcsMode | undefined>(() => {
     const mode = reviewMode()
@@ -1965,6 +1963,13 @@ export default function Page() {
 
   const followupDock = createMemo(() => queuedFollowups().map((item) => ({ id: item.id, text: followupText(item) })))
 
+  const swarm = useSwarmStatus(() => params.id)
+  const swarmDock = createMemo(() => {
+    const record = swarm.record()
+    if (!record) return undefined
+    return { record, onCancel: (id: string) => void swarm.cancel(id) }
+  })
+
   const runFollowupAction = (sessionID: string, id: string, action: "promote" | "edit" | "remove") => {
     if (sync().session.get(sessionID)?.parentID) return Promise.resolve()
     if (followupBusy(sessionID)) return Promise.resolve()
@@ -2371,45 +2376,6 @@ export default function Page() {
 
   useUsageExceededDialogs()
 
-  const mobileTabs = (compact = false, bottom = false) => (
-    <Tabs value={store.mobileTab} class="h-auto">
-      <Tabs.List
-        classList={{
-          "!h-9": compact,
-          "[&::after]:!border-b-0 [&::after]:!border-t [&::after]:!border-border-weak-base": bottom,
-        }}
-      >
-        <Tabs.Trigger
-          value="session"
-          classList={{
-            "!w-1/2 !max-w-none": true,
-            "!border-b-0 !border-t !border-border-weak-base [&:has([data-selected])]:!border-t-transparent": bottom,
-          }}
-          classes={{ button: compact ? "w-full !py-2" : "w-full" }}
-          onClick={() => setStore("mobileTab", "session")}
-        >
-          {language.t("session.tab.session")}
-        </Tabs.Trigger>
-        <Tabs.Trigger
-          value="changes"
-          classList={{
-            "!w-1/2 !max-w-none !border-r-0": true,
-            "!border-b-0 !border-t !border-border-weak-base [&:has([data-selected])]:!border-t-transparent": bottom,
-          }}
-          classes={{ button: compact ? "w-full !py-2" : "w-full" }}
-          onClick={() => setStore("mobileTab", "changes")}
-        >
-          {hasReview()
-            ? language.t("session.review.filesChanged", { count: reviewCount() })
-            : language.t("session.review.change.other")}
-        </Tabs.Trigger>
-      </Tabs.List>
-    </Tabs>
-  )
-  const mobileTabsBottom = createMemo(
-    () => !isDesktop() && settings.general.newLayoutDesigns() && settings.general.mobileTitlebarPosition() === "bottom",
-  )
-
   const sessionErrorFallback = (error: unknown, reset: () => void) => {
     createEffect(on(sessionKey, reset, { defer: true }))
     return <SessionErrorFallback error={error} sessionID={params.id} />
@@ -2418,25 +2384,8 @@ export default function Page() {
   const sessionPanelContent = () => (
     <>
       {sessionSync() ?? ""}
-      <Show when={!isDesktop() && !!params.id && settings.general.newLayoutDesigns() && !mobileTabsBottom()}>
-        {mobileTabs(true)}
-      </Show>
       <div class="flex-1 min-h-0 overflow-hidden">
         <Switch>
-          <Match when={params.id && mobileChanges()}>
-            <div class="relative h-full overflow-hidden">
-              {reviewContent({
-                diffStyle: "unified",
-                classes: {
-                  root: "pb-8 [&_[data-slot=session-review-list]]:pb-0",
-                  header: "px-4 !h-16 !pb-4",
-                  container: "px-4",
-                },
-                loadingClass: "px-4 py-4 text-text-weak",
-                emptyClass: "h-full pb-64 -mt-4 flex flex-col items-center justify-center text-center gap-6",
-              })}
-            </div>
-          </Match>
           <Match when={params.id}>
             <Show when={messagesReady() ? params.id : undefined} keyed>
               {(_id) => (
@@ -2485,7 +2434,7 @@ export default function Page() {
         </Switch>
       </div>
 
-      <Show when={(params.id || !newSessionDesign()) && !mobileChanges()}>
+      <Show when={params.id || !newSessionDesign()}>
         {(_) => {
           const controller = createSessionComposerRegionController({
             state: composer,
@@ -2517,6 +2466,7 @@ export default function Page() {
                     onRestore: restore,
                   }
                 : undefined,
+            swarm: swarmDock,
             onResponseSubmit: resumeScroll,
             openParent: () => {
               const id = info()?.parentID
@@ -2615,7 +2565,6 @@ export default function Page() {
           )
         }}
       </Show>
-      <Show when={!!params.id && mobileTabsBottom()}>{mobileTabs(true, true)}</Show>
     </>
   )
 
@@ -2629,8 +2578,6 @@ export default function Page() {
           "gap-2 p-2": settings.general.newLayoutDesigns(),
         }}
       >
-        <Show when={!isDesktop() && !!params.id && !settings.general.newLayoutDesigns()}>{mobileTabs()}</Show>
-
         <div
           classList={{
             "@container relative shrink-0 flex flex-col min-h-0 h-full flex-1 md:flex-none transition-[width]": true,

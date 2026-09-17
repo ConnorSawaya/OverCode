@@ -245,7 +245,7 @@ export function nativePickerPath(path: string) {
   if (/^[A-Za-z]:\//.test(value) || value.startsWith("//")) return value.replaceAll("/", "\\")
   return value
 }
-import { getFilename } from "@opencode-ai/core/util/path"
+import { getFilename } from "@overcode-ai/core/util/path"
 import fuzzysort from "fuzzysort"
 import { ServerSDK } from "@/context/server-sdk"
 
@@ -342,9 +342,12 @@ export function createDirectorySearch(args: { sdk: ServerSDK; base: () => string
     const key = trimPickerPath(directory)
     const existing = cache.get(key)
     if (existing) return existing
-    const request = args.sdk.api.file
-      .list({ location: { directory: key } })
-      .then((result) => result.data)
+    const request = Promise.resolve(args.sdk.protocol)
+      .then((protocol) =>
+        protocol === "v2"
+          ? args.sdk.client.file.list({ directory: key, path: "." }).then((result) => result.data ?? [])
+          : args.sdk.api.file.list({ location: { directory: key } }).then((result) => result.data),
+      )
       .catch(() => [])
       .then((nodes) =>
         nodes
@@ -374,9 +377,17 @@ export function createDirectorySearch(args: { sdk: ServerSDK; base: () => string
     const pathInput = raw.startsWith("~") || !!pickerRoot(raw) || raw.includes("/")
     const query = normalizePickerDrive(input.path)
     if (!pathInput) {
-      const results = await args.sdk.api.file
-        .find({ location: { directory: input.directory }, query, type: "directory", limit: 50 })
-        .then((result) => result.data.map((entry) => entry.path))
+      const results = await Promise.resolve(args.sdk.protocol)
+        .then((protocol) => {
+          if (protocol === "v2" && query.length === 0) return []
+          if (protocol === "v2")
+            return args.sdk.client.v2.fs
+              .find({ location: { directory: input.directory }, query, type: "directory", limit: "50" })
+              .then((result) => (result.data?.data ?? []).map((entry) => entry.path))
+          return args.sdk.api.file
+            .find({ location: { directory: input.directory }, query, type: "directory", limit: 50 })
+            .then((result) => result.data.map((entry) => entry.path))
+        })
         .catch(() => [])
       if (!active()) return []
       if (results.length) {

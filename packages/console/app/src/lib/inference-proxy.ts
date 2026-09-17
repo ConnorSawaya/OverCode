@@ -1,7 +1,7 @@
-import { Resource } from "@opencode-ai/console-resource"
-import { Database, eq } from "@opencode-ai/console-core/drizzle/index.js"
-import { KeyTable } from "@opencode-ai/console-core/schema/key.sql.js"
-import { WorkspaceTable } from "@opencode-ai/console-core/schema/workspace.sql.js"
+import { Resource } from "@overcode-ai/console-resource"
+import { Database, eq } from "@overcode-ai/console-core/drizzle/index.js"
+import { KeyTable } from "@overcode-ai/console-core/schema/key.sql.js"
+import { WorkspaceTable } from "@overcode-ai/console-core/schema/workspace.sql.js"
 
 const paths: Record<string, string | undefined> = {
   "GET /zen/v1/models": "/openai/v1/models",

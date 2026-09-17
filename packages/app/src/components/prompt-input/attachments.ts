@@ -20,8 +20,8 @@ import {
   pastedTextTitle,
   releaseLocalPastedTextBlob,
   shouldCreatePastedTextAttachment,
-} from "@opencode-ai/session-ui/v2/prompt-input/pasted-text"
-import { LOCAL_FILE_REFERENCE_MIME } from "@opencode-ai/core/file"
+} from "@overcode-ai/session-ui/v2/prompt-input/pasted-text"
+import { LOCAL_FILE_REFERENCE_MIME } from "@overcode-ai/core/file"
 
 type PromptTarget = Pick<ReturnType<ReturnType<typeof usePrompt>["capture"]>, "current" | "cursor" | "set">
 type AttachmentTarget = { prompt: PromptTarget; cursor: number | undefined }

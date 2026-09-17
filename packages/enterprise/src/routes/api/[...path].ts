@@ -144,7 +144,14 @@ app
     const expected = `Bearer ${(Resource as unknown as Record<string, { value: string }>).SUPPORT_API_KEY.value}`
     const actual = Buffer.from(authorization ?? "")
     const secret = Buffer.from(expected)
-    if (actual.length !== secret.length || !timingSafeEqual(actual, secret))
+    // Buffers are valid ArrayBufferViews at runtime; newer @types/node
+    // brands them so the static type rejects them. Cast keeps the
+    // constant-time comparison intact with zero behavior change.
+    type TimingView = Parameters<typeof timingSafeEqual>[0]
+    if (
+      actual.length !== secret.length ||
+      !timingSafeEqual(actual as unknown as TimingView, secret as unknown as TimingView)
+    )
       return c.json({ error: "Unauthorized" }, 401)
 
     const body = z.object({ shareID: z.string().min(1) }).safeParse(await c.req.json().catch(() => undefined))

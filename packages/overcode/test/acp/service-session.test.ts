@@ -10,9 +10,9 @@ import type {
   SessionConfigSelectOption,
   SetSessionConfigOptionResponse,
 } from "@agentclientprotocol/sdk"
-import type { AssistantMessage, Event, OpencodeClient } from "@opencode-ai/sdk/v2"
-import { ProviderV2 } from "@opencode-ai/core/provider"
-import { ModelV2 } from "@opencode-ai/core/model"
+import type { AssistantMessage, Event, ModelV2Info, OpencodeClient, ProviderV2Info } from "@overcode-ai/sdk/v2"
+import { ProviderV2 } from "@overcode-ai/core/provider"
+import { ModelV2 } from "@overcode-ai/core/model"
 import { Effect } from "effect"
 import * as ACPService from "@/acp/service"
 import * as ACPError from "@/acp/error"
@@ -196,6 +196,7 @@ describe("ACP service sessions", () => {
       abort?: (input: { sessionID: string }) => Promise<{ data: boolean }>
       prompt?: (input: unknown) => Promise<{ data: { info: ReturnType<typeof assistantInfo> } }>
       sessionUpdate?: (update: SessionNotification) => Promise<void>
+      catalog?: { providers: ProviderV2Info[]; models: ModelV2Info[] }
     },
   ) => {
     const updates: SessionNotification[] = []
@@ -221,6 +222,18 @@ describe("ACP service sessions", () => {
         providers: () => Promise.resolve({ data: { providers: [provider], default: { test: modelID } } }),
         get: () => Promise.resolve({ data: {} }),
       },
+      ...(options?.catalog
+        ? {
+            v2: {
+              provider: {
+                list: () => Promise.resolve({ data: { data: options.catalog!.providers } }),
+              },
+              model: {
+                list: () => Promise.resolve({ data: { data: options.catalog!.models } }),
+              },
+            },
+          }
+        : {}),
       app: {
         agents: () =>
           Promise.resolve({
@@ -355,6 +368,41 @@ describe("ACP service sessions", () => {
     expect(JSON.stringify(updates[0])).toContain("available_commands_update")
     expect(JSON.stringify(updates[0])).toContain("review-skill")
     expect(mcpAdds).toEqual(["tools"])
+  })
+
+  it("uses the flat V2 catalog for directory model options", async () => {
+    const catalog: { providers: ProviderV2Info[]; models: ModelV2Info[] } = {
+      providers: [
+        {
+          id: "test",
+          name: "V2 Test",
+          api: { type: "native", url: "https://example.com", settings: {} },
+          request: { headers: {}, body: {} },
+        },
+      ],
+      models: [
+        {
+          id: "v2-model",
+          providerID: "test",
+          name: "V2 Model",
+          api: { id: "v2-model", type: "native", url: "https://example.com", settings: {} },
+          capabilities: { tools: true, input: ["text"], output: ["text"] },
+          request: { headers: {}, body: {} },
+          variants: [{ id: "high", headers: {}, body: { reasoningEffort: "high" } }],
+          time: { released: 0 },
+          cost: [{ input: 0, output: 0, cache: { read: 0, write: 0 } }],
+          status: "active",
+          enabled: true,
+          limit: { context: 128000, output: 4096 },
+        },
+      ],
+    }
+    const { service } = makeService([], { catalog })
+
+    const result = await Effect.runPromise(service.newSession({ cwd: "/workspace", mcpServers: [] }))
+
+    expect(result.configOptions?.find((option) => option.id === "model")?.currentValue).toBe("test/v2-model")
+    expect(result.configOptions?.find((option) => option.id === "effort")?.currentValue).toBe("high")
   })
 
   it("loads a session and restores model variant and mode from messages", async () => {

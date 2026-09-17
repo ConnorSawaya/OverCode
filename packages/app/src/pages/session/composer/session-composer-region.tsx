@@ -6,6 +6,7 @@ import { SessionQuestionDock } from "@/pages/session/composer/session-question-d
 import { SessionFollowupDock } from "@/pages/session/composer/session-followup-dock"
 import { SessionRevertDock } from "@/pages/session/composer/session-revert-dock"
 import { SessionTodoDock } from "@/pages/session/composer/session-todo-dock"
+import { SessionSwarmDock } from "@/components/swarm-status"
 import type { SessionComposerRegionController } from "./session-composer-region-controller"
 
 export function SessionComposerRegion(props: {
@@ -144,6 +145,9 @@ export function SessionComposerRegion(props: {
                   onEdit={controller.followup()!.onEdit}
                   onRemove={controller.followup()!.onRemove}
                 />
+              </Show>
+              <Show when={controller.swarm?.()}>
+                {(dock) => <SessionSwarmDock record={dock().record} onCancel={dock().onCancel} />}
               </Show>
               <Show
                 when={controller.child()}

@@ -1,8 +1,8 @@
 /** @jsxImportSource @opentui/solid */
 import { describe, expect, test } from "bun:test"
 import { tmpdir } from "../../../fixture/fixture"
-import { mount, wait } from "./sync-fixture"
-import type { GlobalEvent } from "@opencode-ai/sdk/v2"
+import { directory, json, mount, wait, worktree } from "./sync-fixture"
+import type { GlobalEvent } from "@overcode-ai/sdk/v2"
 
 function branchEvent(branch: string, workspace?: string): GlobalEvent {
   return {
@@ -58,6 +58,107 @@ describe("tui sync", () => {
       await wait(() => sync.data.vcs?.branch === "feature")
 
       expect(sync.data.vcs?.branch).toBe("feature")
+    } finally {
+      app.renderer.destroy()
+    }
+  })
+
+  test("survives legacy provider-endpoint failures via the V2 catalog", async () => {
+    await using tmp = await tmpdir()
+    await Bun.write(`${tmp.path}/kv.json`, "{}")
+    const { app, sync } = await mount((url) => {
+      if (url.pathname === "/config/providers" || url.pathname === "/provider")
+        return json({ error: "gone" }, { status: 410 })
+      if (url.pathname === "/api/provider")
+        return json({
+          location: { directory, project: { id: "proj_test", directory: worktree } },
+          data: [
+            {
+              id: "custom",
+              name: "Custom",
+              api: { type: "native", settings: {} },
+              request: { headers: {}, body: {} },
+            },
+          ],
+        })
+      if (url.pathname === "/api/model")
+        return json({
+          location: { directory, project: { id: "proj_test", directory: worktree } },
+          data: [
+            {
+              id: "model",
+              providerID: "custom",
+              name: "Custom Model",
+              api: { type: "native", id: "model", settings: {} },
+              capabilities: { tools: true, input: ["text"], output: ["text"] },
+              request: { headers: {}, body: {} },
+              variants: [],
+              time: { released: 0 },
+              cost: [{ input: 0, output: 0, cache: { read: 0, write: 0 } }],
+              status: "active",
+              enabled: true,
+              limit: { context: 128_000, output: 8_192 },
+            },
+          ],
+        })
+    }, tmp.path)
+
+    try {
+      expect(sync.status).toBe("complete")
+      expect(sync.data.provider).toHaveLength(1)
+      expect(sync.data.provider[0]?.id).toBe("custom")
+      expect(sync.data.provider_default).toEqual({ custom: "model" })
+    } finally {
+      app.renderer.destroy()
+    }
+  })
+
+  test("uses the flat V2 catalog for model selection", async () => {
+    await using tmp = await tmpdir()
+    await Bun.write(`${tmp.path}/kv.json`, "{}")
+    const { app, sync } = await mount((url) => {
+      if (url.pathname === "/api/provider")
+        return json({
+          location: { directory, project: { id: "proj_test", directory: worktree } },
+          data: [
+            {
+              id: "custom",
+              name: "Custom",
+              api: { type: "native", settings: {} },
+              request: { headers: {}, body: {} },
+            },
+          ],
+        })
+      if (url.pathname === "/api/model")
+        return json({
+          location: { directory, project: { id: "proj_test", directory: worktree } },
+          data: [
+            {
+              id: "model",
+              providerID: "custom",
+              name: "Custom Model",
+              api: { type: "native", id: "model", settings: {} },
+              capabilities: { tools: true, input: ["text"], output: ["text"] },
+              request: { headers: {}, body: {} },
+              variants: [],
+              time: { released: 0 },
+              cost: [{ input: 0, output: 0, cache: { read: 0, write: 0 } }],
+              status: "active",
+              enabled: true,
+              limit: { context: 128_000, output: 8_192 },
+            },
+          ],
+        })
+    }, tmp.path)
+
+    try {
+      expect(sync.data.provider).toHaveLength(1)
+      expect(sync.data.provider[0]?.id).toBe("custom")
+      expect(sync.data.provider[0]?.models.model).toMatchObject({
+        id: "model",
+        name: "Custom Model",
+        release_date: "1970-01-01",
+      })
     } finally {
       app.renderer.destroy()
     }

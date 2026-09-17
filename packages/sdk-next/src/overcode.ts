@@ -1,9 +1,9 @@
-import { Overcode } from "@opencode-ai/client/effect"
-import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
-import { LayerNode } from "@opencode-ai/core/effect/layer-node"
-import { PermissionSaved } from "@opencode-ai/core/permission/saved"
-import { ApplicationTools } from "@opencode-ai/core/tool/application-tools"
-import { createEmbeddedRoutes } from "@opencode-ai/server/routes"
+import { Overcode } from "@overcode-ai/client/effect"
+import { AppNodeBuilder } from "@overcode-ai/core/effect/app-node-builder"
+import { LayerNode } from "@overcode-ai/core/effect/layer-node"
+import { PermissionSaved } from "@overcode-ai/core/permission/saved"
+import { ApplicationTools } from "@overcode-ai/core/tool/application-tools"
+import { createEmbeddedRoutes } from "@overcode-ai/server/routes"
 import { Context, Effect, Layer, Scope } from "effect"
 import { FetchHttpClient, HttpRouter, HttpServer } from "effect/unstable/http"
 
@@ -44,6 +44,6 @@ export const create = Effect.fn("Overcode.create")(function* () {
 
 export type Interface = Effect.Success<ReturnType<typeof create>>
 
-export class Service extends Context.Service<Service, Interface>()("@opencode-ai/sdk-next/Overcode") {}
+export class Service extends Context.Service<Service, Interface>()("@overcode-ai/sdk-next/Overcode") {}
 
 export const layer = Layer.effect(Service, create())

@@ -1,15 +1,15 @@
 import { createEffect, createMemo, For, Show, type Accessor, type JSX } from "solid-js"
-import { FileIcon } from "@opencode-ai/ui/file-icon"
-import { PromptFrame } from "@opencode-ai/ui/prompt-frame"
-import { Icon } from "@opencode-ai/ui/icon"
-import { ProviderIcon } from "@opencode-ai/ui/provider-icon"
-import { useI18n } from "@opencode-ai/ui/context/i18n"
-import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
-import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
-import { IconButtonV2 } from "@opencode-ai/ui/v2/icon-button-v2"
-import { KeybindV2 } from "@opencode-ai/ui/v2/keybind-v2"
-import { MenuV2 } from "@opencode-ai/ui/v2/menu-v2"
-import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
+import { FileIcon } from "@overcode-ai/ui/file-icon"
+import { PromptFrame } from "@overcode-ai/ui/prompt-frame"
+import { Icon } from "@overcode-ai/ui/icon"
+import { ProviderIcon } from "@overcode-ai/ui/provider-icon"
+import { useI18n } from "@overcode-ai/ui/context/i18n"
+import { ButtonV2 } from "@overcode-ai/ui/v2/button-v2"
+import { Icon as IconV2 } from "@overcode-ai/ui/v2/icon"
+import { IconButtonV2 } from "@overcode-ai/ui/v2/icon-button-v2"
+import { KeybindV2 } from "@overcode-ai/ui/v2/keybind-v2"
+import { MenuV2 } from "@overcode-ai/ui/v2/menu-v2"
+import { TooltipV2 } from "@overcode-ai/ui/v2/tooltip-v2"
 import { AttachmentCardV2 } from "../attachment-card-v2"
 import { CommentCardV2 } from "../comment-card-v2"
 import { typeLabel } from "../../../components/message-file"
@@ -25,6 +25,7 @@ import type {
 } from "./types"
 import type { PromptInputV2Interaction, PromptInputV2SelectControl } from "./interaction"
 import "./attachments.css"
+import "./controls.css"
 import "./editor.css"
 
 export type {
@@ -220,8 +221,9 @@ export function PromptInputV2(props: PromptInputV2Props) {
           </Show>
         </div>
 
-        <div class="flex h-10 items-center gap-2 px-2 pb-1">
+        <div data-slot="prompt-input-v2-controls" class="flex min-h-10 min-w-0 items-center gap-2 px-2 pb-1">
           <div
+            data-slot="prompt-input-v2-controls-primary"
             class="flex min-w-0 items-center gap-0.5"
             aria-hidden={state.mode === "shell"}
             inert={state.mode === "shell" ? true : undefined}
@@ -255,7 +257,8 @@ export function PromptInputV2(props: PromptInputV2Props) {
             </Show>
           </div>
           <div
-            class="ml-auto flex min-w-0 items-center justify-end gap-0.5"
+            data-slot="prompt-input-v2-controls-secondary"
+            class="ml-auto flex min-w-0 flex-1 items-center justify-end gap-0.5 overflow-x-auto"
             aria-hidden={state.mode === "shell"}
             inert={state.mode === "shell" ? true : undefined}
             style={buttons()}
@@ -288,19 +291,29 @@ export function PromptInputV2(props: PromptInputV2Props) {
                 </Show>
               )}
             </Show>
+            <Show when={view.executionMode} keyed>
+              {(control) => (
+                <PromptInputV2ConfiguredSelect
+                  title={i18n.t("ui.promptInput.chooseExecutionMode")}
+                  control={control}
+                />
+              )}
+            </Show>
             <Show when={props.voiceControl} fallback={<PromptInputV2VoiceButton />}>
               {props.voiceControl}
             </Show>
           </div>
-          <PromptInputV2SubmitButton
-            mode={state.mode}
-            stopping={view.submit.stopping()}
-            disabled={!props.controller.canSubmit()}
-            sendLabel={i18n.t("ui.promptInput.send")}
-            stopLabel={i18n.t("ui.promptInput.stop")}
-            onSubmit={props.controller.submit}
-            onStop={props.controller.stop}
-          />
+          <div data-slot="prompt-input-v2-submit" class="shrink-0">
+            <PromptInputV2SubmitButton
+              mode={state.mode}
+              stopping={view.submit.stopping()}
+              disabled={!props.controller.canSubmit()}
+              sendLabel={i18n.t("ui.promptInput.send")}
+              stopLabel={i18n.t("ui.promptInput.stop")}
+              onSubmit={props.controller.submit}
+              onStop={props.controller.stop}
+            />
+          </div>
         </div>
       </form>
     </div>
@@ -598,6 +611,7 @@ export function PromptInputV2AddMenu(props: {
           icon={<IconV2 name="plus" />}
           variant="ghost-muted"
           size="large"
+          class="shrink-0"
           disabled={props.disabled}
           aria-label={props.title}
         />
@@ -672,7 +686,7 @@ export function PromptInputV2Select(props: {
           as={ButtonV2}
           variant="ghost-muted"
           size="normal"
-          class={`max-w-[220px] justify-start ![font-weight:440] ${props.class ?? ""}`}
+          class={`max-w-[220px] shrink-0 justify-start ![font-weight:440] ${props.class ?? ""}`}
           aria-label={props.title}
         >
           {props.currentIcon}

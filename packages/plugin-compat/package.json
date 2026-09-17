@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@opencode-ai/plugin",
+  "version": "1.18.27",
+  "description": "Backwards-compatibility alias for @overcode-ai/plugin. Keeps third-party packages that depend on the old scope resolving to this fork's code. Do not publish; remove once upstream consumers migrate.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "typecheck": "tsgo --noEmit"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./tool": "./src/tool.ts",
+    "./tui": "./src/tui.ts",
+    "./v2/effect": "./src/v2/effect.ts",
+    "./v2/effect/integration": "./src/v2/effect-integration.ts",
+    "./v2/effect/plugin": "./src/v2/effect-plugin.ts",
+    "./v2/promise": "./src/v2/promise.ts"
+  },
+  "dependencies": {
+    "@overcode-ai/plugin": "workspace:*"
+  },
+  "devDependencies": {
+    "@tsconfig/node22": "catalog:"
+  }
+}

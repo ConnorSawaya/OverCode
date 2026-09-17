@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "name": "@opencode-ai/sdk",
+  "name": "@overcode-ai/sdk",
   "version": "1.18.27",
   "type": "module",
   "license": "MIT",
@@ -17,6 +17,7 @@
     "./v2/client": "./src/v2/client.ts",
     "./v2/gen/client": "./src/v2/gen/client/index.ts",
     "./v2/server": "./src/v2/server.ts",
+    "./v2/data": "./src/v2/data.ts",
     "./v2/types": "./src/v2/gen/types.gen.ts"
   },
   "files": [

@@ -1,4 +1,4 @@
-import type { Message } from "@opencode-ai/sdk/v2/client"
+import type { Message } from "@overcode-ai/sdk/v2/client"
 import type { Prompt } from "@/context/prompt-state"
 
 export type FollowupIdentity = {

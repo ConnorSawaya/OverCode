@@ -1,8 +1,8 @@
 export * as SessionPromptInput from "./prompt-input"
 
-import { SessionV1 } from "@opencode-ai/core/v1/session"
-import { ModelV2 } from "@opencode-ai/core/model"
-import { ProviderV2 } from "@opencode-ai/core/provider"
+import { SessionV1 } from "@overcode-ai/core/v1/session"
+import { ModelV2 } from "@overcode-ai/core/model"
+import { ProviderV2 } from "@overcode-ai/core/provider"
 import { Schema } from "effect"
 import { MessageID, SessionID } from "./schema"
 
@@ -14,11 +14,17 @@ const ModelRef = Schema.Struct({
 export const Delivery = Schema.Literals(["steer", "queue"])
 export type Delivery = typeof Delivery.Type
 
+export const ExecutionMode = Schema.Literals(["normal", "deep", "swarm"])
+export type ExecutionMode = typeof ExecutionMode.Type
+
 export const PromptInput = Schema.Struct({
   sessionID: SessionID,
   messageID: Schema.optional(MessageID),
   model: Schema.optional(ModelRef),
   agent: Schema.optional(Schema.String),
+  mode: Schema.optional(ExecutionMode).annotate({
+    description: "Execution mode: normal single-agent, deep single-agent with critique, or multi-agent swarm",
+  }),
   noReply: Schema.optional(Schema.Boolean),
   delivery: Schema.optional(Delivery),
   tools: Schema.optional(Schema.Record(Schema.String, Schema.Boolean)).annotate({

@@ -1,6 +1,6 @@
 // @refresh reload
 
-import { createEffect, onMount } from "solid-js"
+import { createEffect, createSignal, onMount } from "solid-js"
 import { createStore } from "solid-js/store"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { createSimpleContext } from "../context/helper"
@@ -8,6 +8,7 @@ import oc2ThemeJson from "./themes/oc-2.json"
 import { resolveThemeVariant, themeToCss } from "./resolve"
 import { resolveThemeVariantV2, themeV2ToCss } from "./v2/resolve"
 import type { DesktopTheme } from "./types"
+import { parseDesktopTheme } from "./custom"
 
 export type ColorScheme = "light" | "dark" | "system"
 
@@ -16,6 +17,7 @@ const STORAGE_KEYS = {
   COLOR_SCHEME: "overcode-color-scheme",
   THEME_CSS_LIGHT: "overcode-theme-css-light",
   THEME_CSS_DARK: "overcode-theme-css-dark",
+  CUSTOM_THEMES: "overcode-custom-themes",
 } as const
 
 const THEME_STYLE_ID = "oc-theme"
@@ -86,7 +88,9 @@ const names: Record<string, string> = {
 const oc2Theme = oc2ThemeJson as DesktopTheme
 
 function normalize(id: string | null | undefined) {
-  return id === "oc-1" ? "oc-2" : id
+  if (id === "oc-1") return "oc-2"
+  if (id === "opencode-codex") return "overcode-codex"
+  return id
 }
 
 function read(key: string) {
@@ -115,6 +119,26 @@ function drop(key: string) {
 function clear() {
   drop(STORAGE_KEYS.THEME_CSS_LIGHT)
   drop(STORAGE_KEYS.THEME_CSS_DARK)
+}
+
+function readCustomThemes() {
+  const raw = read(STORAGE_KEYS.CUSTOM_THEMES)
+  if (!raw) return {} as Record<string, DesktopTheme>
+  try {
+    const value: unknown = JSON.parse(raw)
+    const entries = Array.isArray(value) ? value : Object.values(value as Record<string, unknown>)
+    const themes: Record<string, DesktopTheme> = {}
+    for (const entry of entries) {
+      try {
+        const theme = parseDesktopTheme(entry)
+        if (theme.id === "oc-2") continue
+        themes[theme.id] = theme
+      } catch {}
+    }
+    return themes
+  } catch {
+    return {}
+  }
 }
 
 function ensureThemeStyleElement(): HTMLStyleElement {
@@ -181,9 +205,15 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
     const themeId = normalize(read(STORAGE_KEYS.THEME_ID) ?? props.defaultTheme) ?? "oc-2"
     const colorScheme = (read(STORAGE_KEYS.COLOR_SCHEME) as ColorScheme | null) ?? "system"
     const mode = colorScheme === "system" ? getSystemMode() : colorScheme
+    const storedCustomThemes = Object.fromEntries(
+      Object.entries(readCustomThemes()).filter(([id]) => !Object.hasOwn(names, id)),
+    ) as Record<string, DesktopTheme>
+    const customThemeIds = new Set(Object.keys(storedCustomThemes))
+    const [customThemeVersion, setCustomThemeVersion] = createSignal(0)
     const [store, setStore] = createStore({
       themes: {
         "oc-2": oc2Theme,
+        ...storedCustomThemes,
       } as Record<string, DesktopTheme>,
       themeId,
       colorScheme,
@@ -223,7 +253,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
 
     const ids = () => {
       const extra = Object.keys(store.themes)
-        .filter((id) => !knownThemes().has(id))
+        .filter((id) => store.themes[id] && !knownThemes().has(id))
         .sort()
       const all = themeIDs()
       if (extra.length === 0) return all
@@ -231,6 +261,15 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
     }
 
     const loadThemes = () => Promise.all(themeIDs().map(load)).then(() => store.themes)
+
+    const persistCustomThemes = () => {
+      write(
+        STORAGE_KEYS.CUSTOM_THEMES,
+        JSON.stringify(
+          [...customThemeIds].map((id) => store.themes[id]).filter((theme): theme is DesktopTheme => !!theme),
+        ),
+      )
+    }
 
     const onStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEYS.THEME_ID && e.newValue) {
@@ -324,7 +363,37 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
       themes: () => store.themes,
       setTheme,
       setColorScheme,
-      registerTheme: (theme: DesktopTheme) => setStore("themes", theme.id, theme),
+      customThemeIds: () => {
+        customThemeVersion()
+        return [...customThemeIds].sort()
+      },
+      registerTheme: (theme: DesktopTheme) => {
+        let parsed: DesktopTheme
+        try {
+          parsed = parseDesktopTheme(theme)
+        } catch {
+          return false
+        }
+        if (parsed.id === "oc-2" || knownThemes().has(parsed.id)) return false
+        setStore("themes", parsed.id, parsed)
+        customThemeIds.add(parsed.id)
+        setCustomThemeVersion((value) => value + 1)
+        persistCustomThemes()
+        return true
+      },
+      removeCustomTheme: (id: string) => {
+        if (!customThemeIds.has(id)) return false
+        if (store.themeId === id) setTheme("oc-2")
+        customThemeIds.delete(id)
+        setStore("themes", (themes) => {
+          const next = { ...themes }
+          delete next[id]
+          return next
+        })
+        setCustomThemeVersion((value) => value + 1)
+        persistCustomThemes()
+        return true
+      },
       previewTheme: (id: string) => {
         const next = normalize(id)
         if (!next) return

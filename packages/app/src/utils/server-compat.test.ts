@@ -116,6 +116,54 @@ describe("createCompatibleApi", () => {
     expect(body.parts[2]).not.toHaveProperty("source")
   })
 
+  test("converts current prompts to the V2 prompt contract", async () => {
+    const { api, requests } = setup("v2")
+    await api.session.prompt({
+      sessionID: "ses_1",
+      id: "msg_1",
+      text: "hello @src/index.ts",
+      files: [
+        { uri: "file:///repo/src/index.ts", name: "index.ts", mention: { text: "@src/index.ts", start: 6, end: 19 } },
+      ],
+      agents: [{ name: "explore", mention: { text: "@explore", start: 20, end: 28 } }],
+    })
+
+    expect(new URL(requests[0]!.url).pathname).toBe("/api/session/ses_1/prompt")
+    expect(await requests[0]!.json()).toEqual({
+      id: "msg_1",
+      prompt: {
+        text: "hello @src/index.ts",
+        files: [
+          { uri: "file:///repo/src/index.ts", name: "index.ts", source: { text: "@src/index.ts", start: 6, end: 19 } },
+        ],
+        agents: [{ name: "explore", source: { text: "@explore", start: 20, end: 28 } }],
+      },
+    })
+  })
+
+  test("selects the current model and agent before a V2 prompt", async () => {
+    const { api, requests } = setup("v2")
+
+    await api.session.prompt({
+      sessionID: "ses_1",
+      id: "msg_1",
+      text: "hello",
+      agent: "build",
+      model: { providerID: "opencode", modelID: "mimo-v2.5-free" },
+      variant: "default",
+    })
+
+    expect(requests.map((request) => [request.method, new URL(request.url).pathname])).toEqual([
+      ["POST", "/api/session/ses_1/model"],
+      ["POST", "/api/session/ses_1/agent"],
+      ["POST", "/api/session/ses_1/prompt"],
+    ])
+    expect(await requests[0]!.json()).toEqual({
+      model: { providerID: "opencode", id: "mimo-v2.5-free", variant: "default" },
+    })
+    expect(await requests[1]!.json()).toEqual({ agent: "build" })
+  })
+
   test("routes durable V1 queue reads and mutations to the owning session", async () => {
     const { api, requests } = setup("v1")
 
@@ -138,7 +186,7 @@ describe("createCompatibleApi", () => {
     ).toBe(true)
   })
 
-  test("routes current deletion and queue mutations through exact V2 session endpoints", async () => {
+  test("routes current deletion through the V2 session endpoint", async () => {
     const { api, requests } = setup("v2")
 
     await api.session.remove({ sessionID: "ses_1", directory: "/repo" })
@@ -147,8 +195,6 @@ describe("createCompatibleApi", () => {
 
     expect(requests.map((request) => [request.method, new URL(request.url).pathname])).toEqual([
       ["DELETE", "/api/session/ses_1"],
-      ["POST", "/api/session/ses_1/pending/msg_1/promote"],
-      ["DELETE", "/api/session/ses_1/pending/msg_2"],
     ])
   })
 

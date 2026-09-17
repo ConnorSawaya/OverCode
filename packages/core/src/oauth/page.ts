@@ -253,12 +253,11 @@ const STYLES = `
 const WORDMARK = `<svg class="wordmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 234 42" fill="none" aria-label="Overcode" role="img">
         <path d="M18 30H6V18H18V30Z" fill="var(--oc-icon-weak)" />
         <path d="M18 12H6V30H18V12ZM24 36H0V6H24V36Z" fill="var(--oc-icon-base)" />
-        <path d="M48 30H36V18H48V30Z" fill="var(--oc-icon-weak)" />
-        <path d="M36 30H48V12H36V30ZM54 36H36V42H30V6H54V36Z" fill="var(--oc-icon-base)" />
+        <path d="M33.2 6.8 42 28.3 50.8 6.8" stroke="var(--oc-icon-base)" stroke-width="6" stroke-linejoin="miter" stroke-linecap="butt" fill="none" />
         <path d="M84 24V30H66V24H84Z" fill="var(--oc-icon-weak)" />
         <path d="M84 24H66V30H84V36H60V6H84V24ZM66 18H78V12H66V18Z" fill="var(--oc-icon-base)" />
         <path d="M108 36H96V18H108V36Z" fill="var(--oc-icon-weak)" />
-        <path d="M108 12H96V36H90V6H108V12ZM114 36H108V12H114V36Z" fill="var(--oc-icon-base)" />
+        <path d="M108 12H96V36H90V6H108V12ZM114 24H108V12H114V24Z" fill="var(--oc-icon-base)" />
         <path d="M144 30H126V18H144V30Z" fill="var(--oc-icon-weak)" />
         <path d="M144 12H126V30H144V36H120V6H144V12Z" fill="var(--oc-icon-strong)" />
         <path d="M168 30H156V18H168V30Z" fill="var(--oc-icon-weak)" />

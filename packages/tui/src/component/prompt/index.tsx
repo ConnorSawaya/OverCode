@@ -10,11 +10,11 @@ import {
 } from "@opentui/core"
 import type { CommandContext } from "@opentui/keymap"
 import { createEffect, createMemo, onMount, createSignal, onCleanup, on, Show, Switch, Match } from "solid-js"
-import { registerOpencodeSpinner } from "../register-spinner"
+import { registerOvercodeSpinner } from "../register-spinner"
 import path from "path"
 import { fileURLToPath } from "url"
-import { useLocal } from "../../context/local"
-import { Flag } from "@opencode-ai/core/flag/flag"
+import { executionModeLabel, useLocal } from "../../context/local"
+import { Flag } from "@overcode-ai/core/flag/flag"
 import { tint, useTheme } from "../../context/theme"
 import { EmptyBorder, SplitBorder } from "../../ui/border"
 import { useTuiPaths, useTuiTerminalEnvironment } from "../../context/runtime"
@@ -37,7 +37,7 @@ import { usePromptStash } from "../../prompt/stash"
 import { DialogStash } from "../dialog-stash"
 import { type AutocompleteRef, Autocomplete } from "./autocomplete"
 import { useRenderer, useTerminalDimensions, type JSX } from "@opentui/solid"
-import type { AssistantMessage, FilePart, UserMessage } from "@opencode-ai/sdk/v2"
+import type { AssistantMessage, FilePart, UserMessage } from "@overcode-ai/sdk/v2"
 import { Locale } from "../../util/locale"
 import { errorMessage } from "../../util/error"
 import { formatDuration } from "../../util/format"
@@ -51,14 +51,14 @@ import { createFadeIn } from "../../util/signal"
 import { DialogSkill } from "../dialog-skill"
 import { DialogWorkspaceUnavailable } from "../dialog-workspace-unavailable"
 import { useArgs } from "../../context/args"
-import { OVERCODE_BASE_MODE, useBindings, useCommandShortcut, useLeaderActive, useOpencodeKeymap } from "../../keymap"
+import { OVERCODE_BASE_MODE, useBindings, useCommandShortcut, useLeaderActive, useOvercodeKeymap } from "../../keymap"
 import { useTuiConfig } from "../../config"
 import { usePromptWorkspace } from "./workspace"
 import { usePromptMove } from "./move"
 import { readLocalAttachment } from "./local-attachment"
 import { useLocation } from "../../context/location"
 
-registerOpencodeSpinner()
+registerOvercodeSpinner()
 
 export type PromptProps = {
   sessionID?: string
@@ -163,7 +163,7 @@ export function Prompt(props: PromptProps) {
   const status = createMemo(() => sync.data.session_status?.[props.sessionID ?? ""] ?? { type: "idle" })
   const history = usePromptHistory()
   const stash = usePromptStash()
-  const keymap = useOpencodeKeymap()
+  const keymap = useOvercodeKeymap()
   const agentShortcut = useCommandShortcut("agent.cycle")
   const paletteShortcut = useCommandShortcut("command.palette.show")
   const renderer = useRenderer()
@@ -1091,6 +1091,7 @@ export function Prompt(props: PromptProps) {
       })
     } else {
       move.startSubmit()
+      const executionMode = local.model.mode.current()
       sdk.client.session
         .prompt(
           {
@@ -1099,6 +1100,7 @@ export function Prompt(props: PromptProps) {
             agent: agent.name,
             model: selectedModel,
             variant,
+            ...(executionMode !== "normal" ? { mode: executionMode } : {}),
             parts: [
               ...editorParts,
               {
@@ -1454,7 +1456,15 @@ export function Prompt(props: PromptProps) {
                       </Show>
                       <Show when={store.mode === "normal"}>
                         <box flexDirection="row" gap={1}>
-                          <text fg={fadeColor(theme.textMuted, modelMetaAlpha())}>·</text>
+                          <Show
+                            when={local.model.mode.current() !== "normal"}
+                            fallback={<text fg={fadeColor(theme.textMuted, modelMetaAlpha())}>·</text>}
+                          >
+                            <text fg={fadeColor(theme.warning, modelMetaAlpha())}>
+                              {executionModeLabel(local.model.mode.current())}
+                            </text>
+                            <text fg={fadeColor(theme.textMuted, modelMetaAlpha())}>·</text>
+                          </Show>
                           <text
                             flexShrink={0}
                             fg={fadeColor(leader() ? theme.textMuted : theme.text, modelMetaAlpha())}

@@ -1,7 +1,7 @@
 import { For, Show } from "solid-js"
-import { Icon } from "@opencode-ai/ui/icon"
+import { Icon } from "@overcode-ai/ui/icon"
 import type { PastedTextPart } from "@/context/prompt"
-import { formatPastedTextSize } from "@opencode-ai/session-ui/v2/prompt-input/pasted-text"
+import { formatPastedTextSize } from "@overcode-ai/session-ui/v2/prompt-input/pasted-text"
 
 export function PastedTextAttachments(props: {
   attachments: PastedTextPart[]

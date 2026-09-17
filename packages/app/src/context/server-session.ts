@@ -1,6 +1,6 @@
-import { Binary } from "@opencode-ai/core/util/binary"
-import { retry } from "@opencode-ai/core/util/retry"
-import type { OpenCodeEvent, SessionApi, SessionMessageInfo } from "@opencode-ai/client/promise"
+import { Binary } from "@overcode-ai/core/util/binary"
+import { retry } from "@overcode-ai/core/util/retry"
+import type { OpenCodeEvent, SessionApi, SessionMessageInfo } from "@overcode-ai/client/promise"
 import type {
   Message,
   OpencodeClient,
@@ -10,8 +10,8 @@ import type {
   Session,
   SessionStatus,
   Todo,
-} from "@opencode-ai/sdk/v2/client"
-import type { FileDiffInfo } from "@opencode-ai/client/promise"
+} from "@overcode-ai/sdk/v2/client"
+import type { FileDiffInfo } from "@overcode-ai/client/promise"
 import { batch } from "solid-js"
 import { createStore, produce, reconcile } from "solid-js/store"
 import { message as cleanMessage } from "@/utils/diffs"
@@ -891,11 +891,13 @@ export function createServerSession(
     return runInflight(inflight, sessionID, async () => {
       const cached = data.message[sessionID] !== undefined && meta.limit[sessionID] !== undefined
       if (cached && data.info[sessionID] && !options?.force) return
+      const requestedLimit = options?.messageLimit ?? meta.limit[sessionID] ?? initialMessagePageSize
+      const messageLimit = requestedLimit > 0 ? requestedLimit : initialMessagePageSize
       await Promise.all([
         resolve(sessionID, options),
         cached && !options?.force
           ? Promise.resolve()
-          : loadMessages(sessionID, options?.messageLimit ?? meta.limit[sessionID] ?? initialMessagePageSize),
+          : loadMessages(sessionID, messageLimit),
       ])
     })
   }
@@ -990,6 +992,7 @@ export function createServerSession(
     if (!("data" in event) || !("sessionID" in event.data) || typeof event.data.sessionID !== "string") return
     const sessionID = event.data.sessionID
     const eventType: string = event.type
+    const finish = (event.data as { finish?: unknown }).finish
     if (
       eventType === "session.next.prompt.admitted" ||
       eventType === "session.next.prompted" ||
@@ -997,6 +1000,14 @@ export function createServerSession(
       eventType === "session.next.prompt.delivery.changed"
     )
       void syncPending(sessionID, { force: true }).catch(() => {})
+    if (eventType === "session.next.step.started") setData("session_status", sessionID, { type: "busy" })
+    if (
+      eventType === "session.next.step.failed" ||
+      (eventType === "session.next.step.ended" && finish !== "tool-calls" && finish !== "unknown")
+    ) {
+      setData("session_status", sessionID, { type: "idle" })
+      void sync(sessionID, { force: true }).catch(() => {})
+    }
     const reduction = v2.reduce(data.session_message[sessionID] ?? [], event)
     if (reduction) {
       projectV2(reduction)

@@ -5,9 +5,9 @@ import type {
   Project,
   ProviderAuthResponse,
   SessionStatus,
-} from "@opencode-ai/sdk/v2/client"
+} from "@overcode-ai/sdk/v2/client"
 import { showToast } from "@/utils/toast"
-import { getFilename } from "@opencode-ai/core/util/path"
+import { getFilename } from "@overcode-ai/core/util/path"
 import { type Accessor, batch, createMemo, getOwner, onCleanup, onMount, untrack } from "solid-js"
 import { createStore, produce, reconcile } from "solid-js/store"
 import { useLanguage } from "@/context/language"
@@ -38,12 +38,12 @@ import { createRefreshQueue } from "./global-sync/queue"
 import { directoryKey } from "./global-sync/utils"
 import { PathKey } from "@/utils/path-key"
 import { createDirSyncContext } from "./directory-sync"
-import { createSimpleContext } from "@opencode-ai/ui/context"
-import { NormalizedProviderListResponse } from "@opencode-ai/session-ui/context"
+import { createSimpleContext } from "@overcode-ai/ui/context"
+import { NormalizedProviderListResponse } from "@overcode-ai/session-ui/context"
 import { createRefCountMap } from "@/utils/refcount"
 import { useGlobal } from "./global"
 import { ServerConnection, useServer } from "./server"
-import { retry } from "@opencode-ai/core/util/retry"
+import { retry } from "@overcode-ai/core/util/retry"
 import type { ServerScope } from "@/utils/server-scope"
 import { createHomeSessionIndexCache } from "./global-sync/home-session-index"
 import { persisted } from "@/utils/persist"
@@ -56,7 +56,7 @@ import type {
   McpResourceCatalogOutput,
   McpServer,
   SessionActiveOutput,
-} from "@opencode-ai/client/promise"
+} from "@overcode-ai/client/promise"
 import { toggleMcp } from "./global-sync/mcp"
 import { createServerSession, type ServerSession } from "./server-session"
 import type { CompatibleApi } from "@/utils/server-compat"
@@ -107,6 +107,7 @@ export const loadMcpQuery = (
     queryKey: [scope, directory, "mcp"] as const,
     queryFn: async () => {
       if ((await protocol) === "v1" && legacy) return (await legacy.mcp.status()).data ?? {}
+      if ((await protocol) === "v2" && legacy) return (await legacy.mcp.status({ directory })).data ?? {}
       return api
         .list({ location: { directory } })
         .then((result) => Object.fromEntries(result.data.map((server) => [server.name, server.status])))
@@ -132,7 +133,15 @@ export const loadMcpResourcesQuery = (
         return Object.fromEntries(
           Object.entries((await legacy.experimental.resource.list()).data ?? {}).map(([key, resource]) => [
             key,
-            { ...resource, server: resource.client },
+            normalizeMcpResource(resource),
+          ]),
+        )
+      }
+      if ((await protocol) === "v2" && legacy) {
+        return Object.fromEntries(
+          Object.entries((await legacy.experimental.resource.list({ directory })).data ?? {}).map(([key, resource]) => [
+            key,
+            normalizeMcpResource(resource),
           ]),
         )
       }
@@ -144,6 +153,22 @@ export const loadMcpResourcesQuery = (
     },
     placeholderData: {},
   })
+
+function normalizeMcpResource(resource: {
+  client: string
+  name: string
+  uri: string
+  description?: string
+  mimeType?: string
+}): McpResource {
+  return {
+    server: resource.client,
+    name: resource.name,
+    uri: resource.uri,
+    ...(resource.description ? { description: resource.description } : {}),
+    ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
+  }
+}
 
 export const loadLspQuery = (scope: ServerScope, directory: string, sdk: OpencodeClient) =>
   queryOptions({
@@ -186,7 +211,7 @@ function makeQueryOptionsApi(
 ) {
   return {
     globalConfig: () => loadGlobalConfigQuery(scope, serverSDK(), protocol),
-    projects: () => loadProjectsQuery(scope, serverAPI.project),
+    projects: () => loadProjectsQuery(scope, serverAPI.project, serverSDK().project, protocol),
     providers: (directory: PathKey | null) =>
       loadProvidersQuery(scope, directory, serverAPI, directory ? sdkFor(directory) : serverSDK(), protocol),
     path: (directory: PathKey | null) =>
@@ -390,7 +415,9 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     translate: language.t,
     queryOptions: queryOptionsApi,
     global: {
-      provider: globalStore.provider,
+      get provider() {
+        return globalStore.provider
+      },
     },
   })
 

@@ -13,22 +13,22 @@
       "outputs": [],
       "passThroughEnv": ["*"]
     },
-    "@opencode-ai/core#test": {
+    "@overcode-ai/core#test": {
       "dependsOn": ["^build"],
       "outputs": []
     },
-    "@opencode-ai/function#test": {
+    "@overcode-ai/function#test": {
       "outputs": []
     },
-    "@opencode-ai/app#test": {
+    "@overcode-ai/app#test": {
       "dependsOn": ["^build"],
       "outputs": []
     },
-    "@opencode-ai/ui#test": {
+    "@overcode-ai/ui#test": {
       "dependsOn": ["^build"],
       "outputs": []
     },
-    "@opencode-ai/session-ui#test": {
+    "@overcode-ai/session-ui#test": {
       "dependsOn": ["^build"],
       "outputs": []
     }

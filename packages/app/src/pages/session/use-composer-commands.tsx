@@ -1,7 +1,7 @@
 import { useCommand, type CommandOption } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { useLocal, type ModelSelection } from "@/context/local"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { useDialog } from "@overcode-ai/ui/context/dialog"
 import { getCursorPosition, setCursorPosition } from "@/components/prompt-input/editor-dom"
 import { useSessionLayout } from "./session-layout"
 import { createSessionOwnership } from "./session-ownership"
@@ -23,6 +23,7 @@ export const useComposerCommands = (input: { model?: ModelSelection } = {}) => {
   const model = input.model ?? local.model
   const modelCommand = withCategory(language.t("command.category.model"))
   const agentCommand = withCategory(language.t("command.category.agent"))
+  const sessionCommand = withCategory(language.t("command.category.session"))
 
   const chooseModel = async () => {
     const owner = sessionOwnership.capture()
@@ -78,6 +79,13 @@ export const useComposerCommands = (input: { model?: ModelSelection } = {}) => {
       keybind: "shift+mod+.",
       disabled: !local.agent.visible(),
       onSelect: () => local.agent.move(-1),
+    }),
+    sessionCommand({
+      id: "executionMode.cycle",
+      title: "Cycle execution mode",
+      description: "Switch between Normal, Deep Think, and Swarm",
+      slash: "mode",
+      onSelect: () => local.executionMode.cycle(1),
     }),
   ])
 }

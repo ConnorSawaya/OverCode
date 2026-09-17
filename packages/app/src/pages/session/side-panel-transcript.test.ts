@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { Message, Part } from "@opencode-ai/sdk/v2/client"
+import type { Message, Part } from "@overcode-ai/sdk/v2/client"
 import { transcriptRows } from "./side-panel-transcript"
 
 const message = (id: string): Message =>

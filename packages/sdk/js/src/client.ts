@@ -5,6 +5,7 @@ import { type Config } from "./gen/client/types.gen.js"
 import { OpencodeClient } from "./gen/sdk.gen.js"
 import { wrapClientError } from "./error-interceptor.js"
 export { type Config as OpencodeClientConfig, OpencodeClient }
+export { type Config as OvercodeClientConfig, OpencodeClient as OvercodeClient }
 
 function pick(value: string | null, fallback?: string) {
   if (!value) return
@@ -30,6 +31,9 @@ function rewrite(request: Request, directory?: string) {
   return next
 }
 
+/**
+ * @deprecated Use {@link createOvercodeClient} instead. Kept for backwards compatibility.
+ */
 export function createOpencodeClient(config?: Config & { directory?: string }) {
   if (!config?.fetch) {
     const customFetch: any = (req: any) => {
@@ -55,3 +59,6 @@ export function createOpencodeClient(config?: Config & { directory?: string }) {
   client.interceptors.error.use(wrapClientError)
   return new OpencodeClient({ client })
 }
+
+/** Overcode-branded alias for {@link createOpencodeClient}. */
+export const createOvercodeClient = createOpencodeClient

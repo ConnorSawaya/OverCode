@@ -307,7 +307,9 @@ const readResponseBody = (
         const grown = Buffer.allocUnsafe(
           Math.min(maxResponseBodyBytes, Math.max(size + chunk.byteLength, body.byteLength * 2)),
         )
-        body.copy(grown, 0, 0, size)
+        // Uint8Array.set instead of Buffer.copy: newer @types/node brands
+        // Buffer so the typed-array parameter rejects it, same bytes either way.
+        grown.set(body.subarray(0, size), 0)
         body = grown
       }
       body.set(chunk, size)
@@ -322,5 +324,5 @@ const readResponseBody = (
         )
       }),
     )
-    return new TextDecoder().decode(body.subarray(0, size))
+    return body.toString("utf8", 0, size)
   })

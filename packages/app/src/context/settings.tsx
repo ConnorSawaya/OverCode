@@ -1,6 +1,6 @@
 import { createStore, reconcile } from "solid-js/store"
 import { batch, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
-import { createSimpleContext } from "@opencode-ai/ui/context"
+import { createSimpleContext } from "@overcode-ai/ui/context"
 import { persisted } from "@/utils/persist"
 import { usePlatform } from "@/context/platform"
 import type { BackgroundPreset } from "@/utils/background"

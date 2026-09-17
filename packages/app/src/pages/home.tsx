@@ -1,5 +1,8 @@
-import { ScrollView } from "@opencode-ai/ui/scroll-view"
+import { Show } from "solid-js"
+import { ScrollView } from "@overcode-ai/ui/scroll-view"
+import { usePlatform } from "@/context/platform"
 import { createHomeController } from "./home/home-controller"
+import { HomeDeviceSwitcher } from "./home/home-device-switcher"
 import { createHomeProjectsController } from "./home/home-projects-controller"
 import { HomeUtilityNav } from "./home/home-projects-view"
 import { HomeProjects } from "./home/home-projects"
@@ -9,6 +12,7 @@ import { createHomeSessionsController } from "./home/home-sessions-controller"
 import { HomeSessions } from "./home/home-sessions"
 
 export function NewHome() {
+  const platform = usePlatform()
   const home = createHomeController()
   const projects = createHomeProjectsController(home)
   const sessions = createHomeSessionsController(home)
@@ -33,6 +37,11 @@ export function NewHome() {
         onScroll={(event) => scroll.viewport.update(event.currentTarget.scrollTop)}
         onWheel={scroll.viewport.containOuterWheel}
       >
+        <div class="mx-auto w-full max-w-[1080px]">
+          <Show when={platform.mobileRemoteDevices}>
+            <HomeDeviceSwitcher {...platform.mobileRemoteDevices!} />
+          </Show>
+        </div>
         <div
           class={`
             mx-auto grid min-h-full w-full max-w-[1080px] grid-rows-[auto_minmax(0,1fr)_auto] gap-4 px-3

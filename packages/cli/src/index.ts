@@ -19,6 +19,8 @@ const Handlers = Runtime.handlers(Commands, {
     restart: () => import("./commands/handlers/service/restart"),
     status: () => import("./commands/handlers/service/status"),
     stop: () => import("./commands/handlers/service/stop"),
+    enable: () => import("./commands/handlers/service/enable"),
+    disable: () => import("./commands/handlers/service/disable"),
     password: () => import("./commands/handlers/service/password"),
   },
   serve: () => import("./commands/handlers/serve"),

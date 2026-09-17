@@ -1,5 +1,5 @@
 import { ACCEPTED_FILE_TYPES, ACCEPTED_IMAGE_TYPES } from "@/constants/file-picker"
-import { LOCAL_FILE_REFERENCE_MIME } from "@opencode-ai/core/file"
+import { LOCAL_FILE_REFERENCE_MIME } from "@overcode-ai/core/file"
 
 export { ACCEPTED_FILE_TYPES }
 

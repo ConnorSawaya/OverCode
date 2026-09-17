@@ -7,6 +7,9 @@ import type { ServerOptions } from "./server.js"
 
 export * as data from "./data.js"
 
+/**
+ * @deprecated Use {@link createOvercode} instead. Kept for backwards compatibility.
+ */
 export async function createOpencode(options?: ServerOptions) {
   const server = await createOpencodeServer({
     ...options,
@@ -21,3 +24,6 @@ export async function createOpencode(options?: ServerOptions) {
     server,
   }
 }
+
+/** Overcode-branded alias for {@link createOpencode}. */
+export const createOvercode = createOpencode

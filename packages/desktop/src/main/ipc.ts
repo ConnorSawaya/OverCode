@@ -4,8 +4,8 @@ import { stat } from "node:fs/promises"
 import { basename, join } from "node:path"
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron"
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
-import type { DesktopMenuAction } from "@opencode-ai/app/desktop-menu"
-import { parseDesktopNativeBundle, type DesktopNativeBundle } from "@opencode-ai/app/i18n/desktop-native"
+import type { DesktopMenuAction } from "@overcode-ai/app/desktop-menu"
+import { parseDesktopNativeBundle, type DesktopNativeBundle } from "@overcode-ai/app/i18n/desktop-native"
 
 import type { FatalRendererError, QuickChatOptions, ServerReadyData, TitlebarTheme } from "../preload/types"
 import { runDesktopMenuAction } from "./desktop-menu-actions"
@@ -29,8 +29,8 @@ import { createUpdaterSubscriptions } from "./updater-subscriptions"
 import { createDesktopDraftStore } from "./draft-store"
 import { nativeT } from "./native-translations"
 import { createLocalSpeech, isLocalSpeechAvailable } from "./speech-local"
-import type { SpeechRequest } from "@opencode-ai/app"
-import type { MobileAccessPlatform, SyncDevicesPlatform } from "@opencode-ai/app"
+import type { SpeechRequest } from "@overcode-ai/app"
+import type { MobileAccessPlatform, SyncDevicesPlatform } from "@overcode-ai/app"
 
 const pickerFilters = (ext?: string[]) => {
   if (!ext || ext.length === 0) return undefined

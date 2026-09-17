@@ -8,57 +8,58 @@ import {
   InvalidRequestReason,
   type LLMClientShape,
   type LLMRequest,
-} from "@opencode-ai/llm"
-import * as OpenAIChat from "@opencode-ai/llm/protocols/openai-chat"
-import { Database } from "@opencode-ai/core/database/database"
-import { makeLocationNode } from "@opencode-ai/core/effect/app-node"
-import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
-import { LayerNodePlatform } from "@opencode-ai/core/effect/app-node-platform"
-import { LayerNode } from "@opencode-ai/core/effect/layer-node"
-import { EventV2 } from "@opencode-ai/core/event"
-import { PermissionV2 } from "@opencode-ai/core/permission"
-import { EventTable } from "@opencode-ai/core/event/sql"
-import { Project } from "@opencode-ai/core/project"
-import { ProjectTable } from "@opencode-ai/core/project/sql"
-import { QuestionV2 } from "@opencode-ai/core/question"
-import { AbsolutePath } from "@opencode-ai/core/schema"
-import { SessionV2 } from "@opencode-ai/core/session"
-import { Snapshot } from "@opencode-ai/core/snapshot"
-import { ContextSnapshotDecodeError } from "@opencode-ai/core/session/error"
-import { SessionEvent } from "@opencode-ai/core/session/event"
-import { SessionInput } from "@opencode-ai/core/session/input"
-import { SessionMessage } from "@opencode-ai/core/session/message"
-import { Prompt } from "@opencode-ai/core/session/prompt"
-import { SessionProjector } from "@opencode-ai/core/session/projector"
-import { SessionExecution } from "@opencode-ai/core/session/execution"
-import { SessionRunCoordinator } from "@opencode-ai/core/session/run-coordinator"
-import { SessionRunner } from "@opencode-ai/core/session/runner"
-import * as SessionRunnerLLM from "@opencode-ai/core/session/runner/llm"
-import { SessionRunnerModel } from "@opencode-ai/core/session/runner/model"
-import { ToolRegistry } from "@opencode-ai/core/tool/registry"
-import { ApplicationTools } from "@opencode-ai/core/tool/application-tools"
-import { AgentV2 } from "@opencode-ai/core/agent"
-import { Config } from "@opencode-ai/core/config"
-import { ConfigCompaction } from "@opencode-ai/core/config/compaction"
-import { Tool } from "@opencode-ai/core/tool/tool"
+} from "@overcode-ai/llm"
+import * as OpenAIChat from "@overcode-ai/llm/protocols/openai-chat"
+import { Database } from "@overcode-ai/core/database/database"
+import { makeLocationNode } from "@overcode-ai/core/effect/app-node"
+import { AppNodeBuilder } from "@overcode-ai/core/effect/app-node-builder"
+import { LayerNodePlatform } from "@overcode-ai/core/effect/app-node-platform"
+import { LayerNode } from "@overcode-ai/core/effect/layer-node"
+import { EventV2 } from "@overcode-ai/core/event"
+import { PermissionV2 } from "@overcode-ai/core/permission"
+import { EventTable } from "@overcode-ai/core/event/sql"
+import { Project } from "@overcode-ai/core/project"
+import { ProjectTable } from "@overcode-ai/core/project/sql"
+import { QuestionV2 } from "@overcode-ai/core/question"
+import { AbsolutePath } from "@overcode-ai/core/schema"
+import { SessionV2 } from "@overcode-ai/core/session"
+import { Snapshot } from "@overcode-ai/core/snapshot"
+import { ContextSnapshotDecodeError } from "@overcode-ai/core/session/error"
+import { SessionEvent } from "@overcode-ai/core/session/event"
+import { SessionInput } from "@overcode-ai/core/session/input"
+import { SessionMessage } from "@overcode-ai/core/session/message"
+import { Prompt } from "@overcode-ai/core/session/prompt"
+import { SessionProjector } from "@overcode-ai/core/session/projector"
+import { SessionExecution } from "@overcode-ai/core/session/execution"
+import { SessionRunCoordinator } from "@overcode-ai/core/session/run-coordinator"
+import { SessionRunner } from "@overcode-ai/core/session/runner"
+import * as SessionRunnerLLM from "@overcode-ai/core/session/runner/llm"
+import { SessionRunnerModel } from "@overcode-ai/core/session/runner/model"
+import { ToolRegistry } from "@overcode-ai/core/tool/registry"
+import { ApplicationTools } from "@overcode-ai/core/tool/application-tools"
+import { AgentV2 } from "@overcode-ai/core/agent"
+import { Config } from "@overcode-ai/core/config"
+import { ConfigCompaction } from "@overcode-ai/core/config/compaction"
+import { Tool } from "@overcode-ai/core/tool/tool"
 import {
   SessionContextEpochTable,
   SessionInputTable,
   SessionMessageTable,
   SessionTable,
-} from "@opencode-ai/core/session/sql"
-import { SessionStore } from "@opencode-ai/core/session/store"
-import { SystemContext } from "@opencode-ai/core/system-context"
-import { SystemContextRegistry } from "@opencode-ai/core/system-context/registry"
-import { SkillGuidance } from "@opencode-ai/core/skill/guidance"
-import { ReferenceGuidance } from "@opencode-ai/core/reference/guidance"
-import { ModelV2 } from "@opencode-ai/core/model"
-import { Location } from "@opencode-ai/core/location"
-import { ProviderV2 } from "@opencode-ai/core/provider"
-import { Cause, DateTime, Deferred, Effect, Exit, Fiber, Layer, Schema, Stream } from "effect"
+} from "@overcode-ai/core/session/sql"
+import { SessionStore } from "@overcode-ai/core/session/store"
+import { SystemContext } from "@overcode-ai/core/system-context"
+import { SystemContextRegistry } from "@overcode-ai/core/system-context/registry"
+import { SkillGuidance } from "@overcode-ai/core/skill/guidance"
+import { ReferenceGuidance } from "@overcode-ai/core/reference/guidance"
+import { ModelV2 } from "@overcode-ai/core/model"
+import { Location } from "@overcode-ai/core/location"
+import { ProviderV2 } from "@overcode-ai/core/provider"
+import { Cause, DateTime, Deferred, Duration, Effect, Exit, Fiber, Layer, Schema, Stream } from "effect"
 import { asc, eq } from "drizzle-orm"
+import * as TestClock from "effect/testing/TestClock"
 import { testEffect } from "./lib/effect"
-import { ComputerUseTool } from "@opencode-ai/core/tool/computer-use"
+import { ComputerUseTool } from "@overcode-ai/core/tool/computer-use"
 import { FetchHttpClient } from "effect/unstable/http"
 import { computerBridge, frame, grantID } from "./lib/computer-use"
 
@@ -100,6 +101,7 @@ const client = Layer.succeed(
   }),
 )
 const model = Model.make({ id: "fake-model", provider: "fake", route: OpenAIChat.route })
+const boundedProviderModel = Model.make({ id: "free-model", provider: "opencode", route: OpenAIChat.route })
 const replacementModel = Model.make({ id: "replacement", provider: "fake", route: OpenAIChat.route })
 const compactModel = Model.make({
   id: "compact",
@@ -3521,6 +3523,39 @@ describe("SessionRunnerLLM", () => {
       expect(yield* session.resume(sessionID).pipe(Effect.catchDefect(Effect.succeed))).toBe(
         "Tool input delta before start: call-1",
       )
+    }),
+  )
+
+  it.effect("fails a bounded public-provider stream instead of leaving the session busy", () =>
+    Effect.gen(function* () {
+      yield* setup
+      currentModel = boundedProviderModel
+      const session = yield* SessionV2.Service
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "Bounded timeout" }), resume: false })
+      responseStream = Stream.never
+
+      const run = yield* session.resume(sessionID).pipe(Effect.forkChild)
+      yield* Effect.yieldNow
+      yield* TestClock.adjust(Duration.millis(SessionRunnerLLM.PROVIDER_STREAM_TIMEOUT_MS))
+
+      const exit = yield* Fiber.await(run)
+      expect(Exit.isFailure(exit)).toBe(true)
+      if (Exit.isFailure(exit)) {
+        expect(Cause.squash(exit.cause)).toMatchObject({
+          reason: { message: `opencode provider stream timed out after ${SessionRunnerLLM.PROVIDER_STREAM_TIMEOUT_MS}ms` },
+        })
+      }
+      expect(yield* session.context(sessionID)).toMatchObject([
+        { type: "user", text: "Bounded timeout" },
+        {
+          type: "assistant",
+          finish: "error",
+          error: {
+            type: "unknown",
+            message: `opencode provider stream timed out after ${SessionRunnerLLM.PROVIDER_STREAM_TIMEOUT_MS}ms`,
+          },
+        },
+      ])
     }),
   )
 })

@@ -1,13 +1,13 @@
 import { createMemo, createResource, createSignal, For, Show } from "solid-js"
 import { useNavigate } from "@solidjs/router"
-import type { Session } from "@opencode-ai/sdk/v2/client"
-import { Button } from "@opencode-ai/ui/button"
-import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { Icon } from "@opencode-ai/ui/icon"
-import { Tooltip } from "@opencode-ai/ui/tooltip"
-import { Spinner } from "@opencode-ai/ui/spinner"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import type { Session } from "@overcode-ai/sdk/v2/client"
+import { Button } from "@overcode-ai/ui/button"
+import { DropdownMenu } from "@overcode-ai/ui/dropdown-menu"
+import { IconButton } from "@overcode-ai/ui/icon-button"
+import { Icon } from "@overcode-ai/ui/icon"
+import { Tooltip } from "@overcode-ai/ui/tooltip"
+import { Spinner } from "@overcode-ai/ui/spinner"
+import { useDialog } from "@overcode-ai/ui/context/dialog"
 import { showToast } from "@/utils/toast"
 import { useDirectoryPicker } from "@/components/directory-picker"
 import { DialogConnectProvider } from "@/components/dialog-connect-provider"
@@ -26,7 +26,7 @@ import { useSettings } from "@/context/settings"
 import { useTabs } from "@/context/tabs"
 import { pathKey } from "@/utils/path-key"
 import { normalizeSessionInfo } from "@/utils/session"
-import { Binary } from "@opencode-ai/core/util/binary"
+import { Binary } from "@overcode-ai/core/util/binary"
 import { addHomeProjects } from "../home/home-project-add"
 import { homeProjectDirectories, projectForSession } from "./helpers"
 import { CodexSidebarPanel, type CodexSidebarContext } from "./sidebar-codex-panel"
@@ -51,11 +51,15 @@ function ChatGPTAccountSwitcher() {
       .catch(() => undefined),
   )
   const accounts = createMemo<ChatGPTAccount[]>(() =>
-    (integration.latest?.connections ?? []).filter(
-      (connection): connection is ChatGPTAccount =>
-        connection.type === "credential" &&
-        (connection.methodID === "chatgpt-browser" || connection.methodID === "chatgpt-headless"),
-    ),
+    (integration.latest?.connections ?? []).filter((connection): connection is ChatGPTAccount => {
+      if (connection.type !== "credential") return false
+      // Older generated clients omit methodID; treat a missing methodID as a
+      // ChatGPT account because the openai integration only exposes those.
+      if (!("methodID" in connection)) return true
+      const methodID = (connection as ChatGPTAccount).methodID
+      if (!methodID) return true
+      return methodID === "chatgpt-browser" || methodID === "chatgpt-headless"
+    }),
   )
   const active = createMemo(() => {
     const selected = selectedID()
@@ -84,7 +88,9 @@ function ChatGPTAccountSwitcher() {
 
     setSwitching(account.id)
     try {
-      await serverSDK().client.v2.credential.update({ credentialID: account.id, active: true })
+      // Older daemons validate `label` as required, so always send the
+      // account's existing label alongside the activation flag.
+      await serverSDK().client.v2.credential.update({ credentialID: account.id, label: account.label, active: true })
       setSelectedID(account.id)
       await Promise.resolve(refetch()).catch(() => undefined)
       await serverSync().refreshProviders().catch(() => undefined)

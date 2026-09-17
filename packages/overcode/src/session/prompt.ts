@@ -1,8 +1,8 @@
-import { LayerNode } from "@opencode-ai/core/effect/layer-node"
-import { PermissionV1 } from "@opencode-ai/core/v1/permission"
+import { LayerNode } from "@overcode-ai/core/effect/layer-node"
+import { PermissionV1 } from "@overcode-ai/core/v1/permission"
 import path from "path"
-import { SessionV1 } from "@opencode-ai/core/v1/session"
-import { LOCAL_FILE_REFERENCE_MIME } from "@opencode-ai/core/file"
+import { SessionV1 } from "@overcode-ai/core/v1/session"
+import { LOCAL_FILE_REFERENCE_MIME } from "@overcode-ai/core/file"
 import os from "os"
 import { SessionID, MessageID, PartID } from "./schema"
 import { MessageV2 } from "./message-v2"
@@ -17,46 +17,47 @@ import { SessionCompaction } from "./compaction"
 import { SystemPrompt } from "./system"
 import { Instruction } from "./instruction"
 import { Plugin } from "../plugin"
-import { MAX_STEPS_PROMPT } from "@opencode-ai/core/session/runner/max-steps"
+import { MAX_STEPS_PROMPT } from "@overcode-ai/core/session/runner/max-steps"
 import { ToolRegistry } from "@/tool/registry"
 import { MCP } from "../mcp"
 import { LSP } from "@/lsp/lsp"
 import { ulid } from "ulid"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
-import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
+import { CrossSpawnSpawner } from "@overcode-ai/core/cross-spawn-spawner"
 import * as Stream from "effect/Stream"
 import { Command } from "../command"
 import { pathToFileURL, fileURLToPath } from "url"
 import { Config } from "@/config/config"
 import { ConfigMarkdown } from "@/config/markdown"
 import { SessionSummary } from "./summary"
-import { NamedError } from "@opencode-ai/core/util/error"
+import { NamedError } from "@overcode-ai/core/util/error"
 import { SessionProcessor } from "./processor"
 import { Tool } from "@/tool/tool"
 import { Permission } from "@/permission"
 import { SessionStatus } from "./status"
 import { LLM } from "./llm"
-import { Shell } from "@opencode-ai/core/shell"
+import { Shell } from "@overcode-ai/core/shell"
 import { ShellID } from "@/tool/shell/id"
-import { FSUtil } from "@opencode-ai/core/fs-util"
+import { FSUtil } from "@overcode-ai/core/fs-util"
 import { Truncate } from "@/tool/truncate"
 import { Image } from "@/image/image"
 import { decodeDataUrl } from "@/util/data-url"
 import { Process } from "@/util/process"
 import { Cause, Effect, Exit, Latch, Layer, Option, Scope, Context, Schema, Types } from "effect"
 import { InstanceState } from "@/effect/instance-state"
+import { InstanceRef } from "@/effect/instance-ref"
 import { TaskTool, type TaskPromptOps } from "@/tool/task"
 import { SessionRunState } from "./run-state"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2Bridge } from "@/event-v2-bridge"
-import { Database } from "@opencode-ai/core/database/database"
-import { ModelV2 } from "@opencode-ai/core/model"
-import { ProviderV2 } from "@opencode-ai/core/provider"
+import { Database } from "@overcode-ai/core/database/database"
+import { ModelV2 } from "@overcode-ai/core/model"
+import { ProviderV2 } from "@overcode-ai/core/provider"
 import { eq } from "drizzle-orm"
-import { SessionTable } from "@opencode-ai/core/session/sql"
+import { SessionTable } from "@overcode-ai/core/session/sql"
 import { SessionReminders } from "./reminders"
 import { SessionTools } from "./tools"
-import { LLMEvent } from "@opencode-ai/llm"
+import { LLMEvent } from "@overcode-ai/llm"
 import { PromptInput } from "./prompt-input"
 import { SessionPromptQueue } from "./prompt-queue"
 
@@ -205,20 +206,20 @@ const layer = Layer.effect(
       modelID: ModelV2.ID
     }) {
       if (input.session.parentID) return
-      const autoTitle = input.session.metadata?.[Session.AUTO_TITLE_METADATA_KEY] === true
-      if (!Session.isDefaultTitle(input.session.title) && !autoTitle) return
+      // Automatic naming is a one-time operation for unnamed chats. Once a
+      // title exists, keep it stable until the user explicitly renames it.
+      if (!Session.canAutoTitle(input.session)) return
 
       const real = (m: SessionV1.WithParts) =>
         m.info.role === "user" && !m.parts.every((p) => "synthetic" in p && p.synthetic)
-      const idx = input.history.findIndex(real)
-      if (idx === -1) return
-
-      // Keep the title grounded in the whole conversation. The first generated
-      // title uses the first prompt; subsequent prompts refresh it only while
-      // the title is still marked as AI-owned.
-      const context = input.history.filter((message) => message.info.role === "user" || message.info.role === "assistant")
-      const firstUser = context[idx]
+      const firstUser = input.history.find(real)
       if (!firstUser || firstUser.info.role !== "user") return
+
+      // Keep the title grounded in the whole conversation while using the
+      // first real user request as the naming anchor.
+      const context = input.history.filter(
+        (message) => message.info.role === "user" || message.info.role === "assistant",
+      )
       const firstInfo = firstUser.info
 
       const subtasks = firstUser.parts.filter((p): p is SessionV1.SubtaskPart => p.type === "subtask")
@@ -226,10 +227,13 @@ const layer = Layer.effect(
 
       const ag = yield* agents.get("title")
       if (!ag) return
+      // Use the active conversation model when the hidden title agent has no
+      // explicit model. The provider's generic "small model" can be a
+      // catalog-only or unsupported model, which makes the conversation work
+      // while silently preventing its title from being generated.
       const mdl = ag.model
         ? yield* provider.getModel(ag.model.providerID, ag.model.modelID)
-        : ((yield* provider.getSmallModel(input.providerID)) ??
-          (yield* provider.getModel(input.providerID, input.modelID)))
+        : yield* provider.getModel(input.providerID, input.modelID)
       const msgs = onlySubtasks
         ? [{ role: "user" as const, content: subtasks.map((p) => p.prompt).join("\n") }]
         : yield* MessageV2.toModelMessagesEffect(context, mdl)
@@ -260,17 +264,10 @@ const layer = Layer.effect(
       const t = cleaned.length > 100 ? cleaned.substring(0, 97) + "..." : cleaned
       // A manual edit or the rename tool may have supplied a title while the model was running.
       const current = yield* sessions.get(input.session.id)
-      if (!Session.isDefaultTitle(current.title) && current.metadata?.[Session.AUTO_TITLE_METADATA_KEY] !== true) return
+      if (!Session.canAutoTitle(current)) return
       yield* sessions
-        .setTitle({ sessionID: input.session.id, title: t })
+        .setTitle({ sessionID: input.session.id, title: t, source: "auto" })
         .pipe(Effect.catchCause((cause) => Effect.logError("failed to generate title", { error: Cause.squash(cause) })))
-      const titled = yield* sessions.get(input.session.id)
-      yield* sessions
-        .setMetadata({
-          sessionID: input.session.id,
-          metadata: { ...(titled.metadata ?? {}), [Session.AUTO_TITLE_METADATA_KEY]: true },
-        })
-        .pipe(Effect.catchCause((cause) => Effect.logError("failed to mark AI-generated title", { error: Cause.squash(cause) })))
     })
 
     const handleSubtask = Effect.fn("SessionPrompt.handleSubtask")(function* (input: {
@@ -1585,7 +1582,8 @@ const layer = Layer.effect(
     })
 
     yield* Effect.gen(function* () {
-      const ctx = yield* InstanceState.context
+      const ctx = yield* InstanceRef
+      if (!ctx) return
       const pendingSessions = yield* SessionPromptQueue.sessions(db, ctx.directory)
       yield* Effect.forEach(
         pendingSessions,

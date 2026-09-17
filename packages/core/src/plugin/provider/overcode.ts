@@ -1,8 +1,8 @@
 import { Duration, Effect, Schema, Semaphore, Stream } from "effect"
 import type { Scope } from "effect"
-import type { IntegrationOAuthMethodRegistration } from "@opencode-ai/plugin/v2/effect/integration"
-import { define } from "@opencode-ai/plugin/v2/effect/plugin"
-import type { CredentialValue } from "@opencode-ai/sdk/v2/types"
+import type { IntegrationOAuthMethodRegistration } from "@overcode-ai/plugin/v2/effect/integration"
+import { define } from "@overcode-ai/plugin/v2/effect/plugin"
+import type { CredentialValue } from "@overcode-ai/sdk/v2/types"
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
 import { EventV2 } from "../../event"
 import { Credential } from "../../credential"
@@ -171,18 +171,30 @@ export const OvercodePlugin = define<HttpClient.HttpClient | EventV2.Service | S
         }
       }
 
-      const item = catalog.provider.get(ProviderV2.ID.overcode)
-      if (!item) return
-      const hasKey = Boolean(process.env.OVERCODE_API_KEY || connected || item.provider.request.body.apiKey)
-      catalog.provider.update(item.provider.id, (provider) => {
-        if (!hasKey) provider.request.body.apiKey = "public"
-      })
-      if (hasKey) return
-      for (const model of item.models.values()) {
-        if (!model.cost.some((cost) => cost.input > 0)) continue
-        catalog.model.update(item.provider.id, model.id, (draft) => {
-          draft.enabled = false
+      // The models.dev catalog still uses "opencode" for the public Zen
+      // provider. Overcode's rebrand uses "overcode", so apply the same
+      // public/free-model policy to both IDs before V2 sessions resolve a
+      // model.
+      for (const providerID of [ProviderV2.ID.overcode, ProviderV2.ID.make("opencode")]) {
+        const item = catalog.provider.get(providerID)
+        if (!item) continue
+        const configuredKey = item.provider.request.body.apiKey
+        const hasKey = Boolean(
+          process.env.OVERCODE_API_KEY ||
+            process.env.OPENCODE_API_KEY ||
+            connected ||
+            (typeof configuredKey === "string" && configuredKey !== "public"),
+        )
+        catalog.provider.update(item.provider.id, (provider) => {
+          if (!hasKey) provider.request.body.apiKey = "public"
         })
+        if (hasKey) continue
+        for (const model of item.models.values()) {
+          if (!model.cost.some((cost) => cost.input > 0)) continue
+          catalog.model.update(item.provider.id, model.id, (draft) => {
+            draft.enabled = false
+          })
+        }
       }
     })
 

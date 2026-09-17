@@ -23,8 +23,8 @@ const xml = `<?xml version="1.0" encoding="UTF-8"?>
 
   <description>
     <p>
-      Overcode is a community fork of the open source overcode agent that helps
-      you write and run code with any AI model.
+      Overcode is an open source coding agent that helps you write and run code
+      with any AI model.
     </p>
   </description>
 

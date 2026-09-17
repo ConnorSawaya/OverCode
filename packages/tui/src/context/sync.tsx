@@ -19,7 +19,8 @@ import type {
   VcsInfo,
   SnapshotFileDiff,
   ConsoleState,
-} from "@opencode-ai/sdk/v2"
+} from "@overcode-ai/sdk/v2"
+import { normalizeProviderCatalog } from "@overcode-ai/sdk/v2/data"
 import { createStore, produce, reconcile } from "solid-js/store"
 import { useProject } from "./project"
 import { useEvent } from "./event"
@@ -455,8 +456,25 @@ export const {
       const sessionListPromise = projectPromise.then(() => listSessions())
 
       // blocking - include session.list when continuing a session
-      const providersPromise = sdk.client.config.providers({ workspace }, { throwOnError: true })
-      const providerListPromise = sdk.client.provider.list({ workspace }, { throwOnError: true })
+      // The legacy provider endpoints may not exist on V2-only daemons. They
+      // are best-effort: the V2 catalog below is the primary model source, so
+      // a legacy failure must not kill the whole bootstrap.
+      const providersPromise = sdk.client.config
+        .providers({ workspace }, { throwOnError: true })
+        .then((x) => x.data)
+        .catch(() => undefined)
+      const providerListPromise = sdk.client.provider
+        .list({ workspace }, { throwOnError: true })
+        .then((x) => x.data)
+        .catch(() => undefined)
+      const catalogPromise = Promise.all([
+        sdk.client.v2.provider.list(workspace ? { location: { workspace } } : undefined, { throwOnError: true }),
+        sdk.client.v2.model.list(workspace ? { location: { workspace } } : undefined, { throwOnError: true }),
+      ])
+        .then(([providers, models]) =>
+          normalizeProviderCatalog(providers.data.data, models.data.data),
+        )
+        .catch(() => undefined)
       const capabilitiesPromise = sdk.client.experimental.capabilities
         .get({ workspace }, { throwOnError: true })
         .then((x) => x.data)
@@ -470,6 +488,7 @@ export const {
       await Promise.all([
         providersPromise,
         providerListPromise,
+        catalogPromise,
         capabilitiesPromise,
         agentsPromise,
         configPromise,
@@ -477,8 +496,8 @@ export const {
         ...(args.continue ? [sessionListPromise] : []),
       ])
         .then(async () => {
-          const providersResponse = providersPromise.then((x) => x.data!)
-          const providerListResponse = providerListPromise.then((x) => x.data!)
+          const providersResponse = providersPromise
+          const providerListResponse = providerListPromise
           const capabilitiesResponse = capabilitiesPromise
           const consoleStateResponse = consoleStatePromise
           const agentsResponse = agentsPromise.then((x) => x.data ?? [])
@@ -488,6 +507,7 @@ export const {
           return Promise.all([
             providersResponse,
             providerListResponse,
+            catalogPromise,
             capabilitiesResponse,
             consoleStateResponse,
             agentsResponse,
@@ -496,16 +516,20 @@ export const {
           ]).then((responses) => {
             const providers = responses[0]
             const providerList = responses[1]
-            const capabilities = responses[2]
-            const consoleState = responses[3]
-            const agents = responses[4]
-            const config = responses[5]
-            const sessions = responses[6]
+            const catalog = responses[2]
+            const capabilities = responses[3]
+            const consoleState = responses[4]
+            const agents = responses[5]
+            const config = responses[6]
+            const sessions = responses[7]
+            const provider =
+              catalog && catalog.all.size > 0 ? [...catalog.all.values()] : (providers?.providers ?? [])
+            const defaults = { ...(catalog?.default ?? {}), ...(providers?.default ?? {}) }
 
             batch(() => {
-              setStore("provider", reconcile(providers.providers))
-              setStore("provider_default", reconcile(providers.default))
-              setStore("provider_next", reconcile(providerList))
+              setStore("provider", reconcile(provider))
+              setStore("provider_default", reconcile(defaults))
+              setStore("provider_next", reconcile(providerList ?? { all: [], default: {}, connected: [] }))
               setStore("capabilities", "experimentalBackgroundSubagents", capabilities?.backgroundSubagents === true)
               setStore("console_state", reconcile(consoleState))
               setStore("agent", reconcile(agents))

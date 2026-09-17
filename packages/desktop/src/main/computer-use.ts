@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto"
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
-import type { ComputerUseState } from "@opencode-ai/app/computer-use"
+import type { ComputerUseState } from "@overcode-ai/app/computer-use"
 import type { ComputerUseWorker } from "./computer-use-worker"
 
 type Owner = { window: number; sessionID: string; directory?: string }

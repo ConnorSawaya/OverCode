@@ -57,6 +57,9 @@ import { SyncDevicesController } from "./sync-devices"
 import { getStore } from "./store"
 import { COMPUTER_USE_COLOR_KEY } from "./store-keys"
 import { nativeT } from "./native-translations"
+import { sidecarVersion as resolveSidecarVersion } from "./sidecar-version"
+
+export { sidecarVersion } from "./sidecar-version"
 
 const APP_NAMES: Record<string, string> = {
   dev: "Overcode Dev",
@@ -69,7 +72,7 @@ const APP_IDS: Record<string, string> = {
   prod: "ai.overcode.desktop",
 }
 const TEST_ONBOARDING = process.env.OVERCODE_TEST_ONBOARDING === "1"
-const SIDECAR_VERSION = process.env.OVERCODE_SIDECAR_V2 === "1" ? "v2" : "v1"
+const SIDECAR_VERSION = resolveSidecarVersion()
 const jsCallStackFeature = "DocumentPolicyIncludeJSCallStacksInCrashReports"
 
 let logger: ReturnType<typeof initLogging>
@@ -281,7 +284,7 @@ const main = Effect.gen(function* () {
     "computer-use", "overcode-computer-use.exe",
   )
   computerUse = new ComputerUseController({
-    available: () => process.platform === "win32" && SIDECAR_VERSION === "v1" && existsSync(computerExecutable),
+    available: () => process.platform === "win32" && existsSync(computerExecutable),
     color: getStore().get(COMPUTER_USE_COLOR_KEY),
     saveColor: (color) => getStore().set(COMPUTER_USE_COLOR_KEY, color),
     labels: () => ({
@@ -415,6 +418,7 @@ const main = Effect.gen(function* () {
     if (SIDECAR_VERSION === "v2") {
       logger.log("spawning v2 sidecar")
       const sidecar = yield* Effect.promise(() => startBackgroundCli(logger, shellEnv?.XDG_STATE_HOME))
+      computerUse?.setServer({ url: sidecar.url, username: sidecar.username, password: sidecar.password })
       yield* Deferred.succeed(serverReady, {
         url: sidecar.url,
         username: sidecar.username,

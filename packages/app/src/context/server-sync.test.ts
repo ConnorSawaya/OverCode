@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import type { OpencodeClient } from "@opencode-ai/sdk/v2/client"
+import type { OpencodeClient } from "@overcode-ai/sdk/v2/client"
 import type {
   McpListInput,
   McpResourceCatalogInput,
   SessionApi,
   SessionInfo,
   SessionListInput,
-} from "@opencode-ai/client/promise"
+} from "@overcode-ai/client/promise"
 import { QueryClient } from "@tanstack/solid-query"
 import { canDisposeDirectory, pickDirectoriesToEvict } from "./global-sync/eviction"
 import { estimateRootSessionTotal, loadRootSessions } from "./global-sync/session-load"
@@ -62,6 +62,56 @@ describe("MCP queries", () => {
 
     expect(calls).toEqual([{ location: { directory: "/project" } }])
     expect(result).toEqual({ "docs:docs://guide": { server: "docs", name: "Guide", uri: "docs://guide" } })
+  })
+
+  test("uses the v2 MCP status endpoint for v2 servers", async () => {
+    const calls: unknown[] = []
+    const result = await new QueryClient().fetchQuery(
+      loadMcpQuery(
+        ServerScope.local,
+        "C:/repo",
+        {} as McpApi,
+        {
+          mcp: {
+            status: async (input: unknown) => {
+              calls.push(input)
+              return { data: { docs: { status: "connected" } } }
+            },
+          },
+        } as unknown as OpencodeClient,
+        Promise.resolve("v2"),
+      ),
+    )
+
+    expect(calls).toEqual([{ directory: "C:/repo" }])
+    expect(result).toEqual({ docs: { status: "connected" } })
+  })
+
+  test("uses the v2 MCP resource endpoint for v2 servers", async () => {
+    const calls: unknown[] = []
+    const result = await new QueryClient().fetchQuery(
+      loadMcpResourcesQuery(
+        ServerScope.local,
+        "C:/repo",
+        {} as McpApi,
+        {
+          experimental: {
+            resource: {
+              list: async (input: unknown) => {
+                calls.push(input)
+                return { data: { "docs:docs://guide": { client: "docs", name: "Guide", uri: "docs://guide" } } }
+              },
+            },
+          },
+        } as unknown as OpencodeClient,
+        Promise.resolve("v2"),
+      ),
+    )
+
+    expect(calls).toEqual([{ directory: "C:/repo" }])
+    expect(result).toEqual({
+      "docs:docs://guide": { server: "docs", name: "Guide", uri: "docs://guide" },
+    })
   })
 })
 

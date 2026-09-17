@@ -1,10 +1,10 @@
 import { Component, Show, createMemo, createResource } from "solid-js"
 import { createMediaQuery } from "@solid-primitives/media"
-import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
-import { SelectV2 } from "@opencode-ai/ui/v2/select-v2"
-import { Switch } from "@opencode-ai/ui/v2/switch-v2"
-import { TextInputV2 } from "@opencode-ai/ui/v2/text-input-v2"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { ButtonV2 } from "@overcode-ai/ui/v2/button-v2"
+import { SelectV2 } from "@overcode-ai/ui/v2/select-v2"
+import { Switch } from "@overcode-ai/ui/v2/switch-v2"
+import { TextInputV2 } from "@overcode-ai/ui/v2/text-input-v2"
+import { useDialog } from "@overcode-ai/ui/context/dialog"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { useUpdaterAction } from "../updater-action"
@@ -30,6 +30,7 @@ import { DictationSettings } from "./dictation"
 import { BackgroundSetting } from "./background-setting"
 import { ComputerUseSettings } from "../computer-use-settings"
 import { MobileAccessSettings } from "../mobile-access-settings"
+import { CustomThemeSetting } from "../custom-theme-setting"
 
 const schemeOptions: ("system" | "light" | "dark")[] = ["system", "light", "dark"]
 const fontSettings = {
@@ -154,7 +155,10 @@ const AppearanceSection: Component<{ controller: AppearanceSettingsController }>
           description={
             <>
               {language.t("settings.general.row.theme.description")}{" "}
-              <ExternalLink class="settings-v2-link" href="https://github.com/ConnorSawaya/overcode/tree/overcode-rebrand/packages/web/src/content/docs/themes/">
+              <ExternalLink
+                class="settings-v2-link"
+                href="https://github.com/ConnorSawaya/overcode/tree/overcode-rebrand/packages/web/src/content/docs/themes/"
+              >
                 {language.t("common.learnMore")}
               </ExternalLink>
             </>
@@ -172,6 +176,8 @@ const AppearanceSection: Component<{ controller: AppearanceSettingsController }>
             onSelect={props.controller.theme.select}
           />
         </SettingsRowV2>
+
+        <CustomThemeSetting />
 
         <BackgroundSetting />
 

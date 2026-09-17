@@ -1,0 +1,51 @@
+[data-component="prompt-input-v2"] [data-slot="prompt-input-v2-controls-primary"] > *,
+[data-component="prompt-input-v2"] [data-slot="prompt-input-v2-controls-secondary"] > * {
+  flex: 0 0 auto;
+}
+
+[data-component="prompt-input-v2"] [data-slot="prompt-input-v2-controls-primary"] [data-component="button-v2"],
+[data-component="prompt-input-v2"] [data-slot="prompt-input-v2-controls-primary"] [data-component="icon-button-v2"],
+[data-component="prompt-input-v2"] [data-slot="prompt-input-v2-controls-secondary"] [data-component="button-v2"],
+[data-component="prompt-input-v2"] [data-slot="prompt-input-v2-controls-secondary"] [data-component="icon-button-v2"] {
+  flex-shrink: 0;
+}
+
+[data-component="prompt-input-v2"] [data-slot="prompt-input-v2-controls-primary"],
+[data-component="prompt-input-v2"] [data-slot="prompt-input-v2-controls-secondary"] {
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+[data-component="prompt-input-v2"] [data-slot="prompt-input-v2-controls-primary"]::-webkit-scrollbar,
+[data-component="prompt-input-v2"] [data-slot="prompt-input-v2-controls-secondary"]::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  [data-component="prompt-input-v2"] [data-slot="prompt-input-v2-controls"] {
+    flex-wrap: wrap;
+    align-content: center;
+    row-gap: 0;
+  }
+
+  [data-component="prompt-input-v2"] [data-slot="prompt-input-v2-controls-primary"] {
+    order: 1;
+    flex: 1 1 100%;
+    min-width: 100%;
+    overflow-x: auto;
+    justify-content: flex-start;
+  }
+
+  [data-component="prompt-input-v2"] [data-slot="prompt-input-v2-controls-secondary"] {
+    order: 2;
+    flex: 1 1 auto;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+
+  [data-component="prompt-input-v2"] [data-slot="prompt-input-v2-submit"] {
+    order: 2;
+    margin-left: auto;
+  }
+}

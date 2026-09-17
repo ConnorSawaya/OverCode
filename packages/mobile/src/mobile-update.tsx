@@ -1,6 +1,6 @@
 import { createSignal, onCleanup, onMount, Show } from "solid-js"
-import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
-import { useLanguage } from "@opencode-ai/app"
+import { ButtonV2 } from "@overcode-ai/ui/v2/button-v2"
+import { useLanguage } from "@overcode-ai/app"
 import { Capacitor } from "@capacitor/core"
 import { checkForMobileUpdate, installMobileUpdate, type MobileUpdateManifest } from "./update"
 import pkg from "../../app/package.json"

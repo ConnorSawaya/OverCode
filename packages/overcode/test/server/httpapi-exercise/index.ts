@@ -1414,6 +1414,58 @@ const scenarios: Scenario[] = [
       check(body === true, "missing session abort should remain a no-op success")
     }),
   http.protected
+    .post("/swarm", "swarm.start")
+    .mutating()
+    .seeded((ctx) => ctx.session({ title: "Swarm exercise" }))
+    .at((ctx) => ({
+      path: "/swarm",
+      headers: ctx.headers(),
+      body: {
+        sessionID: ctx.state.id,
+        task: "exercise task",
+        preset: "fast",
+        model: { providerID: "test", modelID: "test-model" },
+      },
+    }))
+    .json(200, (body) => {
+      object(body)
+      check(typeof body.id === "string", "swarm start should return a record")
+      check(typeof body.status === "string", "swarm start should return a status")
+    }),
+  http.protected
+    .get("/swarm", "swarm.list")
+    .seeded((ctx) => ctx.session({ title: "Swarm list exercise" }))
+    .at((ctx) => ({
+      path: `/swarm?${new URLSearchParams({ sessionID: ctx.state.id })}`,
+      headers: ctx.headers(),
+    }))
+    .json(200, (body) => {
+      check(Array.isArray(body), "swarm list should return an array")
+    }),
+  http.protected
+    .get("/swarm/{swarmID}", "swarm.get.missing")
+    .at((ctx) => ({
+      path: route("/swarm/{swarmID}", { swarmID: "swm_httpapi_missing" }),
+      headers: ctx.headers(),
+    }))
+    .json(404, () => {}),
+  http.protected
+    .get("/swarm/{swarmID}/agents", "swarm.agents.missing")
+    .at((ctx) => ({
+      path: route("/swarm/{swarmID}/agents", { swarmID: "swm_httpapi_missing" }),
+      headers: ctx.headers(),
+    }))
+    .json(404, () => {}),
+  http.protected
+    .post("/swarm/{swarmID}/cancel", "swarm.cancel.missing")
+    .at((ctx) => ({
+      path: route("/swarm/{swarmID}/cancel", { swarmID: "swm_httpapi_missing" }),
+      headers: ctx.headers(),
+    }))
+    .json(200, (body) => {
+      check(body === true, "missing swarm cancel should remain a no-op success")
+    }),
+  http.protected
     .post("/session/{sessionID}/init", "session.init")
     .preserveDatabase()
     .withLlm()

@@ -1,4 +1,4 @@
-import { shouldCreatePastedTextAttachment } from "@opencode-ai/session-ui/v2/prompt-input/pasted-text"
+import { shouldCreatePastedTextAttachment } from "@overcode-ai/session-ui/v2/prompt-input/pasted-text"
 
 export function normalizePaste(text: string) {
   if (!text.includes("\r")) return text

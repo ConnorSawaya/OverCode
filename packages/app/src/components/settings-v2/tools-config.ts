@@ -1,4 +1,4 @@
-import type { McpLocalConfig, McpRemoteConfig } from "@opencode-ai/sdk/v2/client"
+import type { McpLocalConfig, McpRemoteConfig } from "@overcode-ai/sdk/v2/client"
 
 export function parseMcpConnection(value: string): McpLocalConfig | McpRemoteConfig | undefined {
   const text = value.trim()

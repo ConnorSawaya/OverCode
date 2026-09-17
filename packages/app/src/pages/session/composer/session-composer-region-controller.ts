@@ -1,6 +1,6 @@
 import { createResizeObserver } from "@solid-primitives/resize-observer"
-import { useSpring } from "@opencode-ai/ui/motion-spring"
-import { getFilename } from "@opencode-ai/core/util/path"
+import { useSpring } from "@overcode-ai/ui/motion-spring"
+import { getFilename } from "@overcode-ai/core/util/path"
 import { type Accessor, createEffect, createMemo, createResource, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { PromptInputState } from "@/components/prompt-input"
@@ -23,6 +23,28 @@ export type SessionComposerRevertDock = {
   onRestore: (id: string) => void
 }
 
+export type SessionComposerSwarmDock = {
+  record: {
+    id: string
+    status: string
+    preset: string
+    agents: {
+      id: string
+      role: string
+      status: string
+      model?: { providerID: string; modelID: string }
+      progress?: string
+      filesTouched?: string[]
+      error?: string
+    }[]
+    result?: { summary: string; filesChanged?: string[]; testsPassed?: number; testsFailed?: number }
+    instrumentation?: { repairRounds: number; modelCalls: number; toolCalls: number; cost: number }
+    timeCreated: number
+    timeUpdated: number
+  }
+  onCancel: (id: string) => void
+}
+
 export function createSessionComposerRegionController(input: {
   state: SessionComposerController
   sessionKey: Accessor<string>
@@ -36,6 +58,7 @@ export function createSessionComposerRegionController(input: {
   }
   followup: Accessor<SessionComposerFollowupDock | undefined>
   revert: Accessor<SessionComposerRevertDock | undefined>
+  swarm?: Accessor<SessionComposerSwarmDock | undefined>
   onResponseSubmit: () => void
   openParent: () => void
   setPromptRef: (el: HTMLDivElement) => void
@@ -98,9 +121,20 @@ export function createSessionComposerRegionController(input: {
   createEffect(() => {
     const el = store.body
     if (!el) return
-    const update = () => setStore("height", el.getBoundingClientRect().height)
+    let frame: number | undefined
+    const update = () => {
+      if (frame !== undefined) return
+      frame = requestAnimationFrame(() => {
+        frame = undefined
+        const height = el.getBoundingClientRect().height
+        if (height !== store.height) setStore("height", height)
+      })
+    }
     createResizeObserver(el, update)
     update()
+    onCleanup(() => {
+      if (frame !== undefined) cancelAnimationFrame(frame)
+    })
   })
 
   onCleanup(clear)
@@ -128,6 +162,7 @@ export function createSessionComposerRegionController(input: {
     todo: input.todo,
     followup: input.followup,
     revert: input.revert,
+    swarm: input.swarm,
     onResponseSubmit: input.onResponseSubmit,
     openParent: input.openParent,
     setPromptRef: input.setPromptRef,

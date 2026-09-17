@@ -13,11 +13,11 @@ const desktopStateNames = [
   "ai.overcode.desktop.dev",
   "ai.overcode.desktop.beta",
   "ai.overcode.desktop",
-  // Legacy Overcode state dirs — still probed so a service started by either
+  // Legacy OpenCode state dirs — still probed so a service started by either
   // app is reused instead of duplicated.
-  "ai.overcode.desktop.dev",
-  "ai.overcode.desktop.beta",
-  "ai.overcode.desktop",
+  "ai.opencode.desktop.dev",
+  "ai.opencode.desktop.beta",
+  "ai.opencode.desktop",
 ]
 
 type Logger = {
@@ -48,20 +48,36 @@ export async function startBackgroundCli(logger: Logger, shellStateHome?: string
     ...endpoint(found?.url),
   })
 
-  const daemonStateHome = found?.stateHome ?? stateHome
+  // Reuse the discovered daemon's state directory exactly, including the
+  // default CLI location (stateHome === undefined). Falling back to the
+  // desktop's XDG_STATE_HOME here would start a second daemon with a separate
+  // registration instead of sharing sessions/models/auth with the CLI.
+  if (found?.url) {
+    const password = await getPassword(binary, logger, found.stateHome)
+    const username = await detectUsername(found.url, password)
+    logger.log("v2 CLI background service reused", {
+      username,
+      ...endpoint(found.url),
+    })
+    return {
+      url: found.url,
+      username,
+      password,
+    }
+  }
+
+  const daemonStateHome = stateHome
   const url = await run(binary, ["service", "start"], logger, { stateHome: daemonStateHome })
-  const password = await run(binary, ["service", "get", "password"], logger, {
-    redact: true,
-    stateHome: daemonStateHome,
-  })
+  const password = await getPassword(binary, logger, daemonStateHome)
+  const username = await detectUsername(url, password)
   logger.log("v2 CLI background service ready", {
     existing: Boolean(found),
-    username: "overcode",
+    username,
     ...endpoint(url),
   })
   return {
     url,
-    username: "overcode",
+    username,
     password,
   }
 }
@@ -114,6 +130,36 @@ async function run(
       throw error
     },
   )
+}
+
+async function getPassword(binary: string, logger: Logger, stateHome: string | undefined) {
+  // The bundled Rust daemon exposes `service get password`. Newer CLI
+  // surfaces may expose `service password`; try it first, then fall back so
+  // desktop startup works against either binary.
+  try {
+    return await run(binary, ["service", "password"], logger, { redact: true, stateHome })
+  } catch {
+    return await run(binary, ["service", "get", "password"], logger, { redact: true, stateHome })
+  }
+}
+
+const DAEMON_USERNAMES = ["opencode", "overcode"] as const
+
+async function detectUsername(url: string, password: string): Promise<string> {
+  for (const username of DAEMON_USERNAMES) {
+    try {
+      const auth = Buffer.from(`${username}:${password}`).toString("base64")
+      const response = await fetch(new URL("/api/health", url), {
+        headers: { authorization: `Basic ${auth}` },
+        signal: AbortSignal.timeout(3000),
+      })
+      if (response.ok) return username
+    } catch {}
+  }
+  // Default to the bundled daemon's username; the app's protocol probing and
+  // request paths work once authenticated, and a wrong default surfaces as a
+  // normal 401 rather than a startup crash.
+  return "opencode"
 }
 
 function serviceUrl(status: string) {

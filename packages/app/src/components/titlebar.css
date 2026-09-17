@@ -29,6 +29,57 @@
   background-image: var(--active-bg);
 }
 
+[data-component="mobile-access-indicator"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 180px;
+  height: 28px;
+  padding: 0 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 7px;
+  color: var(--v2-text-text-muted);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+
+[data-component="mobile-access-indicator"]:hover,
+[data-component="mobile-access-indicator"]:focus-visible {
+  color: var(--v2-text-text-strong);
+  background: var(--v2-overlay-simple-overlay-hover);
+  outline: none;
+}
+
+[data-component="mobile-access-indicator"][data-status="online"] {
+  color: var(--v2-text-text-base);
+}
+
+[data-component="mobile-access-indicator"][data-status="offline"] {
+  color: var(--v2-text-text-muted);
+}
+
+[data-slot="mobile-access-indicator-name"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 1;
+}
+
+[data-slot="mobile-access-indicator-dot"] {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--v2-icon-icon-warning);
+}
+
+[data-component="mobile-access-indicator"][data-status="online"] [data-slot="mobile-access-indicator-dot"] {
+  background: var(--v2-icon-icon-success);
+}
+
 @keyframes titlebar-tab-fade-left {
   from {
     visibility: hidden;

@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { $ } from "bun"
 import pkg from "../package.json"
-import { Script } from "@opencode-ai/script"
+import { Script } from "@overcode-ai/script"
 import { fileURLToPath } from "url"
 
 const dir = fileURLToPath(new URL("..", import.meta.url))
@@ -28,11 +28,12 @@ const version = Object.values(binaries)[0]
 
 await $`mkdir -p ./dist/${pkg.name}/bin`
 await $`cp ./bin/lildax.cjs ./dist/${pkg.name}/bin/lildax`
+await $`cp ./bin/overcode.cjs ./dist/${pkg.name}/bin/overcode`
 await Bun.file(`./dist/${pkg.name}/package.json`).write(
   JSON.stringify(
     {
       name: pkg.name,
-      bin: { lildax: "./bin/lildax" },
+      bin: { overcode: "./bin/overcode", lildax: "./bin/lildax" },
       version,
       license: pkg.license,
       repository: { type: "git", url: "git+https://github.com/ConnorSawaya/overcode.git" },
@@ -47,7 +48,7 @@ await Bun.file(`./dist/${pkg.name}/package.json`).write(
 
 await Promise.all(
   Object.entries(binaries).map(([name, version]) =>
-    publish(`./dist/${name.replace("@opencode-ai/", "")}`, name, version),
+    publish(`./dist/${name.replace("@overcode-ai/", "")}`, name, version),
   ),
 )
 await publish(`./dist/${pkg.name}`, pkg.name, version)

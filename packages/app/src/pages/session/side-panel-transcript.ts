@@ -1,4 +1,4 @@
-import type { Message, Part, Session } from "@opencode-ai/sdk/v2/client"
+import type { Message, Part, Session } from "@overcode-ai/sdk/v2/client"
 import { sessionTitle } from "@/utils/session-title"
 
 export type TranscriptRow = { id: string; user: boolean; text: string }

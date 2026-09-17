@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { Cause, Deferred, Effect, Exit, Fiber } from "effect"
 import { forwardInitializationFailure } from "./initialization"
+import { sidecarVersion } from "./sidecar-version"
 
 describe("desktop initialization", () => {
   const failure = new Error("sidecar startup failed")
@@ -33,5 +34,15 @@ describe("desktop initialization", () => {
     )
 
     expectFailure(exit)
+  })
+
+  test("defaults to the shared V2 CLI daemon", () => {
+    expect(sidecarVersion({} as NodeJS.ProcessEnv)).toBe("v2")
+    expect(sidecarVersion({ OVERCODE_SIDECAR_V2: "1" } as NodeJS.ProcessEnv)).toBe("v2")
+  })
+
+  test("preserves a V1 rollback", () => {
+    expect(sidecarVersion({ OVERCODE_SIDECAR_V2: "0" } as NodeJS.ProcessEnv)).toBe("v1")
+    expect(sidecarVersion({ OVERCODE_SIDECAR_V2: "false" } as NodeJS.ProcessEnv)).toBe("v1")
   })
 })

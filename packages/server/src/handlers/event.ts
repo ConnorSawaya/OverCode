@@ -1,5 +1,5 @@
-import { EventV2 } from "@opencode-ai/core/event"
-import { OvercodeEvent } from "@opencode-ai/protocol/groups/event"
+import { EventV2 } from "@overcode-ai/core/event"
+import { OvercodeEvent } from "@overcode-ai/protocol/groups/event"
 import { Effect, Schema, Stream } from "effect"
 import { HttpServerResponse } from "effect/unstable/http"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
@@ -34,7 +34,9 @@ export const EventHandler = HttpApiBuilder.group(Api, "server.event", (handlers)
             return Stream.make(connected).pipe(Stream.concat(live))
           }),
         ).pipe(Stream.map(eventData), Stream.pipeThroughChannel(Sse.encode()))
-        const heartbeat = Stream.tick("15 seconds").pipe(Stream.map(() => ": heartbeat\n\n"))
+        // Keep the mobile relay connection active across proxies with a ~10s idle
+        // timeout. Emit immediately and then every 3 seconds.
+        const heartbeat = Stream.tick("3 seconds").pipe(Stream.map(() => ": heartbeat\n\n"))
         return HttpServerResponse.stream(
           output.pipe(Stream.merge(heartbeat, { haltStrategy: "left" }), Stream.encodeText),
           {

@@ -1,5 +1,5 @@
 import { For, Show, createMemo, createSignal, onMount } from "solid-js"
-import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
+import { ButtonV2 } from "@overcode-ai/ui/v2/button-v2"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { createStore } from "solid-js/store"

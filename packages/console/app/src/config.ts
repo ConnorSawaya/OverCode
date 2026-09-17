@@ -3,7 +3,7 @@
  */
 export const config = {
   // Base URL
-  baseUrl: "https://github.com/ConnorSawaya/overcode",
+  baseUrl: "https://overcode.ai",
 
   // GitHub
   github: {

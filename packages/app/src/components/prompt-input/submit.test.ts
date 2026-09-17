@@ -39,6 +39,10 @@ let params: { id?: string } = {}
 let search: { draftId?: string } = {}
 let selected = "/repo/worktree-a"
 let variant: string | undefined
+let executionMode: "normal" | "deep" | "swarm" = "normal"
+const swarmStarts: unknown[] = []
+const swarmCancels: string[] = []
+let swarmStates: { status: string }[] = []
 let permissionServer = "server-a"
 let createSessionGate: Promise<void> | undefined
 let computerStartGate: Promise<void> | undefined
@@ -170,6 +174,17 @@ const clientFor = (directory: string) => {
     worktree: {
       create: async () => ({ data: { directory: `${directory}/new` } }),
     },
+    swarm: {
+      start: async (input: unknown) => {
+        swarmStarts.push(input)
+        return { data: { id: "swm_test", status: "running" } }
+      },
+      get: async () => ({ data: swarmStates.shift() ?? { status: "completed" } }),
+      cancel: async (input: { swarmID: string }) => {
+        swarmCancels.push(input.swarmID)
+        return { data: true }
+      },
+    },
   }
 }
 
@@ -183,14 +198,14 @@ beforeAll(async () => {
     useSearchParams: () => [search, () => undefined],
   }))
 
-  mock.module("@opencode-ai/sdk/v2/client", () => ({
+  mock.module("@overcode-ai/sdk/v2/client", () => ({
     createOpencodeClient: (input: { directory: string }) => {
       createdClients.push(input.directory)
       return clientFor(input.directory)
     },
   }))
 
-  mock.module("@opencode-ai/ui/toast", () => ({
+  mock.module("@overcode-ai/ui/toast", () => ({
     Toast: { Region: () => null },
     showToast: () => 0,
   }))
@@ -202,7 +217,7 @@ beforeAll(async () => {
     },
   }))
 
-  mock.module("@opencode-ai/core/util/encode", () => ({
+  mock.module("@overcode-ai/core/util/encode", () => ({
     base64Encode: (value: string) => value,
   }))
 
@@ -211,6 +226,14 @@ beforeAll(async () => {
       model: {
         current: () => ({ id: "model", provider: { id: "provider" } }),
         variant: { current: () => variant },
+      },
+      executionMode: {
+        list: ["normal", "deep", "swarm"],
+        current: () => executionMode,
+        set: (mode: string) => {
+          executionMode = mode as typeof executionMode
+        },
+        cycle: () => undefined,
       },
       agent: {
         current: () => ({ name: "agent" }),
@@ -371,6 +394,10 @@ beforeEach(() => {
   syncedDirectories.length = 0
   selected = "/repo/worktree-a"
   variant = undefined
+  executionMode = "normal"
+  swarmStarts.length = 0
+  swarmCancels.length = 0
+  swarmStates = []
   permissionServer = "server-a"
   createSessionGate = undefined
   computerStartGate = undefined
@@ -1129,5 +1156,62 @@ describe("prompt submit worktree selection", () => {
     expect(storedSessions["/repo/worktree-a"]).toHaveLength(1)
     expect(storedSessions["/repo/worktree-a"]?.[0]).toMatchObject({ id: "session-1", title: "New session 1" })
     expect(optimisticSeeded).toEqual([true])
+  })
+})
+
+describe("swarm submission", () => {
+  const event = () => ({ preventDefault: () => undefined }) as unknown as Event
+  const text = (content: string) => {
+    promptValue = [{ type: "text", content, start: 0, end: content.length }]
+  }
+  const setup = (options: Partial<Parameters<typeof createPromptSubmit>[0]> = {}) =>
+    createPromptSubmit({
+      prompt,
+      info: () => (params.id ? { id: params.id } : undefined),
+      imageAttachments: () => [],
+      commentCount: () => 0,
+      autoAccept: () => false,
+      mode: () => "normal",
+      working: () => false,
+      editor: () => undefined,
+      queueScroll: () => undefined,
+      promptLength: (value) => value.reduce((sum, part) => sum + ("content" in part ? part.content.length : 0), 0),
+      addToHistory: () => undefined,
+      resetHistoryNavigation: () => undefined,
+      setMode: () => undefined,
+      setPopover: () => undefined,
+      ...options,
+    })
+
+  test("swarm mode starts a swarm run instead of a normal prompt", async () => {
+    params.id = "session-current"
+    executionMode = "swarm"
+    text("refactor everything")
+    swarmStates = [{ status: "running" }, { status: "completed" }]
+    await setup().handleSubmit(event())
+    expect(swarmStarts).toHaveLength(1)
+    expect(swarmStarts[0]).toMatchObject({ sessionID: "session-current", task: "refactor everything" })
+    expect(sentPrompts).toEqual([])
+    expect(promptInputs).toEqual([])
+    expect(sessionStatuses.map((item) => item.type)).toEqual(["busy", "idle"])
+  })
+
+  test("deep mode starts with the deep preset", async () => {
+    params.id = "session-current"
+    executionMode = "deep"
+    text("think hard")
+    await setup().handleSubmit(event())
+    expect(swarmStarts).toHaveLength(1)
+    expect(swarmStarts[0]).toMatchObject({ preset: "deep" })
+    expect(sentPrompts).toEqual([])
+  })
+
+  test("normal mode still sends ordinary prompts", async () => {
+    params.id = "session-current"
+    executionMode = "normal"
+    text("hello")
+    await setup().handleSubmit(event())
+    expect(swarmStarts).toEqual([])
+    expect(sentPrompts).toEqual(["/repo/main"])
   })
 })

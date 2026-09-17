@@ -17,8 +17,8 @@ import { createOpenAI } from "ai-gateway-provider/providers/openai"
 import { createAnthropic } from "ai-gateway-provider/providers/anthropic"
 import { ProviderTransform } from "@/provider/transform"
 import type * as Provider from "@/provider/provider"
-import { ProviderV2 } from "@opencode-ai/core/provider"
-import { ModelV2 } from "@opencode-ai/core/model"
+import { ProviderV2 } from "@overcode-ai/core/provider"
+import { ModelV2 } from "@overcode-ai/core/model"
 
 type Captured = { url: string; outerBody: unknown; headers: Record<string, string> }
 type ProviderOptions = Record<string, Record<string, JSONValue>>

@@ -1,9 +1,9 @@
 import { createResource, Show } from "solid-js"
-import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
-import { DialogBody, DialogFooter, DialogHeader, DialogTitle, DialogV2 } from "@opencode-ai/ui/v2/dialog-v2"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { ButtonV2 } from "@overcode-ai/ui/v2/button-v2"
+import { DialogBody, DialogFooter, DialogHeader, DialogTitle, DialogV2 } from "@overcode-ai/ui/v2/dialog-v2"
+import { useDialog } from "@overcode-ai/ui/context/dialog"
 import type { PastedTextPart } from "@/context/prompt"
-import { formatPastedTextSize } from "@opencode-ai/session-ui/v2/prompt-input/pasted-text"
+import { formatPastedTextSize } from "@overcode-ai/session-ui/v2/prompt-input/pasted-text"
 
 export function PastedTextViewer(props: { attachment: PastedTextPart }) {
   const dialog = useDialog()

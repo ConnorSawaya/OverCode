@@ -7,16 +7,16 @@ import { THEME_OPENAUTH } from "@openauthjs/openauth/ui/theme"
 import { GithubProvider } from "@openauthjs/openauth/provider/github"
 import { GoogleOidcProvider } from "@openauthjs/openauth/provider/google"
 import { CloudflareStorage } from "@openauthjs/openauth/storage/cloudflare"
-import { Account } from "@opencode-ai/console-core/account.js"
-import { Workspace } from "@opencode-ai/console-core/workspace.js"
-import { Actor } from "@opencode-ai/console-core/actor.js"
-import { Resource } from "@opencode-ai/console-resource"
-import { User } from "@opencode-ai/console-core/user.js"
-import { and, Database, eq, isNull, or } from "@opencode-ai/console-core/drizzle/index.js"
-import { WorkspaceTable } from "@opencode-ai/console-core/schema/workspace.sql.js"
-import { UserTable } from "@opencode-ai/console-core/schema/user.sql.js"
-import { AuthTable } from "@opencode-ai/console-core/schema/auth.sql.js"
-import { Identifier } from "@opencode-ai/console-core/identifier.js"
+import { Account } from "@overcode-ai/console-core/account.js"
+import { Workspace } from "@overcode-ai/console-core/workspace.js"
+import { Actor } from "@overcode-ai/console-core/actor.js"
+import { Resource } from "@overcode-ai/console-resource"
+import { User } from "@overcode-ai/console-core/user.js"
+import { and, Database, eq, isNull, or } from "@overcode-ai/console-core/drizzle/index.js"
+import { WorkspaceTable } from "@overcode-ai/console-core/schema/workspace.sql.js"
+import { UserTable } from "@overcode-ai/console-core/schema/user.sql.js"
+import { AuthTable } from "@overcode-ai/console-core/schema/auth.sql.js"
+import { Identifier } from "@overcode-ai/console-core/identifier.js"
 import { isAllowedAuthorizationRedirect } from "./auth-redirect.js"
 
 type Env = {
@@ -37,7 +37,7 @@ export const subjects = createSubjects({
 
 const MY_THEME: Theme = {
   ...THEME_OPENAUTH,
-  logo: "https://github.com/ConnorSawaya/overcode/favicon-v3.svg",
+  logo: "https://overcode.ai/favicon-v3.svg",
 }
 
 export default {

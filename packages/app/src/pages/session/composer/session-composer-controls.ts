@@ -1,4 +1,4 @@
-import { base64Encode } from "@opencode-ai/core/util/encode"
+import { base64Encode } from "@overcode-ai/core/util/encode"
 import { createQuery } from "@tanstack/solid-query"
 import { useNavigate, useSearchParams } from "@solidjs/router"
 import { type Accessor, createMemo } from "solid-js"
@@ -55,6 +55,11 @@ export function createPromptInputController(input: {
           (local.agent.visible() && agentsQuery.isLoading) ||
           providersQuery.isLoading ||
           globalProvidersQuery.isLoading,
+      },
+      executionMode: {
+        options: local.executionMode.list,
+        current: local.executionMode.current(),
+        select: local.executionMode.set,
       },
       session: {
         id: input.sessionID(),

@@ -1,4 +1,5 @@
 import type { DesktopTheme, ResolvedTheme, ResolvedV2Theme } from "./types"
+import { parseDesktopTheme } from "./custom"
 import { resolveThemeVariant, themeToCss } from "./resolve"
 import { resolveThemeVariantV2, themeV2ToCss } from "./v2/resolve"
 
@@ -76,11 +77,22 @@ html[data-theme="${themeId}"] {
 }
 
 export async function loadThemeFromUrl(url: string): Promise<DesktopTheme> {
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new Error(`Failed to load theme from ${url}: ${response.statusText}`)
+  const value = url.trim()
+  if (!value) throw new Error("Theme URL is required.")
+  let target: URL
+  try {
+    target = new URL(value, typeof window === "object" ? window.location.href : undefined)
+  } catch {
+    throw new Error("Theme URL is invalid.")
   }
-  return response.json()
+  if (target.protocol !== "https:" && target.protocol !== "http:") {
+    throw new Error("Theme URL must use http or https.")
+  }
+  const response = await fetch(target)
+  if (!response.ok) {
+    throw new Error(`Failed to load theme: ${response.statusText || response.status}`)
+  }
+  return parseDesktopTheme(await response.json())
 }
 
 export function getActiveTheme(): DesktopTheme | null {

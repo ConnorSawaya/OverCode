@@ -1,12 +1,52 @@
 import { describe, expect } from "bun:test"
-import { LayerNode } from "@opencode-ai/core/effect/layer-node"
+import { LayerNode } from "@overcode-ai/core/effect/layer-node"
 import { Effect } from "effect"
 import { Auth } from "../../src/auth"
 import { testEffect } from "../lib/effect"
+import { Global } from "@overcode-ai/core/global"
+import path from "path"
+import fs from "fs/promises"
 
 const it = testEffect(LayerNode.compile(Auth.node))
 
 describe("Auth", () => {
+  it.instance("reads OpenCode credentials as a fallback without copying them", () =>
+    Effect.acquireUseRelease(
+      Effect.promise(async () => {
+        const legacyFile = path.join(path.dirname(Global.Path.data), "opencode", "auth.json")
+        const currentFile = path.join(Global.Path.data, "auth.json")
+        const [legacy, current] = await Promise.all([
+          fs.readFile(legacyFile, "utf8").catch(() => undefined),
+          fs.readFile(currentFile, "utf8").catch(() => undefined),
+        ])
+        await fs.mkdir(path.dirname(legacyFile), { recursive: true })
+        await fs.writeFile(legacyFile, JSON.stringify({ imported: { type: "api", key: "legacy-secret" } }))
+        await fs.rm(currentFile, { force: true })
+        return { legacyFile, currentFile, legacy, current }
+      }),
+      ({ legacyFile, currentFile }) =>
+        Effect.gen(function* () {
+          const auth = yield* Auth.Service
+          expect((yield* auth.get("imported"))?.type).toBe("api")
+          yield* auth.set("local", { type: "api", key: "local-secret" })
+
+          const written = JSON.parse(yield* Effect.promise(() => fs.readFile(currentFile, "utf8"))) as Record<
+            string,
+            unknown
+          >
+          expect(written.imported).toBeUndefined()
+          expect(written.local).toEqual({ type: "api", key: "local-secret" })
+        }),
+      ({ legacyFile, currentFile, legacy, current }) =>
+        Effect.promise(async () => {
+          if (legacy === undefined) await fs.rm(legacyFile, { force: true })
+          else await fs.writeFile(legacyFile, legacy)
+          if (current === undefined) await fs.rm(currentFile, { force: true })
+          else await fs.writeFile(currentFile, current)
+        }),
+    ),
+  )
+
   it.instance("set normalizes trailing slashes in keys", () =>
     Effect.gen(function* () {
       const auth = yield* Auth.Service

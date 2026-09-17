@@ -1,6 +1,6 @@
 export * as PluginHost from "./host"
 
-import type { PluginContext as Interface } from "@opencode-ai/plugin/v2/effect"
+import type { PluginContext as Interface } from "@overcode-ai/plugin/v2/effect"
 import { Effect, Schema } from "effect"
 import { AgentV2 } from "../agent"
 import { AISDK } from "../aisdk"
@@ -106,7 +106,11 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
         active: (id) => integration.connection.active(Integration.ID.make(id)),
         resolve: (connection) =>
           integration.connection.resolve(
-            connection.type === "credential" ? { ...connection, id: Credential.ID.make(connection.id) } : connection,
+            connection.type === "credential"
+              ? // resolve() only keys off id; drop the plugin-facing unbranded
+                // methodID rather than mis-branding it.
+                { type: connection.type, label: connection.label, id: Credential.ID.make(connection.id) }
+              : connection,
           ),
       },
       transform: (callback) =>

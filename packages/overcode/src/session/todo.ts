@@ -1,12 +1,12 @@
-import { LayerNode } from "@opencode-ai/core/effect/layer-node"
+import { LayerNode } from "@overcode-ai/core/effect/layer-node"
 import { SessionID } from "./schema"
 import { Effect, Layer, Context } from "effect"
-import { Database } from "@opencode-ai/core/database/database"
+import { Database } from "@overcode-ai/core/database/database"
 import { eq } from "drizzle-orm"
 import { asc } from "drizzle-orm"
-import { TodoTable } from "@opencode-ai/core/session/sql"
+import { TodoTable } from "@overcode-ai/core/session/sql"
 import { EventV2Bridge } from "@/event-v2-bridge"
-import { SessionTodo } from "@opencode-ai/schema/session-todo"
+import { SessionTodo } from "@overcode-ai/schema/session-todo"
 
 export const Info = SessionTodo.Info
 export type Info = SessionTodo.Info

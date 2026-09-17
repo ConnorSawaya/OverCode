@@ -1,13 +1,13 @@
 import { Link, Meta, Title } from "@solidjs/meta"
-import { ProviderIcon } from "@opencode-ai/ui/provider-icon"
+import { ProviderIcon } from "@overcode-ai/ui/provider-icon"
 import {
   getStatsModelsComparisonData,
   type ModelUsagePoint,
   type RetentionEntry,
   type StatsModelComparisonInput,
   type StatsModelComparisonEntry,
-} from "@opencode-ai/stats-core/domain/home"
-import { runtime } from "@opencode-ai/stats-core/runtime"
+} from "@overcode-ai/stats-core/domain/home"
+import { runtime } from "@overcode-ai/stats-core/runtime"
 import { createAsync, query, useParams, useSearchParams } from "@solidjs/router"
 import { createEffect, createMemo, createSignal, For, onMount, Show } from "solid-js"
 import { getRequestEvent } from "solid-js/web"

@@ -15,7 +15,7 @@ import {
   buttonText,
 } from "../styles"
 
-const CONSOLE_URL = "https://github.com/ConnorSawaya/overcode/"
+const CONSOLE_URL = "https://overcode.ai/"
 
 interface InviteEmailProps {
   inviter: string

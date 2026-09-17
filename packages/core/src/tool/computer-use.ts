@@ -1,6 +1,6 @@
 export * as ComputerUseTool from "./computer-use"
 
-import { ToolFailure } from "@opencode-ai/llm"
+import { ToolFailure } from "@overcode-ai/llm"
 import { Effect, Layer } from "effect"
 import { HttpClient } from "effect/unstable/http"
 import { ComputerUse } from "../computer-use"

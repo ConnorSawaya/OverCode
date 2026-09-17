@@ -1,7 +1,7 @@
 const stage = process.env.SST_STAGE || "dev"
 
 export default {
-  url: stage === "production" ? "https://github.com/ConnorSawaya/overcode" : `https://${stage}.overcode.ai`,
+  url: stage === "production" ? "https://overcode.ai" : `https://${stage}.overcode.ai`,
   console: stage === "production" ? "https://overcode.ai/auth" : `https://${stage}.overcode.ai/auth`,
   email: "help@anoma.ly",
   socialCard: "https://social-cards.sst.dev",

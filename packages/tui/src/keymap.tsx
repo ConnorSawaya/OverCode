@@ -23,13 +23,17 @@ export const COMMAND_PALETTE_COMMAND = "command.palette.show"
 
 const OVERCODE_MODE_KEY = "overcode.mode"
 
-export const OpencodeKeymapProvider = KeymapProvider
-export const useOpencodeKeymap = useKeymap
+export const OvercodeKeymapProvider = KeymapProvider
+/** @deprecated Use {@link OvercodeKeymapProvider} instead. Kept for backwards compatibility. */
+export const OpencodeKeymapProvider = OvercodeKeymapProvider
+export const useOvercodeKeymap = useKeymap
+/** @deprecated Use {@link useOvercodeKeymap} instead. Kept for backwards compatibility. */
+export const useOpencodeKeymap = useOvercodeKeymap
 
 export { useBindings, useKeymapSelector }
 
 export type OpenTuiKeymap = ReturnType<typeof useKeymap>
-type OpencodeModeStack = ReturnType<typeof createOpencodeModeStack>
+type OvercodeModeStack = ReturnType<typeof createOvercodeModeStack>
 type CommandSlashEntry = {
   display: string
   description?: string
@@ -44,13 +48,13 @@ type BindingLookup = {
 type FormatConfig = { keybinds: BindingLookup }
 type ResolvedKeymapConfig = FormatConfig & { leader_timeout: number }
 
-const modeStacks = new WeakMap<OpenTuiKeymap, OpencodeModeStack>()
+const modeStacks = new WeakMap<OpenTuiKeymap, OvercodeModeStack>()
 
 function isVisiblePaletteCommand(command: Command) {
   return command.hidden !== true && command.name !== COMMAND_PALETTE_COMMAND
 }
 
-export function createOpencodeModeStack(keymap: OpenTuiKeymap) {
+export function createOvercodeModeStack(keymap: OpenTuiKeymap) {
   keymap.setData(OVERCODE_MODE_KEY, OVERCODE_BASE_MODE)
 
   const offFields = keymap.registerLayerFields({
@@ -99,15 +103,24 @@ export function createOpencodeModeStack(keymap: OpenTuiKeymap) {
   return stackApi
 }
 
-export function useOpencodeModeStack() {
-  return getOpencodeModeStack(useOpencodeKeymap())
+export function useOvercodeModeStack() {
+  return getOvercodeModeStack(useOvercodeKeymap())
 }
 
-export function getOpencodeModeStack(keymap: OpenTuiKeymap) {
+/** @deprecated Use {@link useOvercodeModeStack} instead. Kept for backwards compatibility. */
+export const useOpencodeModeStack = useOvercodeModeStack
+
+export function getOvercodeModeStack(keymap: OpenTuiKeymap) {
   const value = modeStacks.get(keymap)
-  if (!value) throw new Error("Opencode mode stack is not registered for this keymap")
+  if (!value) throw new Error("Overcode mode stack is not registered for this keymap")
   return value
 }
+
+/** @deprecated Use {@link getOvercodeModeStack} instead. Kept for backwards compatibility. */
+export const getOpencodeModeStack = getOvercodeModeStack
+
+/** @deprecated Use {@link createOvercodeModeStack} instead. Kept for backwards compatibility. */
+export const createOpencodeModeStack = createOvercodeModeStack
 
 const KEY_ALIASES = {
   enter: "return",
@@ -211,8 +224,8 @@ export function formatKeyBindings(bindings: Parameters<typeof formatCommandBindi
   return formatCommandBindingsExtra(bindings, formatOptions(config))
 }
 
-export function registerOpencodeKeymap(keymap: OpenTuiKeymap, renderer: CliRenderer, config: ResolvedKeymapConfig) {
-  const modeStack = createOpencodeModeStack(keymap)
+export function registerOvercodeKeymap(keymap: OpenTuiKeymap, renderer: CliRenderer, config: ResolvedKeymapConfig) {
+  const modeStack = createOvercodeModeStack(keymap)
   const offCommaBindings = registerCommaBindings(keymap)
   const offAliasExpander = registerKeyAliases(keymap)
   const offBaseLayout = registerBaseLayoutFallback(keymap)
@@ -243,6 +256,9 @@ export function registerOpencodeKeymap(keymap: OpenTuiKeymap, renderer: CliRende
   }
 }
 
+/** @deprecated Use {@link registerOvercodeKeymap} instead. Kept for backwards compatibility. */
+export const registerOpencodeKeymap = registerOvercodeKeymap
+
 export function useLeaderActive(): Accessor<boolean> {
   return useKeymapSelector((keymap: OpenTuiKeymap) => keymap.getPendingSequence()[0]?.tokenName === LEADER_TOKEN)
 }
@@ -258,7 +274,7 @@ export function useCommandShortcut(command: string): Accessor<string> {
 }
 
 export function useCommandSlashes(): Accessor<readonly CommandSlashEntry[]> {
-  const keymap = useOpencodeKeymap()
+  const keymap = useOvercodeKeymap()
   const entries = useKeymapSelector((keymap: OpenTuiKeymap) =>
     keymap.getCommandEntries({
       visibility: "reachable",

@@ -4,6 +4,7 @@ export {
   encodeBytes,
   encodeFrame,
   RELAY_PROTOCOL_VERSION,
+  RELAY_STALE_DEVICE_HEADER,
   RELAY_TOKEN_HEADER,
   type RelayDevice,
   type RelayFrame,

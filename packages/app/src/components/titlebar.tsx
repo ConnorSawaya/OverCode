@@ -4,6 +4,7 @@ import {
   createSignal,
   Match,
   on,
+  onCleanup,
   onMount,
   Show,
   Switch,
@@ -11,14 +12,14 @@ import {
 } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLocation, useNavigate, useParams } from "@solidjs/router"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { Icon } from "@opencode-ai/ui/icon"
-import { Button } from "@opencode-ai/ui/button"
-import { Tooltip, TooltipKeybind } from "@opencode-ai/ui/tooltip"
-import { IconButtonV2 } from "@opencode-ai/ui/v2/icon-button-v2"
-import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
-import { KeybindV2 } from "@opencode-ai/ui/v2/keybind-v2"
-import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
+import { IconButton } from "@overcode-ai/ui/icon-button"
+import { Icon } from "@overcode-ai/ui/icon"
+import { Button } from "@overcode-ai/ui/button"
+import { Tooltip, TooltipKeybind } from "@overcode-ai/ui/tooltip"
+import { IconButtonV2 } from "@overcode-ai/ui/v2/icon-button-v2"
+import { Icon as IconV2 } from "@overcode-ai/ui/v2/icon"
+import { KeybindV2 } from "@overcode-ai/ui/v2/keybind-v2"
+import { TooltipV2 } from "@overcode-ai/ui/v2/tooltip-v2"
 
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
@@ -443,7 +444,9 @@ export function Titlebar(props: {
               }}
               data-tauri-drag-region
             >
-              <div id="overcode-titlebar-right" class="flex items-center gap-1 shrink-0 justify-end" />
+              <div id="overcode-titlebar-right" class="flex items-center gap-1 shrink-0 justify-end">
+                <MobileAccessIndicator />
+              </div>
               <Show when={windows()}>
                 <div class="shrink-0" style={{ width: windowsControlsWidth() }} />
               </Show>
@@ -472,11 +475,78 @@ type TitlebarV2RightState = {
 function TitlebarV2Right(props: { state: TitlebarV2RightState }) {
   return (
     <div class="relative z-20 flex shrink-0 items-center justify-end gap-0 overflow-visible">
+      <MobileAccessIndicator />
       <Show when={props.state.update.visible}>
         <TitlebarUpdateIconButton state={props.state.update} />
       </Show>
       <div id="overcode-titlebar-right" class="flex shrink-0 items-center justify-end gap-0" />
     </div>
+  )
+}
+
+function MobileAccessIndicator() {
+  const platform = usePlatform()
+  const language = useLanguage()
+  const command = useCommand()
+  const access = platform.mobileAccess
+  const [state, setState] = createStore(access?.state() ?? { status: "disabled" as const, devices: [] })
+  const [clock, setClock] = createSignal(Date.now())
+
+  onMount(() => {
+    if (!access) return
+    const unsubscribe = access.onState((next) => setState(next))
+    const timer = window.setInterval(() => setClock(Date.now()), 5_000)
+    onCleanup(() => {
+      unsubscribe()
+      window.clearInterval(timer)
+    })
+  })
+
+  const device = createMemo(
+    () =>
+      (state.devices ?? []).slice().sort((left, right) => Date.parse(right.lastSeen) - Date.parse(left.lastSeen))[0],
+  )
+  const connected = createMemo(() => {
+    const item = device()
+    if (!item || state.status !== "online") return false
+    const lastSeen = Date.parse(item.lastSeen)
+    return Number.isFinite(lastSeen) && clock() - lastSeen <= 45_000
+  })
+  const status = createMemo(() =>
+    connected() ? language.t("settings.syncDevices.status.online") : language.t("settings.syncDevices.status.offline"),
+  )
+
+  return (
+    <Show when={platform.platform === "desktop" && access && device()}>
+      <TooltipV2
+        placement="bottom"
+        value={
+          <div class="flex flex-col gap-1">
+            <span>
+              {language.t("settings.mobileAccess.title")}: {device()!.name}
+            </span>
+            <span>{status()}</span>
+            <span>
+              {language.t("settings.mobileAccess.deviceLastSeen", {
+                date: new Date(device()!.lastSeen).toLocaleString(),
+              })}
+            </span>
+          </div>
+        }
+      >
+        <button
+          type="button"
+          data-component="mobile-access-indicator"
+          data-status={connected() ? "online" : "offline"}
+          onClick={() => command.trigger("settings.open")}
+          aria-label={language.t("settings.mobileAccess.title")}
+        >
+          <IconV2 name="mobile" size="small" />
+          <span data-slot="mobile-access-indicator-name">{device()!.name}</span>
+          <span data-slot="mobile-access-indicator-dot" aria-hidden="true" />
+        </button>
+      </TooltipV2>
+    </Show>
   )
 }
 

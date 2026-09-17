@@ -1,4 +1,4 @@
-import { createSimpleContext } from "@opencode-ai/ui/context"
+import { createSimpleContext } from "@overcode-ai/ui/context"
 import { type Accessor, batch, createMemo } from "solid-js"
 import { createStore, type SetStoreFunction, type Store } from "solid-js/store"
 import { Persist, persisted } from "@/utils/persist"
@@ -6,7 +6,7 @@ import { pathKey } from "@/utils/path-key"
 import { ServerScope } from "@/utils/server-scope"
 
 type StoredProject = { worktree: string; expanded: boolean }
-type StoredServer = string | ServerConnection.HttpBase | ServerConnection.Http
+export type StoredServer = string | ServerConnection.HttpBase | ServerConnection.Http
 type ServerProjectState = {
   projects: Record<string, StoredProject[]>
   lastProject: Record<string, string>
@@ -154,15 +154,7 @@ export function resolveServerList(input: {
   )
 
   for (const value of input.stored) {
-    const conn: ServerConnection.Http =
-      typeof value === "string"
-        ? {
-            type: "http" as const,
-            http: { url: value },
-          }
-        : "http" in value
-          ? value
-          : { type: "http", http: value }
+    const conn = storedServerConnection(value)
     const key = ServerConnection.key(conn)
 
     const existing = deduped.get(key)
@@ -178,6 +170,15 @@ export function resolveServerList(input: {
   return [...deduped.values()]
 }
 
+function storedServerConnection(value: StoredServer): ServerConnection.Http {
+  if (typeof value === "string") return { type: "http", http: { url: value } }
+  return "http" in value ? value : { type: "http", http: value }
+}
+
+export function storedServerKey(value: StoredServer): ServerConnection.Key {
+  return ServerConnection.key(storedServerConnection(value))
+}
+
 export namespace ServerConnection {
   type Base = { displayName?: string; label?: string }
 
@@ -186,6 +187,8 @@ export namespace ServerConnection {
     username?: string
     password?: string
     token?: string
+    /** Stable client-side identity when several connections share one relay URL. */
+    deviceId?: string
   }
 
   // Regular web connections
@@ -225,7 +228,11 @@ export namespace ServerConnection {
   export const key = (conn: Any): Key => {
     switch (conn.type) {
       case "http":
-        return Key.make(conn.http.url)
+        return Key.make(
+          conn.http.deviceId
+            ? `${conn.http.url}#device=${encodeURIComponent(conn.http.deviceId)}`
+            : conn.http.url,
+        )
       case "sidecar": {
         if (conn.variant === "wsl") return Key.make(`wsl:${conn.distro}`)
         return Key.make("sidecar")
@@ -274,8 +281,6 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
       }),
     )
 
-    const url = (x: StoredServer) => (typeof x === "string" ? x : "type" in x ? x.http.url : x.url)
-
     const allServers = createMemo((): Array<ServerConnection.Any> => {
       return resolveServerList({ stored: store.list, props: props.servers })
     })
@@ -292,8 +297,9 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
       const url_ = normalizeServerUrl(input.http.url)
       if (!url_) return
       const conn: ServerConnection.Http = { ...input, authToken: undefined, http: { ...input.http, url: url_ } }
+      const key = ServerConnection.key(conn)
       return batch(() => {
-        const existing = store.list.findIndex((x) => url(x) === url_)
+        const existing = store.list.findIndex((x) => storedServerKey(x) === key)
         if (existing !== -1) {
           setStore("list", existing, conn)
         } else {
@@ -306,7 +312,7 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
 
     function remove(key: ServerConnection.Key) {
       const next = nextServerAfterRemoval(allServers(), key, props.defaultServer)
-      const list = store.list.filter((x) => url(x) !== key)
+      const list = store.list.filter((x) => storedServerKey(x) !== key)
       batch(() => {
         setStore("list", list)
         if (state.active === key) setState("active", next)

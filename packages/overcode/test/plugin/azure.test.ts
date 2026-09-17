@@ -3,12 +3,12 @@ import { chmod } from "node:fs/promises"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
 import { tmpdir } from "../fixture/fixture"
-import type { Hooks } from "@opencode-ai/plugin"
-import type { Auth, Provider } from "@opencode-ai/sdk/v2"
+import type { Hooks } from "@overcode-ai/plugin"
+import type { Auth, Provider } from "@overcode-ai/sdk/v2"
 import { OAUTH_DUMMY_KEY } from "../../src/auth"
 import { AzureAuthPlugin, createAzureAuthHooks } from "../../src/plugin/azure"
 import { Process } from "../../src/util/process"
-import { which } from "@opencode-ai/core/util/which"
+import { which } from "@overcode-ai/core/util/which"
 
 const resourceName = process.env.AZURE_RESOURCE_NAME
 const originalPath = process.env.PATH

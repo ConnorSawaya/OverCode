@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test"
 import { createStore } from "solid-js/store"
 import { QueryClient } from "@tanstack/solid-query"
-import type { Config, OpencodeClient, Project } from "@opencode-ai/sdk/v2/client"
-import type { AgentApi, CatalogApi, CommandApi, ReferenceApi } from "@opencode-ai/client/promise"
-import type { NormalizedProviderListResponse } from "@opencode-ai/session-ui/context"
+import type { Config, OpencodeClient, Project } from "@overcode-ai/sdk/v2/client"
+import type { AgentApi, CatalogApi, CommandApi, ReferenceApi } from "@overcode-ai/client/promise"
+import type { NormalizedProviderListResponse } from "@overcode-ai/session-ui/context"
 import {
   bootstrapDirectory,
   loadAgentsQuery,
@@ -12,6 +12,7 @@ import {
   loadPathQuery,
   loadProjectsQuery,
   loadProvidersQuery,
+  PROVIDER_CATALOG_STALE_TIME_MS,
   loadReferencesQuery,
 } from "./bootstrap"
 import type { State, VcsCache } from "./types"
@@ -159,6 +160,7 @@ describe("bootstrapDirectory", () => {
         provider,
       },
       sdk: {
+        v2: { agent: { list: async () => ({ data: { location: {}, data: [] } }) } },
         config: {
           get: async () => {
             throw new Error("legacy directory config should not be called")
@@ -267,6 +269,63 @@ describe("query keys", () => {
     expect(result.connected).toEqual(["openai"])
   })
 
+  test("caches the large provider catalog until an explicit refresh", async () => {
+    let calls = 0
+    const api = {
+      provider: { list: async () => ({ location: {}, data: [{ id: "openai", name: "OpenAI" }] }) },
+      model: { list: async () => ({ location: {}, data: [] }), default: async () => ({ location: {}, data: null }) },
+    } as unknown as CatalogApi
+    const client = new QueryClient()
+    const query = loadProvidersQuery(ServerScope.local, "/repo", api)
+    const provider = api.provider.list
+    api.provider.list = async (...args) => {
+      calls += 1
+      return provider(...args)
+    }
+
+    await client.fetchQuery(query)
+    await client.fetchQuery(query)
+    expect(calls).toBe(1)
+    expect(query.staleTime).toBe(PROVIDER_CATALOG_STALE_TIME_MS)
+
+    await client.refetchQueries({ queryKey: query.queryKey })
+    expect(calls).toBe(2)
+  })
+
+  test("loads the consolidated provider catalog from the current v2 endpoint", async () => {
+    const calls: unknown[] = []
+    const current = {
+      v2: {
+        provider: {
+          list: async (input: unknown) => {
+            calls.push(["provider", input])
+            return { data: { location: {}, data: [] } }
+          },
+        },
+        model: {
+          list: async (input: unknown) => {
+            calls.push(["model", input])
+            return { data: { location: {}, data: [] } }
+          },
+        },
+      },
+    } as unknown as OpencodeClient
+    const legacy = {
+      provider: { list: async () => { throw new Error("legacy provider endpoint should not be called") } },
+      model: {
+        list: async () => { throw new Error("legacy model endpoint should not be called") },
+        default: async () => { throw new Error("legacy default endpoint should not be called") },
+      },
+    } as unknown as CatalogApi
+
+    const result = await new QueryClient().fetchQuery(
+      loadProvidersQuery(ServerScope.local, null, legacy, current, Promise.resolve("v2")),
+    )
+
+    expect(calls).toEqual([["provider", undefined], ["model", undefined]])
+    expect(result.connected).toEqual([])
+  })
+
   test("loads agents from the current location-scoped endpoint", async () => {
     const calls: unknown[] = []
     const api = {
@@ -280,6 +339,34 @@ describe("query keys", () => {
 
     expect(calls).toEqual([{ location: { directory: "/repo" } }])
     expect(result).toEqual([])
+  })
+
+  test("loads agents from the v2 location-scoped endpoint", async () => {
+    const calls: unknown[] = []
+    const current = {
+      v2: {
+        agent: {
+          list: async (input: unknown) => {
+            calls.push(input)
+            return {
+              data: {
+                location: { directory: "/repo" },
+                data: [{ id: "build", mode: "primary", hidden: false, permissions: [], request: { headers: {}, body: {} } }],
+              },
+            }
+          },
+        },
+      },
+    } as unknown as OpencodeClient
+
+    const result = await new QueryClient().fetchQuery(
+      loadAgentsQuery(ServerScope.local, "/repo", api.agent, current, Promise.resolve("v2")),
+    )
+
+    expect(calls).toEqual([{ location: { directory: "/repo" } }])
+    expect(result).toEqual([
+      expect.objectContaining({ name: "build", mode: "primary", temperature: undefined, topP: undefined }),
+    ])
   })
 
   test("loads commands from the current location-scoped endpoint", async () => {
@@ -311,6 +398,30 @@ describe("query keys", () => {
     const result = await new QueryClient().fetchQuery(loadProjectsQuery(ServerScope.local, api))
 
     expect(result.map((project) => project.id)).toEqual(["a", "b"])
+  })
+
+  test("loads projects from the current v2 endpoint", async () => {
+    const calls: unknown[] = []
+    const legacy = {
+      list: async () => { throw new Error("legacy project endpoint should not be called") },
+      current: async () => { throw new Error("legacy project current endpoint should not be called") },
+    } as unknown as ProjectApi
+    const current = {
+      list: async (input: unknown) => {
+        calls.push(input)
+        return {
+          data: [{ id: "v2", worktree: "/v2", time: { created: 1, updated: 1 }, sandboxes: [] }],
+        }
+      },
+      current: async () => ({ data: { id: "v2", worktree: "/v2" } }),
+    } as unknown as OpencodeClient["project"]
+
+    const result = await new QueryClient().fetchQuery(
+      loadProjectsQuery(ServerScope.local, legacy, current, Promise.resolve("v2")),
+    )
+
+    expect(calls).toEqual([undefined])
+    expect(result.map((project) => project.id)).toEqual(["v2"])
   })
 
   test("loads references from the current location-scoped endpoint", async () => {

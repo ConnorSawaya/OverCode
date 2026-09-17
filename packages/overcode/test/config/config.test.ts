@@ -1,23 +1,23 @@
 import { test, expect, describe, afterEach, beforeEach, spyOn } from "bun:test"
-import { ConfigV1 } from "@opencode-ai/core/v1/config/config"
-import { LayerNode } from "@opencode-ai/core/effect/layer-node"
-import { httpClient } from "@opencode-ai/core/effect/app-node-platform"
+import { ConfigV1 } from "@overcode-ai/core/v1/config/config"
+import { LayerNode } from "@overcode-ai/core/effect/layer-node"
+import { httpClient } from "@overcode-ai/core/effect/app-node-platform"
 import { Cause, Effect, Exit, Layer, Logger, Option } from "effect"
-import { NamedError } from "@opencode-ai/core/util/error"
+import { NamedError } from "@overcode-ai/core/util/error"
 import { FetchHttpClient, HttpClient, HttpClientResponse } from "effect/unstable/http"
 import { Config } from "@/config/config"
 import { ConfigManaged } from "@/config/managed"
 import { ConfigParse } from "../../src/config/parse"
 import { ConfigV2Compat } from "../../src/config/v2-compat"
 import { snapshot } from "./snapshot"
-import { Npm } from "@opencode-ai/core/npm"
+import { Npm } from "@overcode-ai/core/npm"
 
 import { InstanceRef } from "../../src/effect/instance-ref"
 import type { InstanceContext } from "../../src/project/instance-context"
 import { Auth } from "../../src/auth"
 import { Account } from "../../src/account/account"
 import { AccessToken, AccountID, OrgID } from "../../src/account/schema"
-import { FSUtil } from "@opencode-ai/core/fs-util"
+import { FSUtil } from "@overcode-ai/core/fs-util"
 import { Env } from "../../src/env"
 import {
   provideTmpdirInstance,
@@ -29,17 +29,17 @@ import {
   testInstanceStoreLayer,
 } from "../fixture/fixture"
 import { InstanceRuntime } from "@/project/instance-runtime"
-import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
+import { CrossSpawnSpawner } from "@overcode-ai/core/cross-spawn-spawner"
 import { testEffect } from "../lib/effect"
 import path from "path"
 import fs from "fs/promises"
 import os from "os"
 import { pathToFileURL } from "url"
-import { Global } from "@opencode-ai/core/global"
-import { ProjectV2 } from "@opencode-ai/core/project"
+import { Global } from "@overcode-ai/core/global"
+import { ProjectV2 } from "@overcode-ai/core/project"
 import { Filesystem } from "@/util/filesystem"
 import { ConfigPlugin } from "@/config/plugin"
-import { ConfigPluginV1 } from "@opencode-ai/core/v1/config/plugin"
+import { ConfigPluginV1 } from "@overcode-ai/core/v1/config/plugin"
 import { AccountTest } from "../fake/account"
 import { AuthTest } from "../fake/auth"
 import { NpmTest } from "../fake/npm"
@@ -190,6 +190,16 @@ const withGlobalConfig = <A, E, R>(
     const dir = yield* tmpdirScoped()
     if (input.config) yield* writeConfigEffect(dir, schemaConfig(input.config), input.name)
     return yield* withGlobalConfigDir(dir, fn({ dir }))
+  })
+
+const withOpenCodeGlobal = <A, E, R>(
+  fn: (input: { legacy: string; overcode: string }) => Effect.Effect<A, E, R>,
+) =>
+  Effect.gen(function* () {
+    const root = yield* tmpdirScoped()
+    const legacy = path.join(root, "opencode")
+    const overcode = path.join(root, "overcode")
+    return yield* withGlobalConfigDir(overcode, fn({ legacy, overcode }))
   })
 
 const withConfigTree = <A, E, R>(
@@ -674,6 +684,184 @@ it.instance("jsonc overrides json in the same directory", () =>
     expect(config.model).toBe("base")
     expect(config.username).toBe("base")
   }),
+)
+
+it.instance("imports OpenCode global config without rewriting it", () =>
+  withProcessEnvs(
+    { IMPORT_MODEL: "legacy/model", IMPORT_KEY: "legacy-key" },
+    withOpenCodeGlobal(({ legacy }) =>
+      Effect.gen(function* () {
+        const source = JSON.stringify({
+          model: "{env:IMPORT_MODEL}",
+          username: "{file:username.txt}",
+          provider: {
+            imported: {
+              name: "Imported Provider",
+              npm: "@ai-sdk/openai-compatible",
+              options: {
+                apiKey: "{env:IMPORT_KEY}",
+                baseURL: "https://legacy.example.test/v1",
+              },
+              models: {
+                imported: { name: "Imported Model" },
+              },
+            },
+          },
+        })
+        yield* FSUtil.use.writeWithDirs(path.join(legacy, "username.txt"), "legacy-user")
+        yield* FSUtil.use.writeWithDirs(path.join(legacy, "opencode.json"), source)
+
+        const config = yield* Config.use.get()
+
+        expect(config.model).toBe("legacy/model")
+        expect(config.username).toBe("legacy-user")
+        expect(config.provider?.imported?.options?.apiKey).toBe("legacy-key")
+        expect(config.provider?.imported?.models?.imported?.name).toBe("Imported Model")
+        expect(yield* FSUtil.use.readFileString(path.join(legacy, "opencode.json"))).toBe(source)
+      }),
+    ),
+  ),
+)
+
+it.instance("gives Overcode global config precedence over imported OpenCode config", () =>
+  withProcessEnvs(
+    { IMPORT_KEY: "legacy-key" },
+    withOpenCodeGlobal(({ legacy, overcode }) =>
+      Effect.gen(function* () {
+        yield* writeConfigEffect(legacy, {
+          model: "legacy/model",
+          provider: {
+            imported: {
+              name: "Legacy Provider",
+              options: { apiKey: "{env:IMPORT_KEY}", baseURL: "https://legacy.example.test/v1" },
+              models: { legacy: { name: "Legacy Model" } },
+            },
+          },
+        }, "opencode.json")
+        yield* writeConfigEffect(overcode, {
+          model: "overcode/model",
+          provider: {
+            imported: {
+              name: "Overcode Provider",
+              options: { baseURL: "https://overcode.example.test/v1" },
+              models: { overcode: { name: "Overcode Model" } },
+            },
+          },
+        })
+
+        const config = yield* Config.use.get()
+        const provider = config.provider?.imported
+
+        expect(config.model).toBe("overcode/model")
+        expect(provider?.name).toBe("Overcode Provider")
+        expect(provider?.options?.baseURL).toBe("https://overcode.example.test/v1")
+        expect(provider?.options?.apiKey).toBe("legacy-key")
+        expect(provider?.models?.legacy?.name).toBe("Legacy Model")
+        expect(provider?.models?.overcode?.name).toBe("Overcode Model")
+      }),
+    ),
+  ),
+)
+
+it.instance("ignores an invalid imported OpenCode file when Overcode config is valid", () =>
+  withOpenCodeGlobal(({ legacy, overcode }) =>
+    Effect.gen(function* () {
+      yield* FSUtil.use.writeWithDirs(path.join(legacy, "opencode.json"), "{ invalid")
+      yield* writeConfigEffect(overcode, { model: "overcode/model" })
+
+      expect((yield* Config.use.get()).model).toBe("overcode/model")
+    }),
+  ),
+)
+
+it.instance("imports MCP servers, agents, and misc settings from OpenCode config", () =>
+  withProcessEnvs(
+    { IMPORT_MCP_KEY: "mcp-secret" },
+    withOpenCodeGlobal(({ legacy }) =>
+      Effect.gen(function* () {
+        const source = JSON.stringify({
+          snapshot: false,
+          disabled_providers: ["legacy-disabled"],
+          agent: {
+            legacy_agent: { model: "legacy/model", description: "legacy agent" },
+          },
+          mcp: {
+            legacy_local: {
+              type: "local",
+              command: ["legacy-mcp"],
+              environment: { LEGACY_MCP_KEY: "{env:IMPORT_MCP_KEY}" },
+            },
+            legacy_remote: { type: "remote", url: "https://legacy-mcp.example.test" },
+          },
+        })
+        yield* FSUtil.use.writeWithDirs(path.join(legacy, "opencode.json"), source)
+
+        const config = yield* Config.use.get()
+
+        expect(config.snapshot).toBe(false)
+        expect(config.disabled_providers).toEqual(["legacy-disabled"])
+        expect(config.agent?.["legacy_agent"]).toEqual(
+          expect.objectContaining({ model: "legacy/model", description: "legacy agent" }),
+        )
+        expect(config.mcp?.["legacy_local"]).toMatchObject({
+          type: "local",
+          command: ["legacy-mcp"],
+          environment: { LEGACY_MCP_KEY: "mcp-secret" },
+        })
+        expect(config.mcp?.["legacy_remote"]).toMatchObject({
+          type: "remote",
+          url: "https://legacy-mcp.example.test",
+        })
+        expect(yield* FSUtil.use.readFileString(path.join(legacy, "opencode.json"))).toBe(source)
+      }),
+    ),
+  ),
+)
+
+it.instance("gives Overcode MCP entries precedence while merging imported ones", () =>
+  withOpenCodeGlobal(({ legacy, overcode }) =>
+    Effect.gen(function* () {
+      yield* writeConfigEffect(
+        legacy,
+        {
+          mcp: {
+            shared: { type: "remote", url: "https://legacy.example.test" },
+            legacy_only: { type: "remote", url: "https://legacy-only.example.test" },
+          },
+        },
+        "opencode.json",
+      )
+      yield* writeConfigEffect(overcode, {
+        mcp: {
+          shared: { type: "remote", url: "https://overcode.example.test" },
+        },
+      })
+
+      const config = yield* Config.use.get()
+
+      expect(config.mcp?.["shared"]).toMatchObject({ url: "https://overcode.example.test" })
+      expect(config.mcp?.["legacy_only"]).toMatchObject({ url: "https://legacy-only.example.test" })
+    }),
+  ),
+)
+
+it.instance("resolves imported plugin paths against the OpenCode directory", () =>
+  withOpenCodeGlobal(({ legacy }) =>
+    Effect.gen(function* () {
+      yield* FSUtil.use.writeWithDirs(path.join(legacy, "plugins", "demo.js"), "export default {}")
+      yield* writeConfigEffect(legacy, { plugin: ["./plugins/demo.js"] }, "opencode.json")
+
+      const config = yield* Config.use.get()
+      const specs = (config.plugin ?? []).map((spec) => (Array.isArray(spec) ? spec[0] : spec))
+
+      expect(specs.some((spec) => typeof spec === "string" && spec.includes("opencode"))).toBe(true)
+      expect(
+        specs.some(
+          (spec) => typeof spec === "string" && spec.includes("plugins/demo.js") && !spec.startsWith("./"),
+        ),
+      ).toBe(true)
+    }),
+  ),
 )
 
 it.instance("handles environment variable substitution", () =>

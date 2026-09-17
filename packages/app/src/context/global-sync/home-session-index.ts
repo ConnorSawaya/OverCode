@@ -1,9 +1,11 @@
-import type { Event, Session, SessionV2Info, V2SessionListResponse } from "@opencode-ai/sdk/v2/client"
+import type { Event, Session, SessionV2Info, V2SessionListResponse } from "@overcode-ai/sdk/v2/client"
 import type { QueryClient } from "@tanstack/solid-query"
 import { trimSessions } from "./session-trim"
 import { pathKey } from "@/utils/path-key"
 
-export const HOME_V2_SESSION_PAGE_LIMIT = 5_000
+// Keep the first home request small enough for mobile/relay connections. Older
+// summaries are fetched page-by-page after the first page has been published.
+export const HOME_V2_SESSION_PAGE_LIMIT = 100
 
 export type HomeSessionEvent = {
   type: "session.created" | "session.updated" | "session.deleted"
@@ -30,6 +32,7 @@ export async function loadHomeSessionIndex(
   ) => Promise<HomeSessionPage>,
   eventSequence = 0,
   signal?: AbortSignal,
+  onFirstPage?: (index: HomeSessionIndex) => void,
 ) {
   const data: SessionV2Info[] = []
   let cursor: string | undefined
@@ -43,8 +46,10 @@ export async function loadHomeSessionIndex(
       },
       { signal },
     )
-    const page = response.data!
+    const page = response.data
+    if (!page) throw new Error("Invalid session index response")
     data.push(...page.data)
+    if (!cursor) onFirstPage?.({ sessions: parseHomeSessionIndex(page.data), eventSequence })
     if (page.data.length < HOME_V2_SESSION_PAGE_LIMIT || !page.cursor.next)
       return { sessions: parseHomeSessionIndex(data), eventSequence }
     cursor = page.cursor.next

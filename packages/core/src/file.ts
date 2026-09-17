@@ -1,6 +1,6 @@
 export * as File from "./file"
 
-import { Revert } from "@opencode-ai/schema/revert"
+import { Revert } from "@overcode-ai/schema/revert"
 
 /**
  * Marker MIME used for local files that should be inspected by the agent's

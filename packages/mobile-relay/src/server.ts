@@ -5,6 +5,7 @@ import {
   encodeBytes,
   encodeFrame,
   RELAY_PROTOCOL_VERSION,
+  RELAY_STALE_DEVICE_HEADER,
   RELAY_TOKEN_HEADER,
   type RelayDevice,
   type RelayFrame,
@@ -20,6 +21,10 @@ const MAX_CHANNELS = 1_000
 const MAX_PAIRING_ATTEMPTS = 8
 const PAIRING_WINDOW_MS = 60_000
 const PAIRING_TTL_MS = 5 * 60_000
+const PAIRING_CLOCK_SKEW_MS = 5_000
+const WEBSOCKET_IDLE_TIMEOUT_SECONDS = boundedInteger(process.env.RELAY_WEBSOCKET_IDLE_TIMEOUT_SECONDS, 30, 1, 255)
+const WEBSOCKET_HEARTBEAT_TIMEOUT_MS = WEBSOCKET_IDLE_TIMEOUT_SECONDS * 1_000
+const WEBSOCKET_HEARTBEAT_INTERVAL_MS = Math.max(100, Math.floor(WEBSOCKET_HEARTBEAT_TIMEOUT_MS / 3))
 const metrics = {
   httpActive: 0,
   httpRequests: 0,
@@ -67,6 +72,7 @@ type SocketData = {
   channelToken: string
   id?: string
   deviceId?: string
+  lastHeartbeatAt?: number
 }
 
 const channels = new Map<string, Channel>()
@@ -80,7 +86,8 @@ const server = Bun.serve<SocketData>({
   fetch(request, server) {
     const url = new URL(request.url)
     if (url.pathname === "/health") return new Response("ok")
-    if (url.pathname === "/metrics") return new Response(renderMetrics(), { headers: { "content-type": "text/plain; version=0.0.4" } })
+    if (url.pathname === "/metrics")
+      return new Response(renderMetrics(), { headers: { "content-type": "text/plain; version=0.0.4" } })
     if (request.method === "OPTIONS") return cors(new Response(null, { status: 204 }), request)
 
     if (isWebSocketRequest(request)) {
@@ -89,8 +96,12 @@ const server = Bun.serve<SocketData>({
 
       const role = url.pathname === "/connector" ? "connector" : "client"
       const resolved = role === "connector" ? resolveConnector(token) : resolveAccessToken(token)
+      if (!resolved && role === "client") return staleDeviceResponse(request)
       const channel = resolved?.channel
-      if (!channel) return new Response(role === "connector" ? "Too many active channels" : "PC connector is offline", { status: 503 })
+      if (!channel)
+        return new Response(role === "connector" ? "Too many active channels" : "PC connector is offline", {
+          status: 503,
+        })
 
       const id = role === "client" ? crypto.randomUUID() : undefined
       const path = role === "client" ? upstreamWebSocketPath(url) : undefined
@@ -115,18 +126,31 @@ const server = Bun.serve<SocketData>({
       return undefined
     }
 
+    if (url.pathname === "/presence") return handlePresence(request)
     if (url.pathname === "/pair") return handlePair(request).then((response) => cors(response, request))
-    if (url.pathname === "/pairing") return handlePairingRegistration(request).then((response) => cors(response, request))
+    if (url.pathname === "/pairing")
+      return handlePairingRegistration(request).then((response) => cors(response, request))
     if (url.pathname === "/revoke" && request.method === "POST") return cors(handleChannelRevoke(request), request)
     if (url.pathname === "/devices" && request.method === "GET") return cors(handleDevices(request), request)
-    if (url.pathname === "/devices/register" && request.method === "POST") return handleDeviceRegister(request).then((response) => cors(response, request))
-    if (url.pathname.startsWith("/devices/") && request.method === "DELETE") return cors(handleDeviceRevoke(request), request)
+    if (url.pathname === "/devices/register" && request.method === "POST")
+      return handleDeviceRegister(request).then((response) => cors(response, request))
+    if (url.pathname.startsWith("/devices/") && request.method === "DELETE")
+      return cors(handleDeviceRevoke(request), request)
     return handleHttp(request)
   },
   websocket: {
+    // Keep live desktop/mobile connections alive with protocol pings, while
+    // bounding how long a half-open connector can retain its channel.
+    idleTimeout: WEBSOCKET_IDLE_TIMEOUT_SECONDS,
+    // The application heartbeat below is deliberately used instead of Bun's
+    // automatic control pings. Some managed WebSocket edges do not preserve
+    // control-ping/pong traffic consistently, even while application frames
+    // continue to flow.
+    sendPings: false,
     open(socket) {
       const channel = channels.get(socket.data.channelToken)
       if (!channel) return socket.close(4404, "channel not found")
+      socket.data.lastHeartbeatAt = Date.now()
       if (socket.data.role === "connector") {
         if (channel.connector && channel.connector !== socket) channel.connector.close(4009, "replaced")
         channel.connector = socket
@@ -141,15 +165,20 @@ const server = Bun.serve<SocketData>({
       if (!channel) return socket.close(4404, "channel not found")
       if (byteLength(data) > MAX_FRAME_BYTES) return socket.close(1009, "frame too large")
 
-      const frame = decodeFrame(data)
-      if (!frame) return socket.close(4400, "invalid frame")
       if (socket.data.role === "connector") {
+        const frame = decodeFrame(data)
+        if (!frame) return socket.close(4400, "invalid frame")
         handleConnectorFrame(channel, frame)
         return
       }
       if (socket.data.id && channel.connector) {
-        if (frame.type === "ws.data") send(channel.connector, { ...frame, id: socket.data.id })
-        if (frame.type === "ws.close") send(channel.connector, { ...frame, id: socket.data.id })
+        const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data
+        send(channel.connector, {
+          type: "ws.data",
+          id: socket.data.id,
+          data: encodeBytes(bytes),
+          binary: typeof data !== "string",
+        })
       }
     },
     close(socket) {
@@ -157,14 +186,7 @@ const server = Bun.serve<SocketData>({
       if (!channel) return
       if (socket.data.role === "connector") {
         if (channel.connector !== socket) return
-        channel.connector = undefined
-        channel.pending.forEach((pending) => {
-          pending.controller?.error(new Error("PC connector disconnected"))
-          pending.reject(new Error("PC connector disconnected"))
-        })
-        channel.pending.clear()
-        channel.sockets.forEach((client) => client.close(1011, "PC connector disconnected"))
-        channel.sockets.clear()
+        disconnectConnector(channel, socket)
       } else if (socket.data.id) {
         channel.sockets.delete(socket.data.id)
         if (channel.connector) send(channel.connector, { type: "ws.close", id: socket.data.id, code: 1000 })
@@ -176,12 +198,27 @@ const server = Bun.serve<SocketData>({
 
 console.log(`overcode-relay listening on ${server.hostname}:${server.port}`)
 
+setInterval(() => {
+  const now = Date.now()
+  for (const channel of channels.values()) {
+    const connector = channel.connector
+    if (!connector) continue
+    if (now - (connector.data.lastHeartbeatAt ?? 0) > WEBSOCKET_HEARTBEAT_TIMEOUT_MS) {
+      disconnectConnector(channel, connector)
+      connector.terminate()
+      continue
+    }
+    send(connector, { type: "connector.ping" })
+  }
+}, WEBSOCKET_HEARTBEAT_INTERVAL_MS)
+
 async function handleHttp(request: Request) {
   if (request.method === "OPTIONS") return cors(new Response(null, { status: 204 }), request)
 
   const token = request.headers.get(RELAY_TOKEN_HEADER)
   if (!isRelayToken(token)) return cors(new Response("Unauthorized", { status: 401 }), request)
   const resolved = resolveAccessToken(token)
+  if (!resolved) return staleDeviceResponse(request)
   const channel = resolved?.channel
   if (!channel?.connector) return cors(new Response("PC connector is offline", { status: 503 }), request)
   if (resolved?.device) resolved.device.lastSeen = new Date().toISOString()
@@ -195,7 +232,8 @@ async function handleHttp(request: Request) {
   const id = crypto.randomUUID()
   try {
     const body = request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer()
-    if (body && body.byteLength > MAX_BODY_BYTES) return cors(new Response("Request body too large", { status: 413 }), request)
+    if (body && body.byteLength > MAX_BODY_BYTES)
+      return cors(new Response("Request body too large", { status: 413 }), request)
 
     const response = await new Promise<Response>((resolve, reject) => {
       const pending: PendingHttp = {
@@ -233,19 +271,24 @@ async function handleHttp(request: Request) {
 }
 
 function handleConnectorFrame(channel: Channel, frame: RelayFrame) {
+  if (frame.type === "connector.pong") {
+    if (channel.connector) channel.connector.data.lastHeartbeatAt = Date.now()
+    return
+  }
   if (frame.type === "connector.revoke") {
     revokeChannel(channel)
     return
   }
   if (frame.type === "connector.hello") {
-    if (channel.connector) send(channel.connector, { type: "connector.ready", version: RELAY_PROTOCOL_VERSION })
     return
   }
   if (frame.type === "http.response") {
     const pending = channel.pending.get(frame.id)
     if (!pending || pending.responseStarted) return
     pending.responseStarted = true
-    pending.resolve(new Response(pendingStream(pending), { status: frame.status, headers: frame.headers }))
+    const responseHeaders = new Headers(frame.headers)
+    responseHeaders.delete(RELAY_STALE_DEVICE_HEADER)
+    pending.resolve(new Response(pendingStream(pending), { status: frame.status, headers: responseHeaders }))
     return
   }
   if (frame.type === "http.chunk") {
@@ -267,7 +310,8 @@ function handleConnectorFrame(channel: Channel, frame: RelayFrame) {
       return
     }
     if (pending.controller) pending.controller.close()
-    else if (!pending.responseStarted) pending.reject(new Error("Connector ended the request before sending a response"))
+    else if (!pending.responseStarted)
+      pending.reject(new Error("Connector ended the request before sending a response"))
     return
   }
   if (frame.type === "ws.accept") return
@@ -280,7 +324,10 @@ function handleConnectorFrame(channel: Channel, frame: RelayFrame) {
   if (frame.type === "ws.close" || frame.type === "ws.error") {
     const socket = channel.sockets.get(frame.id)
     if (!socket) return
-    socket.close(frame.type === "ws.close" ? frame.code : 1011, frame.type === "ws.close" ? frame.reason : frame.message)
+    socket.close(
+      frame.type === "ws.close" ? frame.code : 1011,
+      frame.type === "ws.close" ? frame.reason : frame.message,
+    )
     channel.sockets.delete(frame.id)
   }
 }
@@ -362,7 +409,9 @@ async function handlePair(request: Request) {
   const input = body.value
   const code = input?.code ? normalizePairingCode(input.code) : ""
   const match = isPairingCode(code)
-    ? [...channels.values()].find((channel) => channel.pairing?.code === code && !channel.pairing.consumed && channel.pairing.expiresAt > now)
+    ? [...channels.values()].find(
+        (channel) => channel.pairing?.code === code && !channel.pairing.consumed && channel.pairing.expiresAt > now,
+      )
     : undefined
   if (!match || !match.connector || !match.pairing) return new Response("Pairing unavailable", { status: 401 })
 
@@ -380,6 +429,15 @@ async function handlePair(request: Request) {
   return json({ token: device.token, deviceId: device.id })
 }
 
+function handlePresence(request: Request) {
+  if (request.method !== "POST") return cors(new Response("Method not allowed", { status: 405 }), request)
+  const token = request.headers.get(RELAY_TOKEN_HEADER)
+  const resolved = isRelayToken(token) ? resolveAccessToken(token) : undefined
+  if (!resolved?.device) return staleDeviceResponse(request)
+  resolved.device.lastSeen = new Date().toISOString()
+  return cors(new Response(null, { status: 204 }), request)
+}
+
 async function handlePairingRegistration(request: Request) {
   if (request.method !== "POST") return new Response("Method not allowed", { status: 405 })
   const body = await readJsonBody<{ code?: string; expiresAt?: number }>(request, 16 * 1024)
@@ -391,7 +449,10 @@ async function handlePairingRegistration(request: Request) {
   const input = body.value
   const code = input?.code ? normalizePairingCode(input.code) : ""
   const expiresAt = typeof input?.expiresAt === "number" ? input.expiresAt : 0
-  if (!isPairingCode(code) || expiresAt <= Date.now() || expiresAt > Date.now() + PAIRING_TTL_MS) return new Response("Invalid pairing", { status: 400 })
+  const now = Date.now()
+  if (!isPairingCode(code) || expiresAt <= now || expiresAt > now + PAIRING_TTL_MS + PAIRING_CLOCK_SKEW_MS) {
+    return new Response("Invalid pairing", { status: 400 })
+  }
   channel.pairing = { code, expiresAt, consumed: false }
   return json({ ok: true })
 }
@@ -408,9 +469,11 @@ async function handleDeviceRegister(request: Request) {
   const body = await readJsonBody<{ devices?: RelayDevice[] }>(request, 1 * 1024 * 1024)
   if (body.tooLarge) return new Response("Request body too large", { status: 413 })
   const input = body.value
-  if (!Array.isArray(input?.devices) || input.devices.length > 1_000) return new Response("Invalid devices", { status: 400 })
+  if (!Array.isArray(input?.devices) || input.devices.length > 1_000)
+    return new Response("Invalid devices", { status: 400 })
   for (const device of input.devices) {
-    if (!device || typeof device.id !== "string" || typeof device.token !== "string" || !isRelayToken(device.token)) continue
+    if (!device || typeof device.id !== "string" || typeof device.token !== "string" || !isRelayToken(device.token))
+      continue
     const next: Device = {
       id: device.id.slice(0, 120),
       token: device.token,
@@ -448,7 +511,13 @@ function authorizeConnector(request: Request) {
 }
 
 function cleanDeviceName(value: string | undefined) {
-  const name = typeof value === "string" ? value.trim().replace(/[\r\n\t]+/g, " ").slice(0, 80) : "Overcode Mobile"
+  const name =
+    typeof value === "string"
+      ? value
+          .trim()
+          .replace(/[\r\n\t]+/g, " ")
+          .slice(0, 80)
+      : "Overcode Mobile"
   return name || "Overcode Mobile"
 }
 
@@ -465,13 +534,35 @@ async function readJsonBody<T>(request: Request, maxBytes: number): Promise<{ va
 }
 
 function json(value: unknown, init?: ResponseInit) {
-  return new Response(JSON.stringify(value), { ...init, headers: { "content-type": "application/json", ...(init?.headers ?? {}) } })
+  return new Response(JSON.stringify(value), {
+    ...init,
+    headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
+  })
+}
+
+function boundedInteger(value: string | undefined, fallback: number, minimum: number, maximum: number) {
+  const parsed = Number.parseInt(value ?? "", 10)
+  if (!Number.isInteger(parsed)) return fallback
+  return Math.min(maximum, Math.max(minimum, parsed))
 }
 
 function maybeDeleteChannel(channel: Channel) {
   if (channel.connector || channel.pending.size > 0 || channel.sockets.size > 0) return
   channel.devices.forEach((device) => deviceTokens.delete(device.token))
   channels.delete(channel.token)
+}
+
+function disconnectConnector(channel: Channel, connector: ConnectorSocket) {
+  if (channel.connector !== connector) return
+  channel.connector = undefined
+  channel.pending.forEach((pending) => {
+    pending.controller?.error(new Error("PC connector disconnected"))
+    pending.reject(new Error("PC connector disconnected"))
+  })
+  channel.pending.clear()
+  channel.sockets.forEach((client) => client.close(1011, "PC connector disconnected"))
+  channel.sockets.clear()
+  maybeDeleteChannel(channel)
 }
 
 function closeClient(channel: Channel | undefined, id: string, code: number, reason: string) {
@@ -509,11 +600,25 @@ function headersFromRequest(request: Request, deviceId?: string): RelayHeaders {
   return headers
 }
 
+function staleDeviceResponse(request: Request) {
+  return cors(
+    new Response("Unauthorized", {
+      status: 401,
+      headers: { [RELAY_STALE_DEVICE_HEADER]: "1" },
+    }),
+    request,
+  )
+}
+
 function cors(response: Response, request: Request) {
   const headers = new Headers(response.headers)
   headers.set("access-control-allow-origin", request.headers.get("origin") ?? "*")
-  headers.set("access-control-allow-headers", "authorization, content-type, x-overcode-directory, x-overcode-channel-token")
+  headers.set(
+    "access-control-allow-headers",
+    "authorization, content-type, x-overcode-directory, x-overcode-channel-token",
+  )
   headers.set("access-control-allow-methods", "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS")
+  headers.set("access-control-expose-headers", RELAY_STALE_DEVICE_HEADER)
   headers.set("access-control-max-age", "86400")
   return new Response(response.body, { status: response.status, headers })
 }

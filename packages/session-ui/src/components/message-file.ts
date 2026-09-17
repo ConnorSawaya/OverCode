@@ -1,7 +1,7 @@
 import { bundledLanguagesInfo } from "shiki"
-import { LOCAL_FILE_REFERENCE_MIME } from "@opencode-ai/core/file"
-import { getFilename } from "@opencode-ai/core/util/path"
-import type { FilePart } from "@opencode-ai/sdk/v2"
+import { LOCAL_FILE_REFERENCE_MIME } from "@overcode-ai/core/file"
+import { getFilename } from "@overcode-ai/core/util/path"
+import type { FilePart } from "@overcode-ai/sdk/v2"
 
 export function attached(part: FilePart) {
   return part.mime === LOCAL_FILE_REFERENCE_MIME || (part.url.startsWith("data:") && !inline(part))

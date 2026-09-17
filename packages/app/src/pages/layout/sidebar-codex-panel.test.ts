@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { type Session } from "@opencode-ai/sdk/v2/client"
+import { type Session } from "@overcode-ai/sdk/v2/client"
 import { type LocalProject } from "@/context/layout"
 import { resolvePinnedChats, resolvePinnedProjects } from "./helpers"
 

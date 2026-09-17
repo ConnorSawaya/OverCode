@@ -1,15 +1,10 @@
-import type { Session } from "@opencode-ai/sdk/v2/client"
-import { preloadMarkdown } from "@opencode-ai/session-ui/markdown-cache"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import type { Session } from "@overcode-ai/sdk/v2/client"
+import { useDialog } from "@overcode-ai/ui/context/dialog"
 import { useQuery } from "@tanstack/solid-query"
 import { DateTime } from "luxon"
-import { type Accessor, createEffect, createMemo, createRoot, type JSX, startTransition } from "solid-js"
+import { type Accessor, createMemo, type JSX, startTransition } from "solid-js"
 import { useCommand } from "@/context/command"
-import {
-  loadHomeSessionIndex,
-  retainHomeSessions,
-  type HomeSessionEvents,
-} from "@/context/global-sync/home-session-index"
+import { loadHomeSessionIndex, type HomeSessionEvents } from "@/context/global-sync/home-session-index"
 import type { LocalProject } from "@/context/layout"
 import { useLanguage } from "@/context/language"
 import { ServerConnection } from "@/context/server"
@@ -19,7 +14,6 @@ import { useSessionTabAvatarState } from "@/pages/layout/project-avatar-state"
 import { pathKey } from "@/utils/path-key"
 import type { HomeController } from "./home-controller"
 
-const HOME_SESSION_LIMIT = 64
 export type HomeSessionRecord = {
   session: Session
   project: LocalProject
@@ -66,6 +60,7 @@ export function createHomeSessionsController(home: HomeController) {
         (input, options) => ctx.sdk.client.v2.session.list(input, options),
         eventSequence,
         signal,
+        (firstPage) => ctx.queryClient.setQueryData(cache.indexKey, firstPage),
       )
       cache.complete(eventSequence)
       return index
@@ -75,13 +70,10 @@ export function createHomeSessionsController(home: HomeController) {
     refetchOnMount: true,
     refetchOnReconnect: true,
   }))
-  const indexedSessions = createMemo(() =>
-    retainHomeSessions(
-      homeSessions().sessions(sessionLoad.data, sessionEventLoad.data),
-      HOME_SESSION_LIMIT,
-      Date.now(),
-    ),
-  )
+  // The index contains summaries only. Keep every root session visible so an
+  // old chat is never hidden by a recent-session cap; message parts are loaded
+  // by the session view after the user opens a row.
+  const indexedSessions = createMemo(() => homeSessions().sessions(sessionLoad.data, sessionEventLoad.data))
   const allRecords = createMemo(() =>
     buildHomeSessionRecords({
       sessions: indexedSessions,
@@ -90,42 +82,8 @@ export function createHomeSessionsController(home: HomeController) {
       projectByID,
     }),
   )
-  const records = createMemo(() => allRecords().slice(0, HOME_SESSION_LIMIT))
+  const records = allRecords
   const groups = createMemo(() => groupSessions(records(), language))
-  const prefetched = new Set<string>()
-
-  createEffect(() => {
-    const ctx = home.server.focusedContext()
-    const conn = home.server.focused()
-    if (!ctx || !conn) return
-    records()
-      .slice(0, 2)
-      .forEach((record) => {
-        const key = `${ServerConnection.key(conn)}\0${record.session.id}`
-        if (prefetched.has(key)) return
-        prefetched.add(key)
-        createRoot((dispose) => {
-          try {
-            void ctx.sync.session
-              .sync(record.session.id)
-              .then(() =>
-                Promise.all(
-                  (ctx.sync.session.data.message[record.session.id] ?? []).flatMap((message) =>
-                    (ctx.sync.session.data.part[message.id] ?? []).flatMap((part) => {
-                      if (part.type !== "text" || !part.text) return []
-                      return preloadMarkdown(part.text, part.id)
-                    }),
-                  ),
-                ),
-              )
-              .catch(() => {})
-              .finally(dispose)
-          } catch {
-            dispose()
-          }
-        })
-      })
-  })
 
   command.register("home.palette", () => [
     {

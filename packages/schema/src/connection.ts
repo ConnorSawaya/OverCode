@@ -2,12 +2,15 @@ export * as Connection from "./connection"
 
 import { Schema } from "effect"
 import { Credential } from "./credential"
+import { optional } from "./schema"
+import { IntegrationMethodID } from "./integration-id"
 
 export interface CredentialInfo extends Schema.Schema.Type<typeof CredentialInfo> {}
 export const CredentialInfo = Schema.Struct({
   type: Schema.Literal("credential"),
   id: Credential.ID,
   label: Schema.String,
+  methodID: optional(IntegrationMethodID),
 }).annotate({ identifier: "Connection.CredentialInfo" })
 
 export interface EnvInfo extends Schema.Schema.Type<typeof EnvInfo> {}

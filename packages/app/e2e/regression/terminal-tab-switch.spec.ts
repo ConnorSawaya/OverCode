@@ -1,4 +1,4 @@
-import { base64Encode } from "@opencode-ai/core/util/encode"
+import { base64Encode } from "@overcode-ai/core/util/encode"
 import { expect, test, type Page } from "@playwright/test"
 import { mockOvercodeServer } from "../utils/mock-server"
 import { expectSessionTitle } from "../utils/waits"

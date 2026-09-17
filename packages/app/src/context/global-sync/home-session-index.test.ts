@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { QueryClient } from "@tanstack/solid-query"
-import type { Session, SessionV2Info } from "@opencode-ai/sdk/v2/client"
+import type { Session, SessionV2Info } from "@overcode-ai/sdk/v2/client"
 import {
   applyHomeSessionEvent,
   appendHomeSessionEvent,
@@ -40,6 +40,39 @@ describe("Home V2 session index", () => {
 
     expect(result.sessions).toHaveLength(1)
     expect(calls).toEqual([{ limit: HOME_V2_SESSION_PAGE_LIMIT, order: "desc" }])
+  })
+
+  test("publishes the first page before older pages finish", async () => {
+    const firstPages: Session[][] = []
+    let release: (() => void) | undefined
+    const waiting = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const result = loadHomeSessionIndex(
+      async (input) => {
+        if (!("cursor" in input)) {
+          return {
+            data: {
+              data: Array.from({ length: HOME_V2_SESSION_PAGE_LIMIT }, (_, index) =>
+                session({ id: `page-1-${index}` }),
+              ),
+              cursor: { next: "next-page" },
+            },
+          }
+        }
+        await waiting
+        return { data: { data: [session({ id: "page-2" })], cursor: {} } }
+      },
+      3,
+      undefined,
+      (page) => firstPages.push(page.sessions),
+    )
+
+    await Promise.resolve()
+    expect(firstPages).toHaveLength(1)
+    expect(firstPages[0]).toHaveLength(HOME_V2_SESSION_PAGE_LIMIT)
+    release?.()
+    expect((await result).sessions).toHaveLength(HOME_V2_SESSION_PAGE_LIMIT + 1)
   })
 
   test("loads subsequent pages until the session index is complete", async () => {

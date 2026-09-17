@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { LOCAL_FILE_REFERENCE_MIME } from "@opencode-ai/core/file"
+import { LOCAL_FILE_REFERENCE_MIME } from "@overcode-ai/core/file"
 import { attachmentMime, pickAttachmentFiles } from "./files"
 import { pasteMode } from "./paste"
 

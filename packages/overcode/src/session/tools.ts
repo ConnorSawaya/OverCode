@@ -1,5 +1,5 @@
 import { Agent } from "@/agent/agent"
-import { SessionV1 } from "@opencode-ai/core/v1/session"
+import { SessionV1 } from "@overcode-ai/core/v1/session"
 import { Provider } from "@/provider/provider"
 import { ProviderTransform } from "@/provider/transform"
 import { MCP } from "@/mcp"
@@ -19,8 +19,8 @@ import { Session } from "./session"
 import { SessionProcessor } from "./processor"
 import { PartID } from "./schema"
 import { EffectBridge } from "@/effect/bridge"
-import { ProviderV2 } from "@opencode-ai/core/provider"
-import { ModelV2 } from "@opencode-ai/core/model"
+import { ProviderV2 } from "@overcode-ai/core/provider"
+import { ModelV2 } from "@overcode-ai/core/model"
 import { isRecord } from "@/util/record"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 
@@ -78,15 +78,22 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
           },
         }
       }),
-    ask: (req) =>
-      permission
+    ask: (req) => {
+      // Surface swarm attribution (set on child sessions by the coordinator)
+      // so permission prompts can name the requesting agent and role.
+      const swarm =
+        (input.session.metadata as { swarm?: { id: string; agentId: string; role: string } } | undefined)?.swarm ??
+        (req.metadata as { swarm?: { id: string; agentId: string; role: string } } | undefined)?.swarm
+      return permission
         .ask({
           ...req,
           sessionID: input.session.id,
           tool: { messageID: input.processor.message.id, callID: options.toolCallId },
           ruleset: Permission.merge(input.agent.permission, input.session.permission ?? []),
+          ...(swarm ? { metadata: { ...(typeof req.metadata === "object" ? req.metadata : {}), swarm } } : {}),
         })
-        .pipe(Effect.orDie),
+        .pipe(Effect.orDie)
+    },
   })
 
   for (const item of yield* registry.tools({

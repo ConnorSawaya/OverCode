@@ -1,8 +1,8 @@
 import { For, Show } from "solid-js"
-import type { PermissionRequest } from "@opencode-ai/sdk/v2"
-import { Button } from "@opencode-ai/ui/button"
-import { DockPrompt } from "@opencode-ai/session-ui/dock-prompt"
-import { Icon } from "@opencode-ai/ui/icon"
+import type { PermissionRequest } from "@overcode-ai/sdk/v2"
+import { Button } from "@overcode-ai/ui/button"
+import { DockPrompt } from "@overcode-ai/session-ui/dock-prompt"
+import { Icon } from "@overcode-ai/ui/icon"
 import { useLanguage } from "@/context/language"
 
 export function SessionPermissionDock(props: {
@@ -17,6 +17,15 @@ export function SessionPermissionDock(props: {
     const value = language.t(key as Parameters<typeof language.t>[0])
     if (value === key) return ""
     return value
+  }
+
+  const swarmAttribution = () => {
+    const swarm = (
+      props.request as { metadata?: { swarm?: { agentId?: string; role?: string } } }
+    ).metadata?.swarm
+    if (!swarm?.role) return undefined
+    const label = swarm.role.charAt(0).toUpperCase() + swarm.role.slice(1)
+    return `Swarm · ${label}${swarm.agentId ? ` (${swarm.agentId})` : ""}`
   }
 
   return (
@@ -52,6 +61,12 @@ export function SessionPermissionDock(props: {
         </>
       }
     >
+      <Show when={swarmAttribution()}>
+        <div data-slot="permission-row">
+          <span data-slot="permission-spacer" aria-hidden="true" />
+          <div data-slot="permission-hint">{swarmAttribution()}</div>
+        </div>
+      </Show>
       <Show when={toolDescription()}>
         <div data-slot="permission-row">
           <span data-slot="permission-spacer" aria-hidden="true" />

@@ -1,12 +1,12 @@
-import type { Session } from "@opencode-ai/sdk/v2/client"
-import { Avatar } from "@opencode-ai/ui/avatar"
-import { Icon } from "@opencode-ai/ui/icon"
-import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { Spinner } from "@opencode-ai/ui/spinner"
-import { Tooltip } from "@opencode-ai/ui/tooltip"
-import { ContextMenu } from "@opencode-ai/ui/context-menu"
-import { getFilename } from "@opencode-ai/core/util/path"
+import type { Session } from "@overcode-ai/sdk/v2/client"
+import { Avatar } from "@overcode-ai/ui/avatar"
+import { Icon } from "@overcode-ai/ui/icon"
+import { Icon as IconV2 } from "@overcode-ai/ui/v2/icon"
+import { IconButton } from "@overcode-ai/ui/icon-button"
+import { Spinner } from "@overcode-ai/ui/spinner"
+import { Tooltip } from "@overcode-ai/ui/tooltip"
+import { ContextMenu } from "@overcode-ai/ui/context-menu"
+import { getFilename } from "@overcode-ai/core/util/path"
 import { A, useParams } from "@solidjs/router"
 import { type Accessor, createMemo, createSignal, For, type JSX, Match, Show, Switch } from "solid-js"
 import { useServerSync } from "@/context/server-sync"
@@ -237,24 +237,10 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
     return childSessionOnPath(sessionStore.session, props.session.id, params.id)
   })
 
-  const warm = (span: number, priority: "high" | "low") => {
-    const nav = props.navList?.()
-    const list = nav?.some((item) => item.id === props.session.id && item.directory === props.session.directory)
-      ? nav
-      : props.list
-
+  const warm = (priority: "high" | "low") => {
+    // Prefetch only the chat the user is actively opening. Neighbor warming
+    // made the sidebar hydrate unrelated chat bodies before they were opened.
     props.prefetchSession(props.session, priority)
-
-    const idx = list.findIndex((item) => item.id === props.session.id && item.directory === props.session.directory)
-    if (idx === -1) return
-
-    for (let step = 1; step <= span; step++) {
-      const next = list[idx + step]
-      if (next) props.prefetchSession(next, step === 1 ? "high" : priority)
-
-      const prev = list[idx - step]
-      if (prev) props.prefetchSession(prev, step === 1 ? "high" : priority)
-    }
   }
 
   const item = (
@@ -271,8 +257,8 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
       clearHoverProjectSoon={props.clearHoverProjectSoon}
       sidebarOpened={layout.sidebar.opened}
       active={active}
-      warmPress={() => warm(2, "high")}
-      warmFocus={() => warm(2, "high")}
+      warmPress={() => warm("high")}
+      warmFocus={() => {}}
       onRename={startRename}
       openSession={props.openSession}
     />

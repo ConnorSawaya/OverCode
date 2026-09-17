@@ -1,7 +1,7 @@
 import { type ChildProcess, spawnSync } from "node:child_process"
 
 // Duplicated from `packages/overcode/src/util/process.ts` because the SDK cannot
-// import `overcode` without creating a cycle (`overcode` depends on `@opencode-ai/sdk`).
+// import `overcode` without creating a cycle (`overcode` depends on `@overcode-ai/sdk`).
 export function stop(proc: ChildProcess) {
   if (proc.exitCode !== null || proc.signalCode !== null) return
   if (process.platform === "win32" && proc.pid) {

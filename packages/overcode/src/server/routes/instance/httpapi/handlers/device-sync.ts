@@ -1,10 +1,10 @@
-import { EventV2 } from "@opencode-ai/core/event"
+import { EventV2 } from "@overcode-ai/core/event"
 import { Effect } from "effect"
 import { HttpServerRequest } from "effect/unstable/http"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import * as Sync from "@/sync/service"
-import type { SyncChange as SyncChangeRow } from "@opencode-ai/core/sync/sql"
+import type { SyncChange as SyncChangeRow } from "@overcode-ai/core/sync/sql"
 import {
   ChangesPayload,
   DeviceSyncApi,

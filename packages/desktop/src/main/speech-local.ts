@@ -9,7 +9,7 @@ import { Readable, Transform } from "node:stream"
 import { pipeline } from "node:stream/promises"
 import { setTimeout } from "node:timers/promises"
 import { promisify } from "node:util"
-import type { SpeechProgress, SpeechRequest } from "@opencode-ai/app"
+import type { SpeechProgress, SpeechRequest } from "@overcode-ai/app"
 
 const execute = promisify(execFile)
 const release = "b4938"

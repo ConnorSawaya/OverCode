@@ -1,10 +1,10 @@
 import { render, TimeToFirstDraw, useRenderer, useTerminalDimensions } from "@opentui/solid"
-import { registerOpencodeSpinner } from "./component/register-spinner"
+import { registerOvercodeSpinner } from "./component/register-spinner"
 import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui"
 import { Deferred, Effect } from "effect"
-import { Global } from "@opencode-ai/core/global"
-import { Flag } from "@opencode-ai/core/flag/flag"
-import { InstallationVersion } from "@opencode-ai/core/installation/version"
+import { Global } from "@overcode-ai/core/global"
+import { Flag } from "@overcode-ai/core/flag/flag"
+import { InstallationVersion } from "@overcode-ai/core/installation/version"
 import { ClipboardProvider, useClipboard } from "./context/clipboard"
 import { ExitProvider, useExit } from "./context/exit"
 import { EpilogueProvider } from "./context/epilogue"
@@ -73,21 +73,23 @@ import { CommandPaletteDialog } from "./component/command-palette"
 import {
   COMMAND_PALETTE_COMMAND,
   OVERCODE_BASE_MODE,
-  OpencodeKeymapProvider,
-  registerOpencodeKeymap,
+  OvercodeKeymapProvider,
+  registerOvercodeKeymap,
   useBindings,
-  useOpencodeKeymap,
+  useOvercodeKeymap,
 } from "./keymap"
 
 import type { EventSource } from "./context/sdk"
 import { DialogVariant } from "./component/dialog-variant"
+import { DialogExecutionMode } from "./component/dialog-execution-mode"
+import { DialogSwarmStatus, cancelActiveSwarm } from "./component/dialog-swarm-status"
 import { createTuiAttention } from "./attention"
 import * as TuiAudio from "./audio"
 import { win32DisableProcessedInput, win32FlushInputBuffer } from "./terminal-win32"
 import { destroyRenderer } from "./util/renderer"
 import { cliErrorMessage, errorFormat } from "./util/error"
 
-registerOpencodeSpinner()
+registerOvercodeSpinner()
 
 const appGlobalBindingCommands = [
   "session.list",
@@ -214,7 +216,7 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
       win32DisableProcessedInput()
       const keymap = createDefaultOpenTuiKeymap(renderer)
       yield* Effect.acquireRelease(
-        Effect.sync(() => registerOpencodeKeymap(keymap, renderer, input.config)),
+        Effect.sync(() => registerOvercodeKeymap(keymap, renderer, input.config)),
         (unregister) => Effect.sync(unregister),
       )
       yield* Effect.addFinalizer(() =>
@@ -279,7 +281,7 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
                         }}
                       >
                         <ClipboardProvider>
-                          <OpencodeKeymapProvider keymap={keymap}>
+                          <OvercodeKeymapProvider keymap={keymap}>
                             <ArgsProvider {...input.args}>
                               <KVProvider>
                                 <ToastProvider>
@@ -339,7 +341,7 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
                                 </ToastProvider>
                               </KVProvider>
                             </ArgsProvider>
-                          </OpencodeKeymapProvider>
+                          </OvercodeKeymapProvider>
                         </ClipboardProvider>
                       </TuiStartupProvider>
                     </TuiTerminalEnvironmentProvider>
@@ -371,7 +373,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
   const dialog = useDialog()
   const local = useLocal()
   const kv = useKV()
-  const keymap = useOpencodeKeymap()
+  const keymap = useOvercodeKeymap()
   const event = useEvent()
   const sdk = useSDK()
   const toast = useToast()
@@ -733,6 +735,48 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
         hidden: true,
         run: () => {
           local.agent.move(-1)
+        },
+      },
+      {
+        name: "executionMode.list",
+        title: "Switch execution mode",
+        category: "Agent",
+        slashName: "mode",
+        slashAliases: ["swarm"],
+        run: () => {
+          dialog.replace(() => <DialogExecutionMode />)
+        },
+      },
+      {
+        name: "executionMode.cycle",
+        title: "Execution mode cycle",
+        category: "Agent",
+        hidden: true,
+        run: () => {
+          local.model.mode.cycle()
+        },
+      },
+      {
+        name: "swarm.status",
+        title: "Swarm status",
+        category: "Session",
+        slashName: "swarm-status",
+        run: () => {
+          dialog.replace(() => <DialogSwarmStatus />)
+        },
+      },
+      {
+        name: "swarm.cancel",
+        title: "Cancel swarm",
+        category: "Session",
+        slashName: "swarm-cancel",
+        run: () => {
+          const sessionID = route.data.type === "session" ? route.data.sessionID : undefined
+          void cancelActiveSwarm(sdk, sessionID).then((cancelled) => {
+            if (!cancelled) {
+              toast.show({ message: "No active swarm on this session.", variant: "info" })
+            }
+          })
         },
       },
       {

@@ -14,8 +14,8 @@ import {
   useCommand,
   useWslServers,
   useLanguage,
-} from "@opencode-ai/app"
-import type { UpdaterState } from "@opencode-ai/app/updater"
+} from "@overcode-ai/app"
+import type { UpdaterState } from "@overcode-ai/app/updater"
 import * as Sentry from "@sentry/solid"
 import type { AsyncStorage } from "@solid-primitives/storage"
 import { createMemoryHistory, MemoryRouter, type BaseRouterProps } from "@solidjs/router"
@@ -29,8 +29,8 @@ import { resetZoom, setPinchZoomEnabled, webviewZoom, zoomIn, zoomOut } from "./
 import { windowFullscreen, windowMaximized } from "./window-fullscreen"
 import { availableStartupServer, readyWslConnections } from "./wsl/connections"
 import "./styles.css"
-import { Splash } from "@opencode-ai/ui/logo"
-import { useTheme } from "@opencode-ai/ui/theme/context"
+import { Splash } from "@overcode-ai/ui/logo"
+import { useTheme } from "@overcode-ai/ui/theme/context"
 
 const root = document.getElementById("root")
 if (import.meta.env.DEV && !(root instanceof HTMLElement)) {
@@ -304,7 +304,7 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
 
       const notification = new Notification(title, {
         body: description ?? "",
-        icon: "https://github.com/ConnorSawaya/overcode/favicon-96x96-v3.png",
+        icon: "https://overcode.ai/favicon-96x96-v3.png",
       })
       notification.onclick = () => {
         void window.api.showWindow()

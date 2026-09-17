@@ -1,10 +1,10 @@
 import { Schema } from "effect"
 import { HttpApi } from "effect/unstable/httpapi"
-import { EventV2 } from "@opencode-ai/core/event"
+import { EventV2 } from "@overcode-ai/core/event"
 import { EventManifest } from "@/event-manifest"
-import { Credential } from "@opencode-ai/core/credential"
-import { Integration } from "@opencode-ai/core/integration"
-import { SkillV2 } from "@opencode-ai/core/skill"
+import { Credential } from "@overcode-ai/core/credential"
+import { Integration } from "@overcode-ai/core/integration"
+import { SkillV2 } from "@overcode-ai/core/skill"
 import { InstanceDisposed } from "@/server/event"
 import { Question } from "@/question"
 import { ConfigApi } from "./groups/config"
@@ -22,12 +22,13 @@ import { ProviderApi } from "./groups/provider"
 import { PtyApi, PtyConnectApi } from "./groups/pty"
 import { QuestionApi } from "./groups/question"
 import { SessionApi } from "./groups/session"
+import { SwarmApi } from "./groups/swarm"
 import { SyncApi } from "./groups/sync"
 import { TuiApi } from "./groups/tui"
 import { WorkspaceApi } from "./groups/workspace"
-import { makeApi } from "@opencode-ai/protocol/api"
-import { LocationMiddleware } from "@opencode-ai/server/location"
-import { SessionLocationMiddleware } from "@opencode-ai/server/middleware/session-location"
+import { makeApi } from "@overcode-ai/protocol/api"
+import { LocationMiddleware } from "@overcode-ai/server/location"
+import { SessionLocationMiddleware } from "@overcode-ai/server/middleware/session-location"
 import { GlobalApi } from "./groups/global"
 import { Authorization } from "./middleware/authorization"
 import { SchemaErrorMiddleware } from "./middleware/schema-error"
@@ -71,6 +72,7 @@ export const InstanceHttpApi = HttpApi.make("overcode-instance")
   .addHttpApi(PermissionApi)
   .addHttpApi(ProviderApi)
   .addHttpApi(SessionApi)
+  .addHttpApi(SwarmApi)
   .addHttpApi(SyncApi)
   .addHttpApi(TuiApi)
   .addHttpApi(WorkspaceApi)

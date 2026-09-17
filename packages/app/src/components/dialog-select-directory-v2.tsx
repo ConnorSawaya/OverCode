@@ -1,14 +1,14 @@
 import "@pierre/trees/web-components"
 import { FileTree } from "@pierre/trees"
-import { Dialog, DialogBody, DialogFooter, DialogHeader, DialogTitle } from "@opencode-ai/ui/v2/dialog-v2"
-import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
-import { TextInputV2 } from "@opencode-ai/ui/v2/text-input-v2"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { Dialog, DialogBody, DialogFooter, DialogHeader, DialogTitle } from "@overcode-ai/ui/v2/dialog-v2"
+import { ButtonV2 } from "@overcode-ai/ui/v2/button-v2"
+import { TextInputV2 } from "@overcode-ai/ui/v2/text-input-v2"
+import { useDialog } from "@overcode-ai/ui/context/dialog"
 import { createEffect, createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js"
 import { useGlobal } from "@/context/global"
 import { useLanguage } from "@/context/language"
 import { ServerConnection } from "@/context/server"
-import type { Path } from "@opencode-ai/sdk/v2/client"
+import type { Path } from "@overcode-ai/sdk/v2/client"
 import {
   absoluteTreePath,
   activeTreeNavigation,
@@ -28,8 +28,8 @@ import {
   pickerRoot,
 } from "./directory-picker-domain"
 import "./dialog-select-directory-v2.css"
-import { DividerV2 } from "@opencode-ai/ui/v2/divider-v2"
-import { getFilename } from "@opencode-ai/core/util/path"
+import { DividerV2 } from "@overcode-ai/ui/v2/divider-v2"
+import { getFilename } from "@overcode-ai/core/util/path"
 
 interface DialogSelectDirectoryV2Props {
   title?: string
@@ -39,6 +39,9 @@ interface DialogSelectDirectoryV2Props {
   mode?: "directory" | "file"
   start?: string
 }
+
+type PickerSuggestion = { absolute: string; type: "file" | "directory" }
+type PickerSuggestions = { query: string; items: PickerSuggestion[] }
 
 export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
   const global = useGlobal()
@@ -88,7 +91,7 @@ export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
       fallbackPath()?.directory,
   )
   const search = createDirectorySearch({ sdk, home, base: () => root() || start() })
-  const [suggestions] = createResource(input, async (value) => {
+  const [suggestions] = createResource<PickerSuggestions, string>(input, async (value) => {
     const cleaned = cleanPickerInput(value)
     const typed = cleaned.replace(/\/+$/, "")
     const current = displayPickerPath(root(), value, home()).replace(/\/+$/, "")
@@ -97,14 +100,26 @@ export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
     if (!policy.includeFiles) return { query: value, items: directories.slice(0, 5) }
     const base = pickerRoot(cleaned) || root() || start()
     if (!base) return { query: value, items: directories.slice(0, 5) }
-    const files = await sdk.api.file
-      .find({
-        location: { directory: base },
-        query: pickerFileSearchQuery(base, value, home()),
-        type: "file",
-        limit: 20,
-      })
-      .then((result) => result.data)
+    const files = await sdk.protocol.then((protocol) => {
+      if (protocol === "v2") {
+        return sdk.client.v2.fs
+          .find({
+            location: { directory: base },
+            query: pickerFileSearchQuery(base, value, home()),
+            type: "file",
+            limit: "20",
+          })
+          .then((result) => result.data?.data ?? [])
+      }
+      return sdk.api.file
+        .find({
+          location: { directory: base },
+          query: pickerFileSearchQuery(base, value, home()),
+          type: "file",
+          limit: 20,
+        })
+        .then((result) => result.data ?? [])
+    })
       .catch(() => [])
     const results = [
       ...directories,
@@ -127,14 +142,18 @@ export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
       existing ??
       loads.schedule(`${generation}:${key}`, eager ? "background" : "user", () => {
         if (!activeTreeNavigation(generation, navigation)) return Promise.resolve(undefined)
-        return sdk.api.file
-          .list({ location: { directory: absolute } })
-          .then((result) =>
-            result.data.map((entry) => ({
+        return sdk.protocol.then((protocol) => {
+          const request =
+            protocol === "v1"
+              ? sdk.api.file.list({ location: { directory: absolute } }).then((result) => result.data)
+              : sdk.client.file.list({ directory: absolute, path: "." }).then((result) => result.data ?? [])
+          return request.then((entries) =>
+            entries.map((entry) => ({
               name: getFilename(entry.path.replace(/[\\/]+$/, "")),
               type: entry.type,
             })),
           )
+        })
           .catch(() => undefined)
       })
     listings.set(key, request)

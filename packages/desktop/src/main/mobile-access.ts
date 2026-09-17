@@ -1,8 +1,8 @@
 import { safeStorage } from "electron"
 import { randomBytes, randomInt } from "node:crypto"
 import { hostname } from "node:os"
-import type { MobileAccessPlatform, MobileAccessState, MobileDevice } from "@opencode-ai/app"
-import { createPairingUri, formatPairingCode, isRelayUrl } from "@opencode-ai/mobile-relay/pairing"
+import type { MobileAccessPlatform, MobileAccessState, MobileDevice } from "@overcode-ai/app"
+import { createPairingUri, formatPairingCode, isRelayUrl } from "@overcode-ai/mobile-relay/pairing"
 import {
   decodeBytes,
   decodeFrame,
@@ -10,7 +10,7 @@ import {
   encodeFrame,
   RELAY_PROTOCOL_VERSION,
   type RelayFrame,
-} from "@opencode-ai/mobile-relay/protocol"
+} from "@overcode-ai/mobile-relay/protocol"
 import type { ServerReadyData } from "../preload/types"
 import { getStore } from "./store"
 import { MOBILE_ACCESS_DEVICES_KEY, MOBILE_ACCESS_SECRET_KEY } from "./store-keys"
@@ -23,6 +23,22 @@ type StoredDevice = MobileDevice & { token: string }
 const DEFAULT_RELAY_URL = process.env.OVERCODE_RELAY_URL ?? "https://overcode-relay-production.up.railway.app"
 const RECONNECT_DELAY_MS = 2_000
 const REQUEST_TIMEOUT_MS = 20_000
+const HTTP_CHUNK_SIZE = 64 * 1024
+const DEVICE_REFRESH_INTERVAL_MS = 10_000
+
+export function prepareHttpResponseHeaders(headers: Headers): Array<[string, string]> {
+  const responseHeaders = new Headers(headers)
+  responseHeaders.delete("content-encoding")
+  responseHeaders.delete("content-length")
+  return [...responseHeaders.entries()]
+}
+
+export function* chunkHttpBody(value: Uint8Array, chunkSize = HTTP_CHUNK_SIZE) {
+  if (!Number.isSafeInteger(chunkSize) || chunkSize <= 0) throw new Error("invalid_http_chunk_size")
+  for (let offset = 0; offset < value.byteLength; offset += chunkSize) {
+    yield value.subarray(offset, Math.min(offset + chunkSize, value.byteLength))
+  }
+}
 
 export class MobileAccessController implements MobileAccessPlatform {
   private storedDevices: StoredDevice[] = readStoredDevices()
@@ -39,6 +55,7 @@ export class MobileAccessController implements MobileAccessPlatform {
   private enabled = false
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined
   private pairingTimer: ReturnType<typeof setTimeout> | undefined
+  private deviceRefreshTimer: ReturnType<typeof setInterval> | undefined
   private readonly requests = new Map<string, AbortController>()
   private readonly terminalSockets = new Map<string, WebSocket>()
 
@@ -83,6 +100,7 @@ export class MobileAccessController implements MobileAccessPlatform {
       devices: publicDevices(this.storedDevices),
     })
     this.armPairingExpiry()
+    this.armDeviceRefresh()
     this.connect(relayUrl)
     return this.currentState
   }
@@ -111,6 +129,8 @@ export class MobileAccessController implements MobileAccessPlatform {
     this.enabled = false
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer)
     this.reconnectTimer = undefined
+    if (this.deviceRefreshTimer) clearInterval(this.deviceRefreshTimer)
+    this.deviceRefreshTimer = undefined
     this.clearPairingExpiry()
     this.socket?.close(1000, "stopped")
     this.socket = undefined
@@ -203,6 +223,10 @@ export class MobileAccessController implements MobileAccessPlatform {
   }
 
   private async handleFrame(socket: WebSocket, frame: RelayFrame) {
+    if (frame.type === "connector.ping") {
+      this.send(socket, { type: "connector.pong" })
+      return
+    }
     if (frame.type === "connector.ready") {
       this.setState({ ...this.currentState, status: "online", error: undefined })
       const relayUrl = this.currentState.relayUrl
@@ -210,10 +234,7 @@ export class MobileAccessController implements MobileAccessPlatform {
       return
     }
     if (frame.type === "device.paired") {
-      this.storedDevices = [
-        ...this.storedDevices.filter((device) => device.id !== frame.device.id),
-        frame.device,
-      ]
+      this.storedDevices = [...this.storedDevices.filter((device) => device.id !== frame.device.id), frame.device]
       saveStoredDevices(this.storedDevices)
       this.setState({ ...this.currentState, devices: publicDevices(this.storedDevices) })
       return
@@ -264,20 +285,28 @@ export class MobileAccessController implements MobileAccessPlatform {
         type: "http.response",
         id: frame.id,
         status: response.status,
-        headers: [...response.headers.entries()],
+        headers: prepareHttpResponseHeaders(response.headers),
       })
       const reader = response.body?.getReader()
       if (reader) {
         while (true) {
           const next = await reader.read()
           if (next.done) break
-          if (next.value?.byteLength) this.send(relay, { type: "http.chunk", id: frame.id, data: encodeBytes(next.value) })
+          if (next.value?.byteLength) {
+            for (const chunk of chunkHttpBody(next.value)) {
+              this.send(relay, { type: "http.chunk", id: frame.id, data: encodeBytes(chunk) })
+            }
+          }
         }
       }
       this.send(relay, { type: "http.end", id: frame.id })
     } catch (error) {
       if (abort.signal.aborted) return
-      this.send(relay, { type: "http.end", id: frame.id, error: error instanceof Error ? error.message : "request_failed" })
+      this.send(relay, {
+        type: "http.end",
+        id: frame.id,
+        error: error instanceof Error ? error.message : "request_failed",
+      })
     } finally {
       this.requests.delete(frame.id)
     }
@@ -288,7 +317,11 @@ export class MobileAccessController implements MobileAccessPlatform {
       const local = await this.options.getLocalServer()
       const target = new URL(frame.path, local.url)
       target.searchParams.delete("token")
-      if (local.password) target.searchParams.set("auth_token", Buffer.from(`${local.username ?? "overcode"}:${local.password}`).toString("base64"))
+      if (local.password)
+        target.searchParams.set(
+          "auth_token",
+          Buffer.from(`${local.username ?? "overcode"}:${local.password}`).toString("base64"),
+        )
       target.protocol = target.protocol === "https:" ? "wss:" : "ws:"
       const socket = new WebSocket(target)
       socket.binaryType = "arraybuffer"
@@ -296,7 +329,12 @@ export class MobileAccessController implements MobileAccessPlatform {
       socket.onopen = () => this.send(relay, { type: "ws.accept", id: frame.id })
       socket.onmessage = (event) => {
         if (typeof event.data === "string") {
-          this.send(relay, { type: "ws.data", id: frame.id, data: encodeBytes(new TextEncoder().encode(event.data)), binary: false })
+          this.send(relay, {
+            type: "ws.data",
+            id: frame.id,
+            data: encodeBytes(new TextEncoder().encode(event.data)),
+            binary: false,
+          })
           return
         }
         if (event.data instanceof ArrayBuffer) {
@@ -309,7 +347,11 @@ export class MobileAccessController implements MobileAccessPlatform {
         this.send(relay, { type: "ws.close", id: frame.id, code: event.code, reason: event.reason })
       }
     } catch (error) {
-      this.send(relay, { type: "ws.error", id: frame.id, message: error instanceof Error ? error.message : "terminal_connection_failed" })
+      this.send(relay, {
+        type: "ws.error",
+        id: frame.id,
+        message: error instanceof Error ? error.message : "terminal_connection_failed",
+      })
     }
   }
 
@@ -337,13 +379,24 @@ export class MobileAccessController implements MobileAccessPlatform {
   private armPairingExpiry() {
     this.clearPairingExpiry()
     if (!this.pairExpiresAt) return
-    this.pairingTimer = setTimeout(() => {
-      this.pairingTimer = undefined
-      if (!this.enabled || !this.pairExpiresAt || this.pairExpiresAt > Date.now()) return
-      this.pairCode = undefined
-      this.pairExpiresAt = undefined
-      this.setState({ ...this.currentState, pairUri: undefined, pairCode: undefined, pairExpiresAt: undefined })
-    }, Math.max(0, this.pairExpiresAt - Date.now()) + 100)
+    this.pairingTimer = setTimeout(
+      () => {
+        this.pairingTimer = undefined
+        if (!this.enabled || !this.pairExpiresAt || this.pairExpiresAt > Date.now()) return
+        this.pairCode = undefined
+        this.pairExpiresAt = undefined
+        this.setState({ ...this.currentState, pairUri: undefined, pairCode: undefined, pairExpiresAt: undefined })
+      },
+      Math.max(0, this.pairExpiresAt - Date.now()) + 100,
+    )
+  }
+
+  private armDeviceRefresh() {
+    if (this.deviceRefreshTimer) clearInterval(this.deviceRefreshTimer)
+    this.deviceRefreshTimer = setInterval(() => {
+      if (!this.enabled) return
+      void this.refreshDevices().catch(() => undefined)
+    }, DEVICE_REFRESH_INTERVAL_MS)
   }
 
   private clearPairingExpiry() {

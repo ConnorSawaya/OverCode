@@ -1,5 +1,8 @@
 export const RELAY_PROTOCOL_VERSION = 2
 export const RELAY_TOKEN_HEADER = "x-overcode-channel-token"
+// Only the relay sets this marker. Upstream Overcode responses must not be
+// allowed to impersonate a stale mobile pairing failure.
+export const RELAY_STALE_DEVICE_HEADER = "x-overcode-relay-stale-device"
 
 export type RelayHeaders = Array<[string, string]>
 export type RelayDevice = {
@@ -12,6 +15,8 @@ export type RelayDevice = {
 
 export type RelayFrame =
   | { type: "connector.hello"; version: number }
+  | { type: "connector.ping" }
+  | { type: "connector.pong" }
   | { type: "connector.ready"; version: number }
   | { type: "connector.error"; message: string }
   | { type: "connector.revoke" }

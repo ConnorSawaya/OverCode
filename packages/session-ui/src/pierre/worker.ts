@@ -1,6 +1,6 @@
 import { WorkerPoolManager } from "@pierre/diffs/worker"
 import ShikiWorkerUrl from "@pierre/diffs/worker/worker.js?worker&url"
-import { registerOvercodeTheme } from "@opencode-ai/ui/context/marked-theme-register"
+import { registerOvercodeTheme } from "@overcode-ai/ui/context/marked-theme-register"
 
 registerOvercodeTheme()
 

@@ -4,7 +4,7 @@ import { createMemo, For, Match, Show, Switch } from "solid-js"
 import { Portal, useRenderer, useTerminalDimensions, type JSX } from "@opentui/solid"
 import type { TextareaRenderable } from "@opentui/core"
 import { useTheme, selectedForeground } from "../../context/theme"
-import type { PermissionRequest } from "@opencode-ai/sdk/v2"
+import type { PermissionRequest } from "@overcode-ai/sdk/v2"
 import { useSDK } from "../../context/sdk"
 import { SplitBorder } from "../../ui/border"
 import { useSync } from "../../context/sync"
@@ -381,6 +381,15 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
           }
 
           const current = info()
+          const swarmAttribution = () => {
+            const meta = props.request.metadata as
+              | { swarm?: { agentId?: string; role?: string } }
+              | undefined
+            const swarm = meta?.swarm
+            if (!swarm?.role) return undefined
+            const label = swarm.role.charAt(0).toUpperCase() + swarm.role.slice(1)
+            return `Swarm · ${label}${swarm.agentId ? ` (${swarm.agentId})` : ""}`
+          }
 
           const header = () => (
             <box flexDirection="column" gap={0}>
@@ -388,6 +397,13 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
                 <text fg={theme.warning}>{"△"}</text>
                 <text fg={theme.text}>Permission required</text>
               </box>
+              <Show when={swarmAttribution()}>
+                {(text) => (
+                  <box flexDirection="row" gap={1} paddingLeft={2} flexShrink={0}>
+                    <text fg={theme.textMuted}>{text()}</text>
+                  </box>
+                )}
+              </Show>
               <box flexDirection="row" gap={1} paddingLeft={2} flexShrink={0}>
                 <text fg={theme.textMuted} flexShrink={0}>
                   {current.icon}

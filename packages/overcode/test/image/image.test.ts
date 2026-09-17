@@ -1,5 +1,5 @@
 import { describe, expect } from "bun:test"
-import { LayerNode } from "@opencode-ai/core/effect/layer-node"
+import { LayerNode } from "@overcode-ai/core/effect/layer-node"
 import { Cause, Effect, Exit } from "effect"
 import { Image } from "@/image/image"
 import { Config } from "@/config/config"
@@ -63,7 +63,7 @@ describe("Image", () => {
       const image = yield* Image.Service
       const result = yield* image.normalize(part("image/png", Buffer.from(source.get_bytes()).toString("base64")))
       const resized = photon.PhotonImage.new_from_byteslice(
-        Buffer.from(result.url.slice(result.url.indexOf(";base64,") + ";base64,".length), "base64"),
+        new Uint8Array(Buffer.from(result.url.slice(result.url.indexOf(";base64,") + ";base64,".length), "base64")),
       )
 
       source.free()
@@ -85,7 +85,7 @@ describe("Image", () => {
       const image = yield* Image.Service
       const result = yield* image.normalize(input)
       const base64 = result.url.slice(result.url.indexOf(";base64,") + ";base64,".length)
-      const resized = photon.PhotonImage.new_from_byteslice(Buffer.from(base64, "base64"))
+      const resized = photon.PhotonImage.new_from_byteslice(new Uint8Array(Buffer.from(base64, "base64")))
 
       expect(input.url.slice(input.url.indexOf(";base64,") + ";base64,".length).length).toBe(5 * 1024 * 1024)
       expect(result.url).not.toBe(input.url)

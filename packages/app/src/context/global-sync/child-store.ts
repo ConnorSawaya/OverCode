@@ -1,7 +1,7 @@
 import { createRoot, createSignal, getOwner, onCleanup, runWithOwner, type Owner } from "solid-js"
 import { createStore, type SetStoreFunction, type Store } from "solid-js/store"
 import { Persist, persisted } from "@/utils/persist"
-import type { VcsInfo } from "@opencode-ai/sdk/v2/client"
+import type { VcsInfo } from "@overcode-ai/sdk/v2/client"
 import {
   DIR_IDLE_TTL_MS,
   MAX_DIR_STORES,
@@ -17,7 +17,7 @@ import { canDisposeDirectory, pickDirectoriesToEvict } from "./eviction"
 import { useQuery } from "@tanstack/solid-query"
 import { QueryOptionsApi } from "../server-sync"
 import { directoryKey, type DirectoryKey } from "./utils"
-import { NormalizedProviderListResponse } from "@opencode-ai/session-ui/context"
+import { NormalizedProviderListResponse } from "@overcode-ai/session-ui/context"
 import type { ServerScope } from "@/utils/server-scope"
 
 export function createChildStoreManager(input: {
@@ -211,7 +211,10 @@ export function createChildStoreManager(input: {
             get provider() {
               const EMPTY = { all: new Map(), connected: [], default: {} }
               if (providerQuery.isLoading) return EMPTY
-              if (providerQuery.data?.all.size === 0 && input.global.provider.all.size > 0) return input.global.provider
+              // A failed or empty directory catalog must not hide the global
+              // catalog; fall back whenever the directory scoped data is unusable.
+              if ((providerQuery.data?.all.size ?? 0) === 0 && input.global.provider.all.size > 0)
+                return input.global.provider
               return providerQuery.data ?? EMPTY
             },
             config: {},

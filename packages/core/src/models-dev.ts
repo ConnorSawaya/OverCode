@@ -1,7 +1,7 @@
 import path from "path"
 import { Context, Duration, Effect, Layer, Option, Schedule, Schema } from "effect"
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/unstable/http"
-import { ModelsDev } from "@opencode-ai/schema/models-dev"
+import { ModelsDev } from "@overcode-ai/schema/models-dev"
 import { Global } from "./global"
 import { Flag } from "./flag/flag"
 import { Flock } from "./util/flock"
@@ -131,6 +131,29 @@ export const Provider = Schema.Struct({
 
 export type Provider = Schema.Schema.Type<typeof Provider>
 
+/**
+ * The upstream catalog still names the public Zen provider "opencode".
+ * Keep that ID and expose the rebranded "overcode" spelling as a separate
+ * provider record so consumers can migrate without sharing mutable model maps.
+ */
+export function withProviderAliases(input: Readonly<Record<string, Provider>>) {
+  const result: Record<string, Provider> = { ...input }
+
+  const alias = (sourceID: "opencode" | "overcode", targetID: "opencode" | "overcode") => {
+    const source = result[sourceID]
+    if (!source || result[targetID]) return
+    result[targetID] = {
+      ...source,
+      id: targetID,
+      models: Object.fromEntries(Object.entries(source.models).map(([id, model]) => [id, { ...model }])),
+    }
+  }
+
+  alias("opencode", "overcode")
+  alias("overcode", "opencode")
+  return result
+}
+
 export const Event = ModelsDev.Event
 
 declare const OVERCODE_MODELS_DEV: Record<string, Provider> | undefined
@@ -230,9 +253,12 @@ const layer = Layer.effect(
       return JSON.parse(text) as Record<string, Provider>
     }).pipe(Effect.withSpan("ModelsDev.populate"), Effect.orDie)
 
-    const [cachedGet, invalidate] = yield* Effect.cachedInvalidateWithTTL(populate, Duration.infinity)
+    // Cache the populated catalog for a bounded window instead of forever.
+    // A transient fetch failure at startup must not poison every later lookup;
+    // after the TTL the next lookup retries population.
+    const [cachedGet, invalidate] = yield* Effect.cachedInvalidateWithTTL(populate, ttl)
 
-    const get = (): Effect.Effect<Record<string, Provider>> => cachedGet
+    const get = (): Effect.Effect<Record<string, Provider>> => cachedGet.pipe(Effect.map(withProviderAliases))
 
     const refresh = Effect.fn("ModelsDev.refresh")(function* (force = false) {
       if (!force && (yield* fresh())) return

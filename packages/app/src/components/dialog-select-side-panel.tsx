@@ -1,7 +1,7 @@
 import { For } from "solid-js"
-import { Dialog } from "@opencode-ai/ui/dialog"
-import { Icon, type IconProps } from "@opencode-ai/ui/icon"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { Dialog } from "@overcode-ai/ui/dialog"
+import { Icon, type IconProps } from "@overcode-ai/ui/icon"
+import { useDialog } from "@overcode-ai/ui/context/dialog"
 import { useLanguage } from "@/context/language"
 
 type SidePanelChoice = "browser" | "files" | "chat"

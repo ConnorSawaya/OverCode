@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { OpenCodeEvent, SessionMessageInfo } from "@opencode-ai/client/promise"
+import type { OpenCodeEvent, SessionMessageInfo } from "@overcode-ai/client/promise"
 import { createV2SessionReducer } from "./server-session-v2-reducer"
 
 const event = (input: object) => input as OpenCodeEvent
@@ -152,5 +152,85 @@ describe("v2 session reducer", () => {
     )
 
     expect(result).toMatchObject({ sessionID: "ses_1", missing: "msg_user", touched: [] })
+  })
+
+  test("projects current session.next events and text stream IDs", () => {
+    const reducer = createV2SessionReducer()
+    let messages: SessionMessageInfo[] = []
+    const apply = (input: object) => {
+      const result = reducer.reduce(messages, event(input))
+      if (result) messages = result.messages
+    }
+
+    apply({
+      id: "evt_admitted",
+      type: "session.next.prompt.admitted",
+      data: {
+        timestamp: 10,
+        sessionID: "ses_1",
+        messageID: "msg_user",
+        prompt: { text: "hello" },
+        delivery: "steer",
+      },
+    })
+    apply({
+      id: "evt_prompted",
+      type: "session.next.prompted",
+      data: { timestamp: 11, sessionID: "ses_1", messageID: "msg_user", prompt: { text: "hello" }, delivery: "steer" },
+    })
+    apply({
+      id: "evt_step",
+      type: "session.next.step.started",
+      data: {
+        timestamp: 12,
+        sessionID: "ses_1",
+        assistantMessageID: "msg_assistant",
+        agent: "build",
+        model: { id: "model", providerID: "provider" },
+      },
+    })
+    apply({
+      id: "evt_text_start",
+      type: "session.next.text.started",
+      data: { timestamp: 13, sessionID: "ses_1", assistantMessageID: "msg_assistant", textID: "text_1" },
+    })
+    apply({
+      id: "evt_text_delta",
+      type: "session.next.text.delta",
+      data: {
+        timestamp: 14,
+        sessionID: "ses_1",
+        assistantMessageID: "msg_assistant",
+        textID: "text_1",
+        delta: "world",
+      },
+    })
+    apply({
+      id: "evt_text_end",
+      type: "session.next.text.ended",
+      data: {
+        timestamp: 15,
+        sessionID: "ses_1",
+        assistantMessageID: "msg_assistant",
+        textID: "text_1",
+        text: "world",
+      },
+    })
+    apply({
+      id: "evt_step_end",
+      type: "session.next.step.ended",
+      data: { timestamp: 16, sessionID: "ses_1", assistantMessageID: "msg_assistant", finish: "stop" },
+    })
+
+    expect(messages).toMatchObject([
+      { id: "msg_user", type: "user", text: "hello", time: { created: 11 } },
+      {
+        id: "msg_assistant",
+        type: "assistant",
+        content: [{ type: "text", text: "world" }],
+        finish: "stop",
+        time: { created: 12, completed: 16 },
+      },
+    ])
   })
 })

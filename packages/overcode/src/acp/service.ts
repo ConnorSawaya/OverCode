@@ -29,9 +29,10 @@ import {
   type SetSessionModeRequest,
   type SetSessionModeResponse,
 } from "@agentclientprotocol/sdk"
-import { InstallationVersion } from "@opencode-ai/core/installation/version"
-import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
-import type { AssistantMessage, Message, OpencodeClient, SessionMessageResponse } from "@opencode-ai/sdk/v2"
+import { InstallationVersion } from "@overcode-ai/core/installation/version"
+import { AppNodeBuilder } from "@overcode-ai/core/effect/app-node-builder"
+import type { AssistantMessage, Message, OpencodeClient, SessionMessageResponse } from "@overcode-ai/sdk/v2"
+import { normalizeProviderCatalog } from "@overcode-ai/sdk/v2/data"
 import { Context, Effect, Layer, ManagedRuntime } from "effect"
 import * as ACPError from "./error"
 import { buildConfigOptions, parseModelSelection } from "./config-option"
@@ -41,8 +42,8 @@ import { ACPEvent } from "./event"
 import { ACPSession } from "./session"
 import { UsageService } from "./usage"
 import { ACPProfile } from "./profile"
-import { ProviderV2 } from "@opencode-ai/core/provider"
-import { ModelV2 } from "@opencode-ai/core/model"
+import { ProviderV2 } from "@overcode-ai/core/provider"
+import { ModelV2 } from "@overcode-ai/core/model"
 import { Provider } from "@/provider/provider"
 import type { Command } from "@/command"
 
@@ -607,13 +608,14 @@ function makeUsageService(sdk: OpencodeClient) {
       const current = limits.get(key)
       if (current) return yield* Effect.promise(() => current)
 
-      const next = sdk.config
-        .providers({ directory: params.directory }, { throwOnError: true })
-        .then((response) => {
-          const providers = Object.fromEntries(
+      const next = loadV2Providers(sdk, params.directory)
+        .then(async (providers) => {
+          if (providers) return UsageService.findContextLimit(providers, params.providerID, params.modelID)
+          const response = await sdk.config.providers({ directory: params.directory }, { throwOnError: true })
+          const legacyProviders = Object.fromEntries(
             (response.data?.providers ?? []).map((provider) => [provider.id, provider]),
           ) as Record<ProviderV2.ID, Provider.Info>
-          return UsageService.findContextLimit(providers, params.providerID, params.modelID)
+          return UsageService.findContextLimit(legacyProviders, params.providerID, params.modelID)
         })
         .catch(() => undefined)
       limits.set(key, next)
@@ -725,12 +727,36 @@ function profiledRequest<T>(name: string, fn: () => Promise<T | SdkResponse<T>>,
   return request(() => ACPProfile.measure(name, fn), service)
 }
 
+async function loadV2Providers(sdk: OpencodeClient, directory: string) {
+  if (!sdk.v2?.provider || !sdk.v2.model) return
+
+  try {
+    const [providersResponse, modelsResponse] = await Promise.all([
+      sdk.v2.provider.list({ location: { directory } }, { throwOnError: true }),
+      sdk.v2.model.list({ location: { directory } }, { throwOnError: true }),
+    ])
+    const catalog = normalizeProviderCatalog(providersResponse.data.data, modelsResponse.data.data)
+    if (catalog.all.size === 0) return
+    return Object.fromEntries(catalog.all) as Record<ProviderV2.ID, Provider.Info>
+  } catch {
+    return
+  }
+}
+
 async function loadDirectorySnapshot(sdk: OpencodeClient, directory: string) {
   return ACPProfile.measure("acp.directory.load", async () => {
-    const [providersResponse, agentsResponse, commandsResponse, skillsResponse, configResponse] = await Promise.all([
-      ACPProfile.measure("acp.directory.provider.list", () =>
-        sdk.config.providers({ directory }, { throwOnError: true }),
-      ),
+    const providersPromise = ACPProfile.measure("acp.directory.provider.list", async () => {
+      const v2Providers = await loadV2Providers(sdk, directory)
+      if (v2Providers) return v2Providers
+
+      const response = await sdk.config.providers({ directory }, { throwOnError: true })
+      return Object.fromEntries(response.data.providers.map((provider) => [provider.id, provider])) as Record<
+        ProviderV2.ID,
+        Provider.Info
+      >
+    })
+    const [providers, agentsResponse, commandsResponse, skillsResponse, configResponse] = await Promise.all([
+      providersPromise,
       ACPProfile.measure("acp.directory.mode.defaultAgent.load", () =>
         sdk.app.agents({ directory }, { throwOnError: true }),
       ),
@@ -740,14 +766,9 @@ async function loadDirectorySnapshot(sdk: OpencodeClient, directory: string) {
         sdk.config.get({ directory }, { throwOnError: true }).catch(() => undefined),
       ),
     ])
-    const providersData = providersResponse.data!
     const agents = agentsResponse.data!
     const commandsData = commandsResponse.data!
     const skills = skillsResponse.data!
-    const providers = Object.fromEntries(providersData.providers.map((provider) => [provider.id, provider])) as Record<
-      ProviderV2.ID,
-      Provider.Info
-    >
     const defaultModelStarted = performance.now()
     const defaultModel = defaultModelFromConfig(configResponse?.data?.model, providers)
     ACPProfile.duration("acp.directory.defaultModel.resolve", defaultModelStarted, { configured: !!defaultModel })

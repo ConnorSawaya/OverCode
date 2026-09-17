@@ -5,12 +5,12 @@ import { isSortable, useSortable } from "@dnd-kit/solid/sortable"
 import { AutoScroller, Feedback, PointerActivationConstraints } from "@dnd-kit/dom"
 import { RestrictToVerticalAxis } from "@dnd-kit/abstract/modifiers"
 import { RestrictToElement } from "@dnd-kit/dom/modifiers"
-import { ScrollView } from "@opencode-ai/ui/scroll-view"
-import { ProjectAvatar } from "@opencode-ai/ui/v2/project-avatar-v2"
-import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
-import { IconButtonV2 } from "@opencode-ai/ui/v2/icon-button-v2"
-import { MenuV2 } from "@opencode-ai/ui/v2/menu-v2"
-import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
+import { ScrollView } from "@overcode-ai/ui/scroll-view"
+import { ProjectAvatar } from "@overcode-ai/ui/v2/project-avatar-v2"
+import { Icon as IconV2 } from "@overcode-ai/ui/v2/icon"
+import { IconButtonV2 } from "@overcode-ai/ui/v2/icon-button-v2"
+import { MenuV2 } from "@overcode-ai/ui/v2/menu-v2"
+import { TooltipV2 } from "@overcode-ai/ui/v2/tooltip-v2"
 import { getProjectAvatarVariant, type HomeProjectSelection, type LocalProject } from "@/context/layout"
 import { ServerConnection } from "@/context/server"
 import { useLanguage } from "@/context/language"
@@ -63,6 +63,14 @@ export type HomeProjectsViewProps = {
 
 export function HomeProjectsView(props: HomeProjectsViewProps) {
   const [contextMenu, setContextMenu] = createStore({ open: undefined as string | undefined })
+  const serverList = createMemo(() => {
+    const selected = props.selection().server
+    return [...props.servers()].sort((left, right) => {
+      if (ServerConnection.key(left) === selected) return -1
+      if (ServerConnection.key(right) === selected) return 1
+      return 0
+    })
+  })
   const contextMenuProps = {
     contextMenuOpen: (id: string) => contextMenu.open === id,
     onSetContextMenuOpen: (id: string, open: boolean) => setContextMenu("open", open ? id : undefined),
@@ -70,8 +78,9 @@ export function HomeProjectsView(props: HomeProjectsViewProps) {
   return (
     <aside
       class={`
-        mt-6 flex min-h-0 min-w-0 flex-col gap-4 overflow-hidden
+        mt-3 flex max-h-[42cqh] min-h-0 min-w-0 flex-col gap-4 overflow-hidden
         lg:sticky lg:top-14 lg:mt-14 lg:h-[calc(100cqh-56px)] lg:self-start lg:pt-[52px]
+        lg:max-h-none
       `}
       aria-label={props.language.t("home.projects")}
       onWheel={(event) => {
@@ -82,7 +91,7 @@ export function HomeProjectsView(props: HomeProjectsViewProps) {
       <div class="flex h-7 min-w-0 shrink-0 items-center justify-between pl-1.5 pr-3">
         <div class="text-v2-text-text-muted [font-weight:530]">{props.language.t("home.projects")}</div>
         <Show
-          when={props.servers().length === 1 && !(props.projects().length === 0 && props.recentlyClosed().length > 0)}
+          when={serverList().length === 1 && !(props.projects().length === 0 && props.recentlyClosed().length > 0)}
         >
           <TooltipV2 placement="bottom" value={props.language.t("home.project.add")}>
             <IconButtonV2
@@ -92,7 +101,7 @@ export function HomeProjectsView(props: HomeProjectsViewProps) {
               class="titlebar-icon [&_[data-slot=icon-svg]]:text-v2-icon-icon-muted"
               icon={<IconV2 name="folder-add-left" />}
               disabled={props.serverHealth(props.servers()[0])?.healthy === false}
-              onClick={() => props.onChooseProject(props.servers()[0])}
+              onClick={() => props.onChooseProject(serverList()[0])}
               aria-label={props.language.t("home.project.add")}
             />
           </TooltipV2>
@@ -100,17 +109,17 @@ export function HomeProjectsView(props: HomeProjectsViewProps) {
       </div>
       <ScrollView data-slot="home-projects-scroll" class="min-h-0 min-w-0 shrink">
         <Show
-          when={props.servers().length > 1}
+          when={serverList().length > 1}
           fallback={
             <div class="pr-3">
               <Show
                 when={props.projects().length > 0}
-                fallback={<HomeProjectEmpty {...props} server={props.servers()[0]} items={props.recentlyClosed()} />}
+                fallback={<HomeProjectEmpty {...props} server={serverList()[0]} items={props.recentlyClosed()} />}
               >
                 <HomeProjectList
                   {...props}
                   {...contextMenuProps}
-                  server={props.servers()[0]}
+                  server={serverList()[0]}
                   items={props.projects()}
                 />
               </Show>
@@ -118,7 +127,7 @@ export function HomeProjectsView(props: HomeProjectsViewProps) {
           }
         >
           <div class="flex min-w-0 flex-col gap-4 pr-3">
-            <For each={props.servers()}>
+            <For each={serverList()}>
               {(item) => {
                 const projects = () => props.projectsForServer(item)
                 const healthy = () => !!props.serverHealth(item)?.healthy

@@ -19,6 +19,8 @@ export {
   type MobileAccessState,
   type MobileAccessStatus,
   type MobileDevice,
+  type MobileRemoteDevice,
+  type MobileRemoteDevicesPlatform,
   type SyncDeviceStatus,
   type SyncDevicesPlatform,
   type SyncProjectMapping,

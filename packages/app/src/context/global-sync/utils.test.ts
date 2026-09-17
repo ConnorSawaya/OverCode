@@ -4,8 +4,14 @@ import type {
   ModelDefaultOutput,
   ModelListOutput,
   ProviderListOutput,
-} from "@opencode-ai/client/promise"
-import { directoryKey, normalizeAgentList, normalizePermissionRequest, normalizeProviderList } from "./utils"
+} from "@overcode-ai/client/promise"
+import {
+  directoryKey,
+  normalizeAgentList,
+  normalizePermissionRequest,
+  normalizeProviderList,
+  normalizeV2ProviderList,
+} from "./utils"
 
 describe("normalizeAgentList", () => {
   test("adapts current agents to the app agent shape", () => {
@@ -21,7 +27,7 @@ describe("normalizeAgentList", () => {
         system: "Build software",
         permissions: [{ action: "read", resource: "*", effect: "allow" }],
       },
-    ] as AgentListOutput["data"])
+    ] as unknown as AgentListOutput["data"])
 
     expect(result).toEqual([
       {
@@ -37,6 +43,53 @@ describe("normalizeAgentList", () => {
         variant: "high",
         prompt: "Build software",
         options: { temperature: 0.2, topP: 0.9 },
+        steps: undefined,
+      },
+    ])
+  })
+
+  test("tolerates current agents without request settings", () => {
+    const result = normalizeAgentList([
+      {
+        id: "general",
+        name: "General",
+        mode: "primary",
+        hidden: false,
+        color: "primary",
+        request: { headers: {}, body: {} },
+        permissions: [],
+      },
+    ] as unknown as AgentListOutput["data"])
+
+    expect(result[0]).toMatchObject({ name: "general", temperature: undefined, topP: undefined })
+  })
+
+  test("adapts V2 agents without losing the app shape", () => {
+    const result = normalizeAgentList([
+      {
+        id: "build",
+        model: { id: "mimo-v2.5-free", providerID: "opencode", variant: "default" },
+        request: { headers: {}, body: {} },
+        mode: "primary",
+        hidden: false,
+        permissions: [],
+      },
+    ])
+
+    expect(result).toEqual([
+      {
+        name: "build",
+        description: undefined,
+        mode: "primary",
+        hidden: false,
+        temperature: undefined,
+        topP: undefined,
+        color: undefined,
+        permission: [],
+        model: { providerID: "opencode", modelID: "mimo-v2.5-free" },
+        variant: "default",
+        prompt: undefined,
+        options: {},
         steps: undefined,
       },
     ])
@@ -117,6 +170,71 @@ describe("normalizeProviderList", () => {
 
   test("preserves an empty current default", () => {
     expect(normalizeProviderList([] as ProviderListOutput["data"], [], null).defaultModel).toBeNull()
+  })
+
+  test("adapts the flat V2 catalog without dropping request metadata", () => {
+    const result = normalizeV2ProviderList(
+      [
+        {
+          id: "native",
+          name: "Native",
+          api: { type: "native", url: "https://native.example.test", settings: { mode: "native" } },
+          request: { headers: { "x-provider": "native" }, body: { providerOption: true } },
+        },
+      ] as never,
+      [
+        {
+          id: "model",
+          providerID: "native",
+          name: "Native Model",
+          api: { type: "native", id: "native-model", settings: { modelOption: true } },
+          capabilities: { tools: true, input: ["text"], output: ["text"] },
+          request: { headers: { "x-model": "model" }, body: { modelOption: true }, variant: "high" },
+          variants: [{ id: "high", headers: { "x-variant": "high" }, body: { effort: "high" } }],
+          time: { released: 0 },
+          cost: [
+            { input: 1, output: 2, cache: { read: 0.1, write: 0.2 } },
+            { tier: { type: "context", size: 200_000 }, input: 3, output: 4, cache: { read: 0, write: 0 } },
+          ],
+          status: "active",
+          enabled: true,
+          limit: { context: 128_000, output: 8_192 },
+        },
+        {
+          id: "old",
+          providerID: "native",
+          name: "Old",
+          api: { type: "native", id: "old" },
+          capabilities: { tools: false, input: ["text"], output: ["text"] },
+          request: { headers: {}, body: {} },
+          variants: [],
+          time: { released: 1 },
+          cost: [],
+          status: "deprecated",
+          enabled: true,
+          limit: { context: 1, output: 1 },
+        },
+      ] as never,
+      { providerID: "missing", modelID: "missing" },
+    )
+
+    const provider = result.all.get("native")!
+    const model = provider.models.model
+    expect(provider.options).toMatchObject({ mode: "native", providerOption: true, headers: { "x-provider": "native" } })
+    expect(model).toMatchObject({
+      api: { id: "native-model", npm: "native", url: "" },
+      options: { modelOption: true, variant: "high" },
+      headers: { "x-model": "model" },
+      release_date: "1970-01-01",
+      variants: { high: { effort: "high", headers: { "x-variant": "high" } } },
+      cost: {
+        tiers: [{ tier: { type: "context", size: 200_000 } }],
+        experimentalOver200K: { input: 3, output: 4 },
+      },
+    })
+    expect(provider.models.old).toBeUndefined()
+    expect(result.defaultModel).toBeNull()
+    expect(result.default).toEqual({ native: "model" })
   })
 })
 

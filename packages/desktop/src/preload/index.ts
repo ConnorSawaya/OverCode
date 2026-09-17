@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron"
 import type { ElectronAPI, WslServersEvent } from "./types"
-import type { MobileAccessState, SyncDevicesState } from "@opencode-ai/app"
-import type { UpdaterState } from "@opencode-ai/app/updater"
+import type { MobileAccessState, SyncDevicesState } from "@overcode-ai/app"
+import type { UpdaterState } from "@overcode-ai/app/updater"
 
 const updaterCallbacks = new Set<(state: UpdaterState) => void>()
 let updaterState: UpdaterState | undefined

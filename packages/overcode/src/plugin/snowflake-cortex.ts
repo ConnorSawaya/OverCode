@@ -1,7 +1,7 @@
-import type { Hooks, PluginInput } from "@opencode-ai/plugin"
+import type { Hooks, PluginInput } from "@overcode-ai/plugin"
 import { OAUTH_DUMMY_KEY } from "../auth"
-import { InstallationVersion } from "@opencode-ai/core/installation/version"
-import { OauthCallbackPage } from "@opencode-ai/core/oauth/page"
+import { InstallationVersion } from "@overcode-ai/core/installation/version"
+import { OauthCallbackPage } from "@overcode-ai/core/oauth/page"
 import { createServer } from "http"
 import open from "open"
 

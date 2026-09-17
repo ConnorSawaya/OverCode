@@ -1,6 +1,6 @@
 import { onMount } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
-import { LOCAL_FILE_REFERENCE_MIME } from "@opencode-ai/core/file"
+import { LOCAL_FILE_REFERENCE_MIME } from "@overcode-ai/core/file"
 import {
   pastedTextStats,
   pastedTextTitle,

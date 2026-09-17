@@ -1,5 +1,5 @@
-import { getFilename } from "@opencode-ai/core/util/path"
-import { type Session } from "@opencode-ai/sdk/v2/client"
+import { getFilename } from "@overcode-ai/core/util/path"
+import { type Session } from "@overcode-ai/sdk/v2/client"
 import { pathKey } from "@/utils/path-key"
 import { sessionTitle } from "@/utils/session-title"
 import type { ServerConnection } from "@/context/server"
@@ -140,7 +140,7 @@ export function homeSessionServerStatus(active: boolean, status: () => { working
 const OVERCODE_PROJECT_ID = "4b0ea68d7af9a6031a7ffda7ad66e0cb83315750"
 
 export function getProjectAvatarSource(id?: string, icon?: { color?: string; url?: string; override?: string }) {
-  if (id === OVERCODE_PROJECT_ID) return "https://github.com/ConnorSawaya/overcode/favicon.svg"
+  if (id === OVERCODE_PROJECT_ID) return "https://overcode.ai/favicon.svg"
   if (icon?.override) return icon.override
   if (icon?.color) return undefined
   return icon?.url

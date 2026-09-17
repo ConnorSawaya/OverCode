@@ -1,11 +1,11 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test"
-import { LayerNode } from "@opencode-ai/core/effect/layer-node"
+import { LayerNode } from "@overcode-ai/core/effect/layer-node"
 import { Effect } from "effect"
 import * as fs from "fs/promises"
 import * as path from "path"
 import { tmpdir } from "os"
 import { Patch } from "../../src/patch"
-import { FSUtil } from "@opencode-ai/core/fs-util"
+import { FSUtil } from "@overcode-ai/core/fs-util"
 import { testEffect } from "../lib/effect"
 
 const it = testEffect(LayerNode.compile(FSUtil.node))

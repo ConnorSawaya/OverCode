@@ -1,5 +1,5 @@
-import type { GlobalEvent } from "@opencode-ai/sdk/v2"
-import type { EventSource } from "@opencode-ai/tui/context/sdk"
+import type { GlobalEvent } from "@overcode-ai/sdk/v2"
+import type { EventSource } from "@overcode-ai/tui/context/sdk"
 
 export const worktree = "/tmp/overcode"
 export const directory = `${worktree}/packages/overcode`

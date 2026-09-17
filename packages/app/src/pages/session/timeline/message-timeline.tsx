@@ -16,9 +16,9 @@ import { Dynamic } from "solid-js/web"
 import { useNavigate } from "@solidjs/router"
 import { useMutation } from "@tanstack/solid-query"
 import { createVirtualizer, defaultRangeExtractor, elementScroll, type VirtualItem } from "@tanstack/solid-virtual"
-import { Accordion } from "@opencode-ai/ui/accordion"
-import { Button } from "@opencode-ai/ui/button"
-import { Card } from "@opencode-ai/ui/card"
+import { Accordion } from "@overcode-ai/ui/accordion"
+import { Button } from "@overcode-ai/ui/button"
+import { Card } from "@overcode-ai/ui/card"
 import {
   ContextToolGroup,
   Message,
@@ -26,41 +26,41 @@ import {
   Part as MessagePart,
   partDefaultOpen,
   type UserActions,
-} from "@opencode-ai/session-ui/message-part"
-import { DiffChanges } from "@opencode-ai/ui/diff-changes"
-import { FileIcon } from "@opencode-ai/ui/file-icon"
-import { Icon } from "@opencode-ai/ui/icon"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
-import { IconButtonV2 } from "@opencode-ai/ui/v2/icon-button-v2"
-import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
-import { MenuV2 } from "@opencode-ai/ui/v2/menu-v2"
-import { Dialog } from "@opencode-ai/ui/dialog"
-import { DialogFooter, DialogHeader, DialogTitleGroup, DialogV2 } from "@opencode-ai/ui/v2/dialog-v2"
-import { InlineInput } from "@opencode-ai/ui/inline-input"
-import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
-import { SessionRetry } from "@opencode-ai/session-ui/session-retry"
-import { isScrollKeyTarget, scrollKey, scrollKeyOwner, ScrollView } from "@opencode-ai/ui/scroll-view"
-import { StickyAccordionHeader } from "@opencode-ai/ui/sticky-accordion-header"
-import { TextField } from "@opencode-ai/ui/text-field"
-import { TextReveal } from "@opencode-ai/ui/text-reveal"
-import { TextShimmer } from "@opencode-ai/ui/text-shimmer"
+} from "@overcode-ai/session-ui/message-part"
+import { DiffChanges } from "@overcode-ai/ui/diff-changes"
+import { FileIcon } from "@overcode-ai/ui/file-icon"
+import { Icon } from "@overcode-ai/ui/icon"
+import { IconButton } from "@overcode-ai/ui/icon-button"
+import { Icon as IconV2 } from "@overcode-ai/ui/v2/icon"
+import { IconButtonV2 } from "@overcode-ai/ui/v2/icon-button-v2"
+import { DropdownMenu } from "@overcode-ai/ui/dropdown-menu"
+import { MenuV2 } from "@overcode-ai/ui/v2/menu-v2"
+import { Dialog } from "@overcode-ai/ui/dialog"
+import { DialogFooter, DialogHeader, DialogTitleGroup, DialogV2 } from "@overcode-ai/ui/v2/dialog-v2"
+import { InlineInput } from "@overcode-ai/ui/inline-input"
+import { ButtonV2 } from "@overcode-ai/ui/v2/button-v2"
+import { SessionRetry } from "@overcode-ai/session-ui/session-retry"
+import { isScrollKeyTarget, scrollKey, scrollKeyOwner, ScrollView } from "@overcode-ai/ui/scroll-view"
+import { StickyAccordionHeader } from "@overcode-ai/ui/sticky-accordion-header"
+import { TextField } from "@overcode-ai/ui/text-field"
+import { TextReveal } from "@overcode-ai/ui/text-reveal"
+import { TextShimmer } from "@overcode-ai/ui/text-shimmer"
 import type {
   AssistantMessage,
   Message as MessageType,
   Part as PartType,
   ToolPart,
   UserMessage,
-} from "@opencode-ai/sdk/v2"
+} from "@overcode-ai/sdk/v2"
 import { showToast } from "@/utils/toast"
 import { downloadSessionExport, fetchSessionExport, sessionExportFilename } from "@/utils/session-export"
-import { getDirectory, getFilename } from "@opencode-ai/core/util/path"
+import { getDirectory, getFilename } from "@overcode-ai/core/util/path"
 import { Popover as KobaltePopover } from "@kobalte/core/popover"
-import { normalize } from "@opencode-ai/session-ui/session-diff"
-import { useFileComponent } from "@opencode-ai/ui/context/file"
+import { normalize } from "@overcode-ai/session-ui/session-diff"
+import { useFileComponent } from "@overcode-ai/ui/context/file"
 import { shouldMarkBoundaryGesture, normalizeWheelDelta } from "@/pages/session/message-gesture"
 import { SessionContextUsage } from "@/components/session-context-usage"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { useDialog } from "@overcode-ai/ui/context/dialog"
 import { useLanguage } from "@/context/language"
 import { useSessionKey } from "@/pages/session/session-layout"
 import { useSessionArchive } from "@/pages/session/session-archive"
@@ -419,6 +419,7 @@ export function MessageTimeline(props: {
     },
     getScrollElement: () => listRoot() ?? null,
     observeElementOffset: observeElementOffsetReconnectAware,
+    useAnimationFrameWithResizeObserver: true,
     initialOffset: () => (props.shouldAnchorBottom() ? Number.MAX_SAFE_INTEGER : 0),
     initialMeasurementsCache: initialMeasurements,
     estimateSize: () => timelineFallbackItemSize,

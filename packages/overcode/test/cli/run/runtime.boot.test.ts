@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, mock, spyOn, test } from "bun:test"
-import { OpencodeClient, type Provider } from "@opencode-ai/sdk/v2"
-import type { Resolved } from "@opencode-ai/tui/config"
+import { OpencodeClient, type ModelV2Info, type Provider, type ProviderV2Info } from "@overcode-ai/sdk/v2"
+import type { Resolved } from "@overcode-ai/tui/config"
 import { TuiConfig } from "@/config/tui"
 import { resolveDiffStyle, resolveModelInfo, resolveRunTuiConfig } from "@/cli/cmd/run/runtime.boot"
 import { createTuiResolvedConfig } from "../../fixture/tui-runtime"
@@ -215,6 +215,8 @@ describe("run runtime boot", () => {
         response: new Response(),
       }),
     )
+    spyOn(sdk.v2.provider, "list").mockRejectedValue(new Error("v2 unavailable"))
+    spyOn(sdk.v2.model, "list").mockRejectedValue(new Error("v2 unavailable"))
 
     await expect(resolveModelInfo(sdk, "/workspace", { providerID: "openai", modelID: "gpt-5" })).resolves.toEqual({
       providers: configured.providers,
@@ -262,6 +264,8 @@ describe("run runtime boot", () => {
       connected: [],
     }
     spyOn(sdk.config, "providers").mockRejectedValue(new Error("boom"))
+    spyOn(sdk.v2.provider, "list").mockRejectedValue(new Error("v2 unavailable"))
+    spyOn(sdk.v2.model, "list").mockRejectedValue(new Error("v2 unavailable"))
     spyOn(sdk.provider, "list").mockImplementation(() =>
       Promise.resolve({
         data,
@@ -279,5 +283,61 @@ describe("run runtime boot", () => {
         "anthropic/sonnet": 200000,
       },
     })
+  })
+
+  test("prefers the flat V2 catalog for model selector data", async () => {
+    const sdk = new OpencodeClient()
+    const providers: ProviderV2Info[] = [
+      {
+        id: "v2-provider",
+        name: "V2 Provider",
+        api: { type: "native", url: "https://v2-provider.test", settings: {} },
+        request: { headers: {}, body: {} },
+      },
+    ]
+    const models: ModelV2Info[] = [
+      {
+        id: "v2-model",
+        providerID: "v2-provider",
+        name: "V2 Model",
+        api: { id: "v2-model", type: "native", url: "https://v2-provider.test", settings: {} },
+        capabilities: { tools: true, input: ["text"], output: ["text"] },
+        request: { headers: {}, body: {} },
+        variants: [{ id: "high", headers: {}, body: { reasoningEffort: "high" } }],
+        time: { released: 0 },
+        cost: [{ input: 0, output: 0, cache: { read: 0, write: 0 } }],
+        status: "active",
+        enabled: true,
+        limit: { context: 64000, output: 8192 },
+      },
+    ]
+    const providersList = spyOn(sdk.v2.provider, "list").mockResolvedValue({
+      data: {
+        location: { directory: "/workspace", project: { id: "project", directory: "/workspace" } },
+        data: providers,
+      },
+      request: new Request("https://overcode.test"),
+      response: new Response(),
+    })
+    const modelsList = spyOn(sdk.v2.model, "list").mockResolvedValue({
+      data: {
+        location: { directory: "/workspace", project: { id: "project", directory: "/workspace" } },
+        data: models,
+      },
+      request: new Request("https://overcode.test"),
+      response: new Response(),
+    })
+    const legacy = spyOn(sdk.config, "providers").mockRejectedValue(new Error("legacy endpoint should not be called"))
+
+    const result = await resolveModelInfo(sdk, "/workspace", { providerID: "v2-provider", modelID: "v2-model" })
+
+    expect(result.providers).toHaveLength(1)
+    expect(result.providers[0]?.id).toBe("v2-provider")
+    expect(result.providers[0]?.models["v2-model"]?.name).toBe("V2 Model")
+    expect(result.variants).toEqual(["high"])
+    expect(result.limits).toEqual({ "v2-provider/v2-model": 64000 })
+    expect(providersList).toHaveBeenCalledWith({ location: { directory: "/workspace" } })
+    expect(modelsList).toHaveBeenCalledWith({ location: { directory: "/workspace" } })
+    expect(legacy).not.toHaveBeenCalled()
   })
 })

@@ -1,7 +1,7 @@
-import { LayerNode } from "@opencode-ai/core/effect/layer-node"
-import { httpClient } from "@opencode-ai/core/effect/app-node-platform"
-import type * as SDK from "@opencode-ai/sdk/v2"
-import { serviceUse } from "@opencode-ai/core/effect/service-use"
+import { LayerNode } from "@overcode-ai/core/effect/layer-node"
+import { httpClient } from "@overcode-ai/core/effect/app-node-platform"
+import type * as SDK from "@overcode-ai/sdk/v2"
+import { serviceUse } from "@overcode-ai/core/effect/service-use"
 import { Effect, Exit, Layer, Option, Schema, Scope, Context, Stream } from "effect"
 import { FetchHttpClient, HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
 import { Account } from "@/account/account"
@@ -12,13 +12,13 @@ import { Provider } from "@/provider/provider"
 import { Session } from "@/session/session"
 import { MessageV2 } from "@/session/message-v2"
 import type { SessionID } from "@/session/schema"
-import { Database } from "@opencode-ai/core/database/database"
+import { Database } from "@overcode-ai/core/database/database"
 import { eq } from "drizzle-orm"
 import { Config } from "@/config/config"
-import { SessionShareTable } from "@opencode-ai/core/share/sql"
-import { ProviderV2 } from "@opencode-ai/core/provider"
-import { ModelV2 } from "@opencode-ai/core/model"
-import { EventV2 } from "@opencode-ai/core/event"
+import { SessionShareTable } from "@overcode-ai/core/share/sql"
+import { ProviderV2 } from "@overcode-ai/core/provider"
+import { ModelV2 } from "@overcode-ai/core/model"
+import { EventV2 } from "@overcode-ai/core/event"
 
 const disabled = process.env["OVERCODE_DISABLE_SHARE"] === "true" || process.env["OVERCODE_DISABLE_SHARE"] === "1"
 
@@ -124,10 +124,15 @@ const layer = Layer.effect(
     function sync(sessionID: SessionID, data: Data[]) {
       return Effect.gen(function* () {
         if (disabled) return
-        const share = yield* getCached(sessionID)
+        // V2 runner events can be published with an explicit location but
+        // outside the legacy InstanceRef scope. Sharing is optional; do not
+        // turn a successful remote session update into an error in that case.
+        const s = yield* InstanceState.get(state).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+        if (!s) return
+        const cached = s.shared.get(sessionID)
+        const share = cached === null ? undefined : (cached ?? (yield* get(sessionID)))
+        if (!s.shared.has(sessionID)) s.shared.set(sessionID, share ?? null)
         if (!share) return
-
-        const s = yield* InstanceState.get(state)
         const existing = s.queue.get(sessionID)
         if (existing) {
           for (const item of data) {

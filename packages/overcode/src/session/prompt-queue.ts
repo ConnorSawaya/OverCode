@@ -1,9 +1,9 @@
 export * as SessionPromptQueue from "./prompt-queue"
 
-import { KeyedMutex } from "@opencode-ai/core/effect/keyed-mutex"
-import { Database } from "@opencode-ai/core/database/database"
-import { MessageTable, SessionPromptQueueTable, SessionTable } from "@opencode-ai/core/session/sql"
-import { NonNegativeInt } from "@opencode-ai/core/schema"
+import { KeyedMutex } from "@overcode-ai/core/effect/keyed-mutex"
+import { Database } from "@overcode-ai/core/database/database"
+import { MessageTable, SessionPromptQueueTable, SessionTable } from "@overcode-ai/core/session/sql"
+import { NonNegativeInt } from "@overcode-ai/core/schema"
 import { and, asc, eq } from "drizzle-orm"
 import { Effect, Schema } from "effect"
 import { MessageID, SessionID } from "./schema"

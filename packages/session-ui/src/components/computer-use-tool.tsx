@@ -1,5 +1,5 @@
 import { For, Show } from "solid-js"
-import { useI18n } from "@opencode-ai/ui/context/i18n"
+import { useI18n } from "@overcode-ai/ui/context/i18n"
 import { BasicTool } from "./basic-tool"
 import type { ToolProps } from "./message-part"
 import { computerUseAudit } from "./computer-use-audit"

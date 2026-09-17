@@ -3,7 +3,7 @@
 import { $ } from "bun"
 import { rm } from "fs/promises"
 import path from "path"
-import { Script } from "@opencode-ai/script"
+import { Script } from "@overcode-ai/script"
 import { createSolidTransformPlugin } from "@opentui/solid/bun-plugin"
 import pkg from "../package.json"
 import { modelsData } from "./generate"
@@ -83,7 +83,9 @@ for (const item of targets) {
     },
     define: {
       OVERCODE_VERSION: `'${Script.version}'`,
-      OVERCODE_CLI_NAME: `'${binary}'`,
+      // The legacy lildax executable remains the artifact name used by the
+      // desktop downloader, but the user-facing command is Overcode.
+      OVERCODE_CLI_NAME: "'overcode'",
       OVERCODE_MODELS_DEV: modelsData,
       OVERCODE_CHANNEL: `'${Script.channel}'`,
       OVERCODE_LIBC: item.os === "linux" ? `'${item.abi ?? "glibc"}'` : "undefined",
@@ -102,7 +104,7 @@ for (const item of targets) {
     `./dist/${name}/package.json`,
     JSON.stringify(
       {
-        name: `@opencode-ai/${name}`,
+        name: `@overcode-ai/${name}`,
         version: Script.version,
         license: "MIT",
         repository: { type: "git", url: "git+https://github.com/ConnorSawaya/overcode.git" },

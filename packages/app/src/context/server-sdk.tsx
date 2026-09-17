@@ -1,6 +1,6 @@
-import type { OpenCodeEvent } from "@opencode-ai/client/promise"
-import type { Event } from "@opencode-ai/sdk/v2/client"
-import { createSimpleContext } from "@opencode-ai/ui/context"
+import type { OpenCodeEvent } from "@overcode-ai/client/promise"
+import type { Event } from "@overcode-ai/sdk/v2/client"
+import { createSimpleContext } from "@overcode-ai/ui/context"
 import { createGlobalEmitter } from "@solid-primitives/event-bus"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { type Accessor, batch, createMemo, createResource, onCleanup, onMount } from "solid-js"
@@ -174,7 +174,7 @@ type ServerSDKBase = {
   client: ReturnType<typeof createSdkForServer>
   api: CompatibleApi
   currentApi: ServerApi
-  request: (input: { path: string; method: "DELETE" | "POST"; directory?: string }) => Promise<unknown>
+  request: (input: { path: string; method: "GET" | "DELETE" | "POST"; directory?: string }) => Promise<unknown>
   event: {
     on: ServerEventEmitter["on"]
     listen: ServerEventEmitter["listen"]
@@ -194,6 +194,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
     try {
       const url = new URL(server.http.url)
       const loopback = url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "::1"
+      if (url.protocol === "https:" && server.http.token) return platform.fetch
       if (url.protocol === "http:" && !loopback) return platform.fetch
     } catch {
       return
@@ -347,7 +348,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
       throwOnError: true,
       directory,
     })
-  const request = async (input: { path: string; method: "DELETE" | "POST"; directory?: string }) => {
+  const request = async (input: { path: string; method: "GET" | "DELETE" | "POST"; directory?: string }) => {
     const headers = new Headers()
     if (server.http.password) {
       headers.set(
@@ -355,6 +356,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
         `Basic ${authTokenFromCredentials({ username: server.http.username, password: server.http.password })}`,
       )
     }
+    if (server.http.token) headers.set("x-overcode-channel-token", server.http.token)
     if (input.directory) headers.set("x-overcode-directory", encodeURIComponent(input.directory))
     const response = await (platform.fetch ?? globalThis.fetch)(new URL(input.path, server.http.url), {
       method: input.method,

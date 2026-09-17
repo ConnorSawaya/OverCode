@@ -1,10 +1,11 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "name": "@opencode-ai/cli",
+  "name": "@overcode-ai/cli",
   "version": "1.18.27",
   "type": "module",
   "license": "MIT",
   "bin": {
+    "overcode": "./bin/overcode.cjs",
     "lildax": "./bin/lildax.cjs"
   },
   "files": [
@@ -17,10 +18,11 @@
   },
   "dependencies": {
     "@effect/platform-node": "catalog:",
-    "@opencode-ai/core": "workspace:*",
-    "@opencode-ai/sdk": "workspace:*",
-    "@opencode-ai/server": "workspace:*",
-    "@opencode-ai/tui": "workspace:*",
+    "@overcode-ai/autostart": "workspace:*",
+    "@overcode-ai/core": "workspace:*",
+    "@overcode-ai/sdk": "workspace:*",
+    "@overcode-ai/server": "workspace:*",
+    "@overcode-ai/tui": "workspace:*",
     "@opentui/core": "catalog:",
     "@opentui/solid": "catalog:",
     "@parcel/watcher": "2.5.1",
@@ -28,7 +30,7 @@
     "solid-js": "catalog:"
   },
   "devDependencies": {
-    "@opencode-ai/script": "workspace:*",
+    "@overcode-ai/script": "workspace:*",
     "@tsconfig/bun": "catalog:",
     "@types/bun": "catalog:",
     "@typescript/native-preview": "catalog:"

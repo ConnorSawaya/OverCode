@@ -166,6 +166,42 @@ export const Info = Schema.Struct({
       }),
     }),
   ),
+  swarm: Schema.optional(
+    Schema.Struct({
+      enabled: Schema.optional(Schema.Boolean).annotate({
+        description: "Enable swarm execution modes (default: true)",
+      }),
+      preset: Schema.optional(Schema.Literals(["fast", "balanced", "max", "custom"])).annotate({
+        description: "Default swarm preset (default: balanced)",
+      }),
+      workers: Schema.optional(PositiveInt).annotate({
+        description: "Default number of solver workers for custom swarms",
+      }),
+      max_rounds: Schema.optional(PositiveInt).annotate({
+        description: "Maximum coordination rounds per swarm run",
+      }),
+      max_model_calls: Schema.optional(PositiveInt).annotate({
+        description: "Maximum total model calls per swarm run",
+      }),
+      max_tokens: Schema.optional(PositiveInt).annotate({
+        description: "Maximum total tokens (input+output) per swarm run",
+      }),
+      repair_attempts: Schema.optional(NonNegativeInt).annotate({
+        description: "Maximum repair rounds after failed verification",
+      }),
+      timeout_ms: Schema.optional(PositiveInt).annotate({
+        description: "Maximum wall-clock time per swarm run in milliseconds",
+      }),
+      stop_when_verified: Schema.optional(Schema.Boolean).annotate({
+        description: "Stop early once verification passes (default: true)",
+      }),
+      role_models: Schema.optional(Schema.Record(Schema.String, Schema.String)).annotate({
+        description: 'Per-role model overrides, e.g. { "critic": "openai/gpt-5" }',
+      }),
+    }),
+  ).annotate({
+    description: "Swarm Mode orchestration settings (multi-agent execution)",
+  }),
   experimental: Schema.optional(
     Schema.Struct({
       disable_paste_summary: Schema.optional(Schema.Boolean),

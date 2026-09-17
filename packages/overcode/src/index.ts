@@ -9,9 +9,10 @@ import { UpgradeCommand } from "./cli/cmd/upgrade"
 import { UninstallCommand } from "./cli/cmd/uninstall"
 import { ModelsCommand } from "./cli/cmd/models"
 import { UI } from "./cli/ui"
-import { InstallationVersion } from "@opencode-ai/core/installation/version"
+import { InstallationVersion } from "@overcode-ai/core/installation/version"
 import { FormatError } from "./cli/error"
 import { ServeCommand } from "./cli/cmd/serve"
+import { ServiceCommand } from "./cli/cmd/service"
 import { DebugCommand } from "./cli/cmd/debug"
 import { StatsCommand } from "./cli/cmd/stats"
 import { McpCommand } from "./cli/cmd/mcp"
@@ -19,6 +20,7 @@ import { GithubCommand } from "./cli/cmd/github"
 import { ExportCommand } from "./cli/cmd/export"
 import { ImportCommand } from "./cli/cmd/import"
 import { AttachCommand } from "./cli/cmd/attach"
+import { CliCommand } from "./cli/cmd/cli"
 import { TuiThreadCommand } from "./cli/cmd/tui"
 import { AcpCommand } from "./cli/cmd/acp"
 import { EOL } from "os"
@@ -82,6 +84,7 @@ const cli = yargs(args)
   .command(McpCommand)
   .command(TuiThreadCommand)
   .command(AttachCommand)
+  .command(CliCommand)
   .command(RunCommand)
   .command(GenerateCommand)
   .command(DebugCommand)
@@ -91,6 +94,7 @@ const cli = yargs(args)
   .command(UpgradeCommand)
   .command(UninstallCommand)
   .command(ServeCommand)
+  .command(ServiceCommand)
   .command(WebCommand)
   .command(ModelsCommand)
   .command(StatsCommand)

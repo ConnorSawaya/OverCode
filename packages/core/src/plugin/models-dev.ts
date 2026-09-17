@@ -1,8 +1,10 @@
 import { define } from "./internal"
-import type { ModelV2Info } from "@opencode-ai/sdk/v2/types"
+import type { ModelV2Info } from "@overcode-ai/sdk/v2/types"
 import { Effect, Stream } from "effect"
 import { EventV2 } from "../event"
 import { ModelsDev } from "../models-dev"
+import * as ConfigProviderOptionsV1 from "../v1/config/provider-options"
+import { ModelV2 } from "../model"
 import { ProviderV2 } from "../provider"
 
 function released(date: string) {
@@ -73,28 +75,53 @@ function modeName(model: ModelsDev.Model, mode: string) {
   return `${model.name} ${mode.charAt(0).toUpperCase()}${mode.slice(1)}`
 }
 
+function reasoningVariants(model: ModelsDev.Model, npm: string | undefined): ModelV2.Info["variants"] {
+  const effort = model.reasoning_options?.find((option) => option.type === "effort")
+  if (!effort || (npm !== "@ai-sdk/openai" && npm !== "@ai-sdk/openai-compatible")) return []
+
+  const lowerer = ConfigProviderOptionsV1.get(npm)
+  return effort.values.flatMap((value) => {
+    const id = value === null ? "none" : typeof value === "string" ? value : undefined
+    if (id === undefined || id === "max") return []
+    const options =
+      npm === "@ai-sdk/openai"
+        ? { reasoningEffort: id, reasoningSummary: "auto", include: ["reasoning.encrypted_content"] }
+        : { reasoningEffort: id }
+    return [
+      {
+        id: ModelV2.VariantID.make(id),
+        headers: {},
+        body: lowerer.request(options) as ModelV2.Info["variants"][number]["body"],
+      },
+    ]
+  })
+}
+
 function applyModel(
   draft: ModelV2Info,
   model: ModelsDev.Model,
   input: {
+    readonly provider: ModelsDev.Provider
     readonly name?: string
     readonly cost?: ModelV2Info["cost"]
     readonly request?: NonNullable<NonNullable<ModelsDev.Model["experimental"]>["modes"]>[string]["provider"]
-  } = {},
+  },
 ) {
+  const npm = model.provider?.npm ?? input.provider.npm
+  const api = model.provider?.api ?? input.provider.api
   draft.name = input.name ?? model.name
   draft.family = model.family
-  draft.api = model.provider?.npm
+  draft.api = npm
     ? {
         id: model.id,
         type: "aisdk",
-        package: model.provider.npm,
-        url: model.provider.api,
+        package: npm,
+        url: api,
       }
     : {
         id: model.id,
         type: "native",
-        url: model.provider?.api,
+        url: api,
         settings: {},
       }
   draft.capabilities = {
@@ -102,7 +129,7 @@ function applyModel(
     input: [...(model.modalities?.input ?? [])],
     output: [...(model.modalities?.output ?? [])],
   }
-  draft.variants = []
+  draft.variants = [...reasoningVariants(model, npm)]
   draft.time.released = released(model.release_date)
   draft.cost = input.cost ?? cost(model.cost)
   draft.status = model.status ?? "active"
@@ -123,7 +150,7 @@ export const ModelsDevPlugin = define({
     const events = yield* EventV2.Service
     yield* ctx.integration.transform(
       Effect.fn(function* (integrations) {
-        const data = yield* modelsDev.get()
+        const data = ModelsDev.withProviderAliases(yield* modelsDev.get())
         for (const item of Object.values(data)) {
           if (item.env.length === 0) continue
           const integrationID = item.id
@@ -141,7 +168,7 @@ export const ModelsDevPlugin = define({
     )
     yield* ctx.catalog.transform(
       Effect.fn(function* (catalog) {
-        const data = yield* modelsDev.get()
+        const data = ModelsDev.withProviderAliases(yield* modelsDev.get())
         for (const item of Object.values(data)) {
           const providerID = ProviderV2.ID.make(item.id)
           catalog.provider.update(providerID, (provider) => {
@@ -161,10 +188,13 @@ export const ModelsDevPlugin = define({
 
           for (const model of Object.values(item.models)) {
             const baseCost = cost(model.cost)
-            catalog.model.update(providerID, model.id, (draft) => applyModel(draft, model, { cost: baseCost }))
+            catalog.model.update(providerID, model.id, (draft) =>
+              applyModel(draft, model, { provider: item, cost: baseCost }),
+            )
             for (const [mode, options] of Object.entries(model.experimental?.modes ?? {})) {
               catalog.model.update(providerID, `${model.id}-${mode}`, (draft) =>
                 applyModel(draft, model, {
+                  provider: item,
                   name: modeName(model, mode),
                   cost: mergeCost(baseCost, options.cost),
                   request: options.provider,

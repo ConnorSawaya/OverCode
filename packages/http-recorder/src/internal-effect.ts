@@ -70,7 +70,10 @@ const responseFromSnapshot = (request: HttpClientRequest.HttpClientRequest, snap
     new Response(
       request.method === "HEAD" || snapshot.status === 204 || snapshot.status === 205 || snapshot.status === 304
         ? null
-        : decodeResponseBody(snapshot),
+        : // Buffer is a valid response body at runtime (undici/Bun); newer
+          // @types/node brands it so the static body type rejects it.
+          // (Typed via the constructor so this file stays DOM-lib free.)
+          (decodeResponseBody(snapshot) as unknown as ConstructorParameters<typeof Response>[0]),
       snapshot,
     ),
   )

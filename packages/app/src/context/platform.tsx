@@ -1,4 +1,4 @@
-import { createSimpleContext } from "@opencode-ai/ui/context"
+import { createSimpleContext } from "@overcode-ai/ui/context"
 import type { AsyncStorage, SyncStorage } from "@solid-primitives/storage"
 import type { Accessor } from "solid-js"
 import type { DesktopMenuAction } from "../desktop-menu"
@@ -41,6 +41,20 @@ export type MobileDevice = {
   name: string
   pairedAt: string
   lastSeen: string
+}
+
+export type MobileRemoteDevice = {
+  id: string
+  name: string
+  lastUsedAt: number
+}
+
+export type MobileRemoteDevicesPlatform = {
+  devices(): MobileRemoteDevice[]
+  active(): string | undefined
+  select(deviceId: string): void
+  add(): void
+  remove(deviceId: string): void
 }
 export type MobileAccessPlatform = {
   state(): MobileAccessState
@@ -149,6 +163,9 @@ type PlatformBase = {
 
   /** Secure PC connector for the Overcode Mobile app (desktop only). */
   mobileAccess?: MobileAccessPlatform
+
+  /** Paired desktop workspaces available to the Overcode Mobile app. */
+  mobileRemoteDevices?: MobileRemoteDevicesPlatform
 
   /** Cross-device sync status for the trusted-device settings surface. */
   syncDevices?: SyncDevicesPlatform

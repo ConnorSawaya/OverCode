@@ -1,5 +1,5 @@
 import { Meta, Title } from "@solidjs/meta"
-import { ProviderIcon } from "@opencode-ai/ui/provider-icon"
+import { ProviderIcon } from "@overcode-ai/ui/provider-icon"
 import { scaleSqrt } from "d3-scale"
 import countryCodesSource from "i18n-iso-countries/codes.json?raw"
 import {
@@ -8,8 +8,8 @@ import {
   type ModelPeerEntry,
   type ModelUsagePoint,
   type StatsModelData,
-} from "@opencode-ai/stats-core/domain/home"
-import { statModel } from "@opencode-ai/stats-core/domain/model-normalization"
+} from "@overcode-ai/stats-core/domain/home"
+import { statModel } from "@overcode-ai/stats-core/domain/model-normalization"
 import { createAsync, query, useParams } from "@solidjs/router"
 import { createMemo, createSignal, createUniqueId, For, onMount, Show, type JSX } from "solid-js"
 import { getRequestEvent } from "solid-js/web"

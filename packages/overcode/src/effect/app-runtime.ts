@@ -1,18 +1,18 @@
 import { Layer, ManagedRuntime } from "effect"
 import { attach } from "./run-service"
-import * as Observability from "@opencode-ai/core/observability"
+import * as Observability from "@overcode-ai/core/observability"
 
-import { FSUtil } from "@opencode-ai/core/fs-util"
-import { Database } from "@opencode-ai/core/database/database"
+import { FSUtil } from "@overcode-ai/core/fs-util"
+import { Database } from "@overcode-ai/core/database/database"
 import { Auth } from "@/auth"
 import { Account } from "@/account/account"
 import { Config } from "@/config/config"
 import { Git } from "@/git"
-import { Ripgrep } from "@opencode-ai/core/ripgrep"
+import { Ripgrep } from "@overcode-ai/core/ripgrep"
 import { Storage } from "@/storage/storage"
 import { Snapshot } from "@/snapshot"
 import { Plugin } from "@/plugin"
-import { ModelsDev } from "@opencode-ai/core/models-dev"
+import { ModelsDev } from "@overcode-ai/core/models-dev"
 import { Provider } from "@/provider/provider"
 import { ProviderAuth } from "@/provider/auth"
 import { Agent } from "@/agent/agent"
@@ -46,15 +46,16 @@ import { Worktree } from "@/worktree"
 import { Installation } from "@/installation"
 import { ShareNext } from "@/share/share-next"
 import { SessionShare } from "@/share/session"
-import { Npm } from "@opencode-ai/core/npm"
-import { memoMap } from "@opencode-ai/core/effect/memo-map"
+import { Swarm } from "@/swarm/service"
+import { Npm } from "@overcode-ai/core/npm"
+import { memoMap } from "@overcode-ai/core/effect/memo-map"
 import { BackgroundJob } from "@/background/job"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2Bridge } from "@/event-v2-bridge"
-import { LayerNode } from "@opencode-ai/core/effect/layer-node"
+import { LayerNode } from "@overcode-ai/core/effect/layer-node"
 import { AppNodeBuilderV1 } from "./app-node-builder-v1"
-import { SessionProjector } from "@opencode-ai/core/session/projector"
-import { ProjectProjector } from "@opencode-ai/core/project/projector"
+import { SessionProjector } from "@overcode-ai/core/session/projector"
+import { ProjectProjector } from "@overcode-ai/core/project/projector"
 import * as Sync from "@/sync/service"
 
 export const AppLayer = AppNodeBuilderV1.build(
@@ -109,6 +110,7 @@ export const AppLayer = AppNodeBuilderV1.build(
     Installation.node,
     ShareNext.node,
     SessionShare.node,
+    Swarm.node,
   ]),
 ).pipe(Layer.provideMerge(AppNodeBuilderV1.build(Ripgrep.node)), Layer.provideMerge(Observability.layer))
 

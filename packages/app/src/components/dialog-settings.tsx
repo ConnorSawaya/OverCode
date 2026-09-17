@@ -1,10 +1,10 @@
 import { Component, createSignal, startTransition } from "solid-js"
-import { Dialog } from "@opencode-ai/ui/dialog"
-import { Tabs } from "@opencode-ai/ui/tabs"
-import { Icon } from "@opencode-ai/ui/icon"
+import { Dialog } from "@overcode-ai/ui/dialog"
+import { Tabs } from "@overcode-ai/ui/tabs"
+import { Icon } from "@overcode-ai/ui/icon"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { useDialog } from "@overcode-ai/ui/context/dialog"
 import { SettingsGeneral } from "./settings-general"
 import { SettingsKeybinds } from "./settings-keybinds"
 import { SettingsProviders } from "./settings-providers"
@@ -13,7 +13,7 @@ import { SettingsServers } from "./settings-servers"
 import { SettingsToolsV2 } from "./settings-v2/tools"
 import { SettingsSyncDevices } from "./settings-v2/sync-devices"
 import { useParams } from "@solidjs/router"
-import { base64Decode } from "@opencode-ai/core/util/encode"
+import { base64Decode } from "@overcode-ai/core/util/encode"
 
 export const DialogSettings: Component<{ defaultValue?: string }> = (props) => {
   const language = useLanguage()

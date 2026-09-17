@@ -1,7 +1,7 @@
-import type { Message, Session } from "@opencode-ai/sdk/v2/client"
+import type { Message, Session } from "@overcode-ai/sdk/v2/client"
 import { showToast } from "@/utils/toast"
-import { base64Encode } from "@opencode-ai/core/util/encode"
-import { Binary } from "@opencode-ai/core/util/binary"
+import { base64Encode } from "@overcode-ai/core/util/encode"
+import { Binary } from "@overcode-ai/core/util/binary"
 import { useNavigate, useParams, useSearchParams } from "@solidjs/router"
 import { batch, startTransition, type Accessor } from "solid-js"
 import { useTabs } from "@/context/tabs"
@@ -29,7 +29,7 @@ import { formatServerError } from "@/utils/server-errors"
 import { ScopedKey } from "@/utils/server-scope"
 import { createPromptSubmissionState } from "./submission-state"
 import { normalizeSessionInfo } from "@/utils/session"
-import { Event } from "@opencode-ai/schema/event"
+import { Event } from "@overcode-ai/schema/event"
 import { blobDataUrl } from "@/utils/draft-store"
 import { parseGoalCommand } from "@/pages/session/session-goal"
 import { COMPUTER_USE_INSTRUCTIONS, parseComputerUseCommand } from "./computer-use"
@@ -560,6 +560,61 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       input.setPopover(null)
     }
 
+    const submitSwarm = async (swarmMode: "deep" | "swarm") => {
+      // The server posts the task as the user message itself, so drop the
+      // optimistic one to avoid a duplicate in the timeline.
+      removeOptimisticMessage()
+      clearInput()
+      serverSync().session.set("session_status", session.id, { type: "busy" })
+      const controller = new AbortController()
+      pending.set(pendingKey(session.id), {
+        abort: controller,
+        cleanup: () => {
+          serverSync().session.set("session_status", session.id, { type: "idle" })
+        },
+      })
+      try {
+        const started = await sdk().client.swarm.start({
+          sessionID: session.id,
+          task: text,
+          preset: swarmMode === "deep" ? "deep" : undefined,
+          model: {
+            providerID: currentModel.provider.id,
+            modelID: currentModel.id,
+            ...(variant ? { variant } : {}),
+          },
+        }).then((x) => x.data)
+        if (!started) throw new Error(language.t("common.requestFailed"))
+        const deadline = Date.now() + 30 * 60_000
+        for (;;) {
+          if (controller.signal.aborted) {
+            await sdk().client.swarm.cancel({ swarmID: started.id }).catch(() => undefined)
+            return
+          }
+          if (Date.now() > deadline) throw new Error(language.t("common.requestFailed"))
+          await new Promise((resolve) => setTimeout(resolve, 2000))
+          const state = await sdk()
+            .client.swarm.get({ swarmID: started.id })
+            .then((x) => x.data)
+            .catch(() => undefined)
+          if (!state) continue
+          if (state.status === "completed" || state.status === "failed" || state.status === "cancelled") {
+            if (state.status !== "completed") throw new Error(language.t("common.requestFailed"))
+            return
+          }
+        }
+      } catch (err) {
+        showToast({
+          title: language.t("prompt.toast.promptSendFailed.title"),
+          description: errorMessage(err),
+        })
+        if (restoreInput()) restoreCommentItems(submission.target(), commentItems)
+      } finally {
+        pending.delete(pendingKey(session.id))
+        serverSync().session.set("session_status", session.id, { type: "idle" })
+      }
+    }
+
     const restoreInput = () => {
       const restored = submission.restore()
       if (!restored) return false
@@ -807,6 +862,12 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       if (controller.signal.aborted) return false
       if (result.status === "failed") throw new Error(result.message)
       return true
+    }
+
+    const executionMode = local.executionMode.current()
+    if (executionMode !== "normal") {
+      await submitSwarm(executionMode)
+      return
     }
 
     await sendFollowupDraft({

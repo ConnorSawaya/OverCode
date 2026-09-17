@@ -183,7 +183,11 @@ export async function spawnLocalServer(
   }
 }
 
-export async function checkHealth(url: string, password?: string | null): Promise<boolean> {
+export async function checkHealth(
+  url: string,
+  password?: string | null,
+  username?: string | null,
+): Promise<boolean> {
   let healthUrls: URL[]
   try {
     healthUrls = [new URL("/api/health", url), new URL("/global/health", url)]
@@ -191,21 +195,46 @@ export async function checkHealth(url: string, password?: string | null): Promis
     return false
   }
 
+  // The bundled Rust daemon authenticates as `opencode`, the TS sidecar as
+  // `overcode`. Probe the explicit username first, then the other one, so one
+  // helper works for both backends.
+  const usernames = username ? [username] : (["overcode", "opencode"] as const)
   const headers = new Headers()
-  if (password) {
-    const auth = Buffer.from(`overcode:${password}`).toString("base64")
+  const authed = async (name: string) => {
+    if (!password) return false
+    const auth = Buffer.from(`${name}:${password}`).toString("base64")
     headers.set("authorization", `Basic ${auth}`)
+    for (const healthUrl of healthUrls) {
+      try {
+        const res = await fetch(healthUrl, {
+          method: "GET",
+          headers,
+          signal: AbortSignal.timeout(3000),
+        })
+        if (res.ok) return true
+      } catch {}
+    }
+    return false
   }
 
-  for (const healthUrl of healthUrls) {
-    try {
-      const res = await fetch(healthUrl, {
-        method: "GET",
-        headers,
-        signal: AbortSignal.timeout(3000),
-      })
-      if (res.ok) return true
-    } catch {}
+  // Unauthenticated servers (no password configured) answer health checks
+  // without credentials.
+  if (!password) {
+    for (const healthUrl of healthUrls) {
+      try {
+        const res = await fetch(healthUrl, {
+          method: "GET",
+          headers,
+          signal: AbortSignal.timeout(3000),
+        })
+        if (res.ok) return true
+      } catch {}
+    }
+    return false
+  }
+
+  for (const name of usernames) {
+    if (await authed(name)) return true
   }
   return false
 }

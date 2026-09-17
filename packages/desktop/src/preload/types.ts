@@ -1,10 +1,10 @@
-import type { DesktopMenuAction } from "@opencode-ai/app/desktop-menu"
-import type { ComputerUsePlatform } from "@opencode-ai/app/computer-use"
-import type { WslServersPlatform } from "@opencode-ai/app/wsl/types"
-import type { UpdaterState } from "@opencode-ai/app/updater"
-import type { DesktopNativeBundle } from "@opencode-ai/app/i18n/desktop-native"
-import type { MobileAccessPlatform, MobileAccessState, SyncDevicesPlatform } from "@opencode-ai/app"
-import type { BrowserBounds, BrowserController, BrowserEvent, BrowserProfileCandidate, BrowserSnapshot, SpeechPlatform } from "@opencode-ai/app"
+import type { DesktopMenuAction } from "@overcode-ai/app/desktop-menu"
+import type { ComputerUsePlatform } from "@overcode-ai/app/computer-use"
+import type { WslServersPlatform } from "@overcode-ai/app/wsl/types"
+import type { UpdaterState } from "@overcode-ai/app/updater"
+import type { DesktopNativeBundle } from "@overcode-ai/app/i18n/desktop-native"
+import type { MobileAccessPlatform, MobileAccessState, SyncDevicesPlatform } from "@overcode-ai/app"
+import type { BrowserBounds, BrowserController, BrowserEvent, BrowserProfileCandidate, BrowserSnapshot, SpeechPlatform } from "@overcode-ai/app"
 export type {
   WslDistroProbe,
   WslInstalledDistro,
@@ -17,7 +17,7 @@ export type {
   WslServerRuntime,
   WslServersEvent,
   WslServersState,
-} from "@opencode-ai/app/wsl/types"
+} from "@overcode-ai/app/wsl/types"
 
 export type ServerReadyData = {
   url: string

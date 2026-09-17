@@ -21,6 +21,8 @@ export type Event =
   | EventSessionNextMoved
   | EventSessionNextPrompted
   | EventSessionNextPromptAdmitted
+  | EventSessionNextPromptCancelled
+  | EventSessionNextPromptDeliveryChanged
   | EventSessionNextContextUpdated
   | EventSessionNextSynthetic
   | EventSessionNextShellStarted
@@ -872,6 +874,25 @@ export type GlobalEvent = {
       }
     | {
         id: string
+        type: "session.next.prompt.cancelled"
+        properties: {
+          timestamp: number
+          sessionID: string
+          messageID: string
+        }
+      }
+    | {
+        id: string
+        type: "session.next.prompt.delivery.changed"
+        properties: {
+          timestamp: number
+          sessionID: string
+          messageID: string
+          delivery: "steer" | "queue"
+        }
+      }
+    | {
+        id: string
         type: "session.next.context.updated"
         properties: {
           timestamp: number
@@ -1613,6 +1634,8 @@ export type GlobalEvent = {
     | SyncEventSessionNextMoved
     | SyncEventSessionNextPrompted
     | SyncEventSessionNextPromptAdmitted
+    | SyncEventSessionNextPromptCancelled
+    | SyncEventSessionNextPromptDeliveryChanged
     | SyncEventSessionNextContextUpdated
     | SyncEventSessionNextSynthetic
     | SyncEventSessionNextShellStarted
@@ -1636,6 +1659,7 @@ export type GlobalEvent = {
     | SyncEventSessionNextRevertStaged
     | SyncEventSessionNextRevertCleared
     | SyncEventSessionNextRevertCommitted
+    | SyncEventProjectUpdated
 }
 
 /**
@@ -2020,6 +2044,20 @@ export type Config = {
     tail_turns?: number
     preserve_recent_tokens?: number
     reserved?: number
+  }
+  swarm?: {
+    enabled?: boolean
+    preset?: "fast" | "balanced" | "max" | "custom"
+    workers?: number
+    max_rounds?: number
+    max_model_calls?: number
+    max_tokens?: number
+    repair_attempts?: number
+    timeout_ms?: number
+    stop_when_verified?: boolean
+    role_models?: {
+      [key: string]: string
+    }
   }
   experimental?: {
     disable_paste_summary?: boolean
@@ -2604,6 +2642,12 @@ export type SessionBusyError = {
   message: string
 }
 
+export type SwarmNotFoundError = {
+  _tag: "SwarmNotFoundError"
+  swarmID: string
+  message: string
+}
+
 export type EventTuiPromptAppend = {
   type: "tui.prompt.append"
   properties: {
@@ -2745,6 +2789,8 @@ export type SessionDurableEvent =
   | SessionNextMoved
   | SessionNextPrompted
   | SessionNextPromptAdmitted
+  | SessionNextPromptCancelled
+  | SessionNextPromptDeliveryChanged
   | SessionNextContextUpdated
   | SessionNextSynthetic
   | SessionNextShellStarted
@@ -2872,6 +2918,8 @@ export type V2Event =
   | SessionNextMoved
   | SessionNextPrompted
   | SessionNextPromptAdmitted
+  | SessionNextPromptCancelled
+  | SessionNextPromptDeliveryChanged
   | SessionNextContextUpdated
   | SessionNextSynthetic
   | SessionNextShellStarted
@@ -3388,6 +3436,39 @@ export type SyncEventSessionNextPromptAdmitted = {
   }
 }
 
+export type SyncEventSessionNextPromptCancelled = {
+  type: "sync"
+  id: string
+  syncEvent: {
+    type: "session.next.prompt.cancelled.1"
+    id: string
+    seq: number
+    aggregateID: string
+    data: {
+      timestamp: number
+      sessionID: string
+      messageID: string
+    }
+  }
+}
+
+export type SyncEventSessionNextPromptDeliveryChanged = {
+  type: "sync"
+  id: string
+  syncEvent: {
+    type: "session.next.prompt.delivery.changed.1"
+    id: string
+    seq: number
+    aggregateID: string
+    data: {
+      timestamp: number
+      sessionID: string
+      messageID: string
+      delivery: "steer" | "queue"
+    }
+  }
+}
+
 export type SyncEventSessionNextContextUpdated = {
   type: "sync"
   id: string
@@ -3822,6 +3903,27 @@ export type SyncEventSessionNextRevertCommitted = {
       timestamp: number
       sessionID: string
       messageID: string
+    }
+  }
+}
+
+export type SyncEventProjectUpdated = {
+  type: "sync"
+  id: string
+  syncEvent: {
+    type: "project.updated.1"
+    id: string
+    seq: number
+    aggregateID: string
+    data: {
+      id: string
+      worktree: string
+      vcs?: ProjectVcs
+      name?: string
+      icon?: ProjectIcon
+      commands?: ProjectCommands
+      time: ProjectTime
+      sandboxes: Array<string>
     }
   }
 }
@@ -4263,6 +4365,45 @@ export type SessionNextPromptAdmitted = {
     sessionID: string
     messageID: string
     prompt: Prompt
+    delivery: "steer" | "queue"
+  }
+}
+
+export type SessionNextPromptCancelled = {
+  id: string
+  metadata?: {
+    [key: string]: unknown
+  }
+  type: "session.next.prompt.cancelled"
+  durable?: {
+    aggregateID: string
+    seq: number
+    version: number
+  }
+  location?: LocationRef
+  data: {
+    timestamp: number
+    sessionID: string
+    messageID: string
+  }
+}
+
+export type SessionNextPromptDeliveryChanged = {
+  id: string
+  metadata?: {
+    [key: string]: unknown
+  }
+  type: "session.next.prompt.delivery.changed"
+  durable?: {
+    aggregateID: string
+    seq: number
+    version: number
+  }
+  location?: LocationRef
+  data: {
+    timestamp: number
+    sessionID: string
+    messageID: string
     delivery: "steer" | "queue"
   }
 }
@@ -4925,6 +5066,7 @@ export type ConnectionCredentialInfo = {
   type: "credential"
   id: string
   label: string
+  methodID?: string
 }
 
 export type ConnectionEnvInfo = {
@@ -6304,6 +6446,27 @@ export type EventSessionNextPromptAdmitted = {
     sessionID: string
     messageID: string
     prompt: Prompt
+    delivery: "steer" | "queue"
+  }
+}
+
+export type EventSessionNextPromptCancelled = {
+  id: string
+  type: "session.next.prompt.cancelled"
+  properties: {
+    timestamp: number
+    sessionID: string
+    messageID: string
+  }
+}
+
+export type EventSessionNextPromptDeliveryChanged = {
+  id: string
+  type: "session.next.prompt.delivery.changed"
+  properties: {
+    timestamp: number
+    sessionID: string
+    messageID: string
     delivery: "steer" | "queue"
   }
 }
@@ -9802,7 +9965,9 @@ export type SessionPromptData = {
       modelID: string
     }
     agent?: string
+    mode?: "normal" | "deep" | "swarm"
     noReply?: boolean
+    delivery?: "steer" | "queue"
     tools?: {
       [key: string]: boolean
     }
@@ -10149,7 +10314,9 @@ export type SessionPromptAsyncData = {
       modelID: string
     }
     agent?: string
+    mode?: "normal" | "deep" | "swarm"
     noReply?: boolean
+    delivery?: "steer" | "queue"
     tools?: {
       [key: string]: boolean
     }
@@ -10189,6 +10356,135 @@ export type SessionPromptAsyncResponses = {
 }
 
 export type SessionPromptAsyncResponse = SessionPromptAsyncResponses[keyof SessionPromptAsyncResponses]
+
+export type SessionPendingData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/pending"
+}
+
+export type SessionPendingErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionPendingError = SessionPendingErrors[keyof SessionPendingErrors]
+
+export type SessionPendingResponses = {
+  /**
+   * Pending prompts
+   */
+  200: Array<{
+    id: string
+    sessionID: string
+    sequence: number
+    status: "queued"
+    timeCreated: number
+    input: {
+      sessionID: string
+      messageID?: string
+      model?: {
+        providerID: string
+        modelID: string
+      }
+      agent?: string
+      mode?: "normal" | "deep" | "swarm"
+      noReply?: boolean
+      delivery?: "steer" | "queue"
+      tools?: {
+        [key: string]: boolean
+      }
+      format?: OutputFormat
+      system?: string
+      variant?: string
+      parts: Array<TextPartInput | FilePartInput | AgentPartInput | SubtaskPartInput>
+    }
+  }>
+}
+
+export type SessionPendingResponse = SessionPendingResponses[keyof SessionPendingResponses]
+
+export type SessionCancelPendingData = {
+  body?: never
+  path: {
+    sessionID: string
+    messageID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/pending/{messageID}"
+}
+
+export type SessionCancelPendingErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionCancelPendingError = SessionCancelPendingErrors[keyof SessionCancelPendingErrors]
+
+export type SessionCancelPendingResponses = {
+  /**
+   * Pending prompt cancelled
+   */
+  200: boolean
+}
+
+export type SessionCancelPendingResponse = SessionCancelPendingResponses[keyof SessionCancelPendingResponses]
+
+export type SessionPromotePendingData = {
+  body?: never
+  path: {
+    sessionID: string
+    messageID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/pending/{messageID}/promote"
+}
+
+export type SessionPromotePendingErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionPromotePendingError = SessionPromotePendingErrors[keyof SessionPromotePendingErrors]
+
+export type SessionPromotePendingResponses = {
+  /**
+   * Pending prompt promoted
+   */
+  200: boolean
+}
+
+export type SessionPromotePendingResponse = SessionPromotePendingResponses[keyof SessionPromotePendingResponses]
 
 export type SessionCommandData = {
   body?: {
@@ -10478,6 +10774,458 @@ export type PartUpdateResponses = {
 }
 
 export type PartUpdateResponse = PartUpdateResponses[keyof PartUpdateResponses]
+
+export type SwarmListData = {
+  body?: never
+  path?: never
+  query: {
+    sessionID: string
+    directory?: string
+    workspace?: string
+  }
+  url: "/swarm"
+}
+
+export type SwarmListErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type SwarmListError = SwarmListErrors[keyof SwarmListErrors]
+
+export type SwarmListResponses = {
+  /**
+   * Swarm runs for a session
+   */
+  200: Array<{
+    id: string
+    sessionID: string
+    status:
+      | "queued"
+      | "planning"
+      | "running"
+      | "waiting_for_permission"
+      | "reviewing"
+      | "verifying"
+      | "repairing"
+      | "completed"
+      | "failed"
+      | "cancelled"
+    preset: "fast" | "balanced" | "max" | "custom" | "deep"
+    config: {
+      enabled?: boolean
+      preset?: "fast" | "balanced" | "max" | "custom" | "deep"
+      workers?: number
+      maxRounds?: number
+      maxModelCalls?: number
+      maxTokens?: number
+      repairAttempts?: number
+      timeoutMs?: number
+      stopWhenVerified?: boolean
+      roleModels?: {
+        [key: string]: string
+      }
+      reasoning?: {
+        [key: string]: string
+      }
+    }
+    agents: Array<{
+      id: string
+      sessionID: string
+      role: "planner" | "solver" | "implementer" | "critic" | "tester" | "reviewer" | "judge" | "repair"
+      status: "queued" | "running" | "waiting_for_permission" | "completed" | "failed" | "cancelled"
+      model?: {
+        providerID: string
+        modelID: string
+        variant?: string
+      }
+      progress?: string
+      filesClaimed?: Array<string>
+      filesTouched?: Array<string>
+      error?: string
+      timeCreated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      timeUpdated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }>
+    result?: {
+      summary: string
+      filesChanged?: Array<string>
+      testsPassed?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      testsFailed?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      concerns?: Array<string>
+      agentsUsed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      toolCalls: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    instrumentation?: {
+      taskDurationMs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      agents: Array<{
+        id: string
+        role: "planner" | "solver" | "implementer" | "critic" | "tester" | "reviewer" | "judge" | "repair"
+        model?: string
+        modelCalls: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        input: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        output: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        reasoning: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        cost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        toolCalls: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }>
+      modelCalls: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      input: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      output: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      reasoning: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      cost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      toolCalls: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      testsPassed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      testsFailed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      repairRounds: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      success: boolean
+      verified: boolean
+    }
+    timeCreated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    timeUpdated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+}
+
+export type SwarmListResponse = SwarmListResponses[keyof SwarmListResponses]
+
+export type SwarmStartData = {
+  body?: {
+    sessionID: string
+    task: string
+    preset?: "fast" | "balanced" | "max" | "custom" | "deep"
+    config?: {
+      enabled?: boolean
+      preset?: "fast" | "balanced" | "max" | "custom" | "deep"
+      workers?: number
+      maxRounds?: number
+      maxModelCalls?: number
+      maxTokens?: number
+      repairAttempts?: number
+      timeoutMs?: number
+      stopWhenVerified?: boolean
+      roleModels?: {
+        [key: string]: string
+      }
+      reasoning?: {
+        [key: string]: string
+      }
+    }
+    model?: {
+      providerID: string
+      modelID: string
+      variant?: string
+    }
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/swarm"
+}
+
+export type SwarmStartErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+}
+
+export type SwarmStartError = SwarmStartErrors[keyof SwarmStartErrors]
+
+export type SwarmStartResponses = {
+  /**
+   * Started swarm run
+   */
+  200: {
+    id: string
+    sessionID: string
+    status:
+      | "queued"
+      | "planning"
+      | "running"
+      | "waiting_for_permission"
+      | "reviewing"
+      | "verifying"
+      | "repairing"
+      | "completed"
+      | "failed"
+      | "cancelled"
+    preset: "fast" | "balanced" | "max" | "custom" | "deep"
+    config: {
+      enabled?: boolean
+      preset?: "fast" | "balanced" | "max" | "custom" | "deep"
+      workers?: number
+      maxRounds?: number
+      maxModelCalls?: number
+      maxTokens?: number
+      repairAttempts?: number
+      timeoutMs?: number
+      stopWhenVerified?: boolean
+      roleModels?: {
+        [key: string]: string
+      }
+      reasoning?: {
+        [key: string]: string
+      }
+    }
+    agents: Array<{
+      id: string
+      sessionID: string
+      role: "planner" | "solver" | "implementer" | "critic" | "tester" | "reviewer" | "judge" | "repair"
+      status: "queued" | "running" | "waiting_for_permission" | "completed" | "failed" | "cancelled"
+      model?: {
+        providerID: string
+        modelID: string
+        variant?: string
+      }
+      progress?: string
+      filesClaimed?: Array<string>
+      filesTouched?: Array<string>
+      error?: string
+      timeCreated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      timeUpdated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }>
+    result?: {
+      summary: string
+      filesChanged?: Array<string>
+      testsPassed?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      testsFailed?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      concerns?: Array<string>
+      agentsUsed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      toolCalls: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    instrumentation?: {
+      taskDurationMs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      agents: Array<{
+        id: string
+        role: "planner" | "solver" | "implementer" | "critic" | "tester" | "reviewer" | "judge" | "repair"
+        model?: string
+        modelCalls: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        input: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        output: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        reasoning: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        cost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        toolCalls: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }>
+      modelCalls: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      input: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      output: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      reasoning: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      cost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      toolCalls: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      testsPassed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      testsFailed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      repairRounds: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      success: boolean
+      verified: boolean
+    }
+    timeCreated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    timeUpdated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type SwarmStartResponse = SwarmStartResponses[keyof SwarmStartResponses]
+
+export type SwarmGetData = {
+  body?: never
+  path: {
+    swarmID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/swarm/{swarmID}"
+}
+
+export type SwarmGetErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * SwarmNotFoundError
+   */
+  404: SwarmNotFoundError
+}
+
+export type SwarmGetError = SwarmGetErrors[keyof SwarmGetErrors]
+
+export type SwarmGetResponses = {
+  /**
+   * Swarm run state
+   */
+  200: {
+    id: string
+    sessionID: string
+    status:
+      | "queued"
+      | "planning"
+      | "running"
+      | "waiting_for_permission"
+      | "reviewing"
+      | "verifying"
+      | "repairing"
+      | "completed"
+      | "failed"
+      | "cancelled"
+    preset: "fast" | "balanced" | "max" | "custom" | "deep"
+    config: {
+      enabled?: boolean
+      preset?: "fast" | "balanced" | "max" | "custom" | "deep"
+      workers?: number
+      maxRounds?: number
+      maxModelCalls?: number
+      maxTokens?: number
+      repairAttempts?: number
+      timeoutMs?: number
+      stopWhenVerified?: boolean
+      roleModels?: {
+        [key: string]: string
+      }
+      reasoning?: {
+        [key: string]: string
+      }
+    }
+    agents: Array<{
+      id: string
+      sessionID: string
+      role: "planner" | "solver" | "implementer" | "critic" | "tester" | "reviewer" | "judge" | "repair"
+      status: "queued" | "running" | "waiting_for_permission" | "completed" | "failed" | "cancelled"
+      model?: {
+        providerID: string
+        modelID: string
+        variant?: string
+      }
+      progress?: string
+      filesClaimed?: Array<string>
+      filesTouched?: Array<string>
+      error?: string
+      timeCreated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      timeUpdated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }>
+    result?: {
+      summary: string
+      filesChanged?: Array<string>
+      testsPassed?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      testsFailed?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      concerns?: Array<string>
+      agentsUsed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      toolCalls: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }
+    instrumentation?: {
+      taskDurationMs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      agents: Array<{
+        id: string
+        role: "planner" | "solver" | "implementer" | "critic" | "tester" | "reviewer" | "judge" | "repair"
+        model?: string
+        modelCalls: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        input: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        output: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        reasoning: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        cost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        toolCalls: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }>
+      modelCalls: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      input: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      output: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      reasoning: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      cost: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      toolCalls: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      testsPassed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      testsFailed: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      repairRounds: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      success: boolean
+      verified: boolean
+    }
+    timeCreated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    timeUpdated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type SwarmGetResponse = SwarmGetResponses[keyof SwarmGetResponses]
+
+export type SwarmCancelData = {
+  body?: never
+  path: {
+    swarmID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/swarm/{swarmID}/cancel"
+}
+
+export type SwarmCancelErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type SwarmCancelError = SwarmCancelErrors[keyof SwarmCancelErrors]
+
+export type SwarmCancelResponses = {
+  /**
+   * Swarm cancelled
+   */
+  200: boolean
+}
+
+export type SwarmCancelResponse = SwarmCancelResponses[keyof SwarmCancelResponses]
+
+export type SwarmAgentsData = {
+  body?: never
+  path: {
+    swarmID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/swarm/{swarmID}/agents"
+}
+
+export type SwarmAgentsErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * SwarmNotFoundError
+   */
+  404: SwarmNotFoundError
+}
+
+export type SwarmAgentsError = SwarmAgentsErrors[keyof SwarmAgentsErrors]
+
+export type SwarmAgentsResponses = {
+  /**
+   * Swarm child agents
+   */
+  200: Array<{
+    id: string
+    sessionID: string
+    role: "planner" | "solver" | "implementer" | "critic" | "tester" | "reviewer" | "judge" | "repair"
+    status: "queued" | "running" | "waiting_for_permission" | "completed" | "failed" | "cancelled"
+    model?: {
+      providerID: string
+      modelID: string
+      variant?: string
+    }
+    progress?: string
+    filesClaimed?: Array<string>
+    filesTouched?: Array<string>
+    error?: string
+    timeCreated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    timeUpdated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+}
+
+export type SwarmAgentsResponse = SwarmAgentsResponses[keyof SwarmAgentsResponses]
 
 export type SyncStartData = {
   body?: never
@@ -12479,7 +13227,8 @@ export type V2CredentialRemoveResponse = V2CredentialRemoveResponses[keyof V2Cre
 
 export type V2CredentialUpdateData = {
   body: {
-    label: string
+    label?: string
+    active?: boolean
   }
   path: {
     credentialID: string

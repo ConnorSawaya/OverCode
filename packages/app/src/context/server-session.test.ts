@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import type { retry } from "@opencode-ai/core/util/retry"
-import type { OpenCodeEvent, SessionApi } from "@opencode-ai/client/promise"
-import type { Message, OpencodeClient, Part, Session } from "@opencode-ai/sdk/v2/client"
+import type { retry } from "@overcode-ai/core/util/retry"
+import type { OpenCodeEvent, SessionApi } from "@overcode-ai/client/promise"
+import type { Message, OpencodeClient, Part, Session } from "@overcode-ai/sdk/v2/client"
 import { createServerSession } from "./server-session"
 import type { ServerApi } from "@/utils/server"
 import type { CompatibleSessionApi } from "@/utils/server-compat"
@@ -269,6 +269,42 @@ describe("server session", () => {
     expect(ctx.store.data.part.msg_2_assistant).toMatchObject([{ type: "text", text: "world" }])
   })
 
+  test("tracks the current V2 step lifecycle through terminal completion", async () => {
+    const ctx = setup({ child: session("child") })
+    const apply = (input: object) => ctx.store.applyV2(input as OpenCodeEvent)
+    const base = { created: 1, location: { directory: "/repo" } }
+
+    apply({
+      ...base,
+      id: "evt_start",
+      type: "session.next.step.started",
+      data: {
+        sessionID: "child",
+        assistantMessageID: "msg_assistant",
+        agent: "build",
+        model: { id: "model", providerID: "provider" },
+      },
+    })
+    expect(ctx.store.data.session_working("child")).toBe(true)
+
+    apply({
+      ...base,
+      id: "evt_tools",
+      type: "session.next.step.ended",
+      data: { sessionID: "child", assistantMessageID: "msg_assistant", finish: "tool-calls" },
+    })
+    expect(ctx.store.data.session_working("child")).toBe(true)
+
+    apply({
+      ...base,
+      id: "evt_done",
+      type: "session.next.step.ended",
+      data: { sessionID: "child", assistantMessageID: "msg_assistant", finish: "stop" },
+    })
+    await Promise.resolve()
+    expect(ctx.store.data.session_working("child")).toBe(false)
+  })
+
   test("refreshes a cached queue when a hidden session update arrives", async () => {
     const item: SessionPendingPrompt = {
       id: "msg-hidden",
@@ -359,6 +395,27 @@ describe("server session", () => {
     expect(requests).toEqual([{ sessionID: "root", limit: 20, order: "desc" }])
     expect(store.data.session_message.root.map((message) => message.id)).toEqual([user.id, assistant.id])
     expect(store.data.message.root.map((message) => message.id)).toEqual([user.id, assistant.id])
+  })
+
+  test("does not reuse an empty page as a zero message limit", async () => {
+    const requests: unknown[] = []
+    const messageApi = {
+      list: async (input: unknown) => {
+        requests.push(input)
+        return { data: [], cursor: { previous: null, next: null } }
+      },
+    } as unknown as MessageApi
+    const sessionApi = { get: async () => session("root") } as unknown as SessionApi
+    const store = createServerSession({} as OpencodeClient, sessionApi, messageApi)
+    store.remember(session("root"))
+
+    await store.sync("root")
+    await store.sync("root", { force: true })
+
+    expect(requests).toEqual([
+      { sessionID: "root", limit: 20, order: "desc" },
+      { sessionID: "root", limit: 20, order: "desc" },
+    ])
   })
 
   test("extends a current page to include the user for split assistant turns", async () => {

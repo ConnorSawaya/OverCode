@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, mock, test } from "bun:test"
 import { createRoot, getOwner, type Owner } from "solid-js"
 import { createStore } from "solid-js/store"
-import type { NormalizedProviderListResponse } from "@opencode-ai/session-ui/context"
+import type { NormalizedProviderListResponse } from "@overcode-ai/session-ui/context"
 import type { State } from "./types"
 import type { QueryOptionsApi } from "../server-sync"
 import { ServerScope } from "@/utils/server-scope"
@@ -217,6 +217,47 @@ describe("createChildStoreManager", () => {
       manager.disableMcp("/project")
       expect(query().enabled).toBe(false)
       expect(manager.mcp("/project")).toBe(false)
+    } finally {
+      dispose()
+    }
+  })
+
+  test("falls back to the global catalog after it loads", () => {
+    let current = { all: new Map(), connected: [], default: {} } as NormalizedProviderListResponse
+    let manager: ReturnType<typeof createChildStoreManager> | undefined
+
+    const dispose = createOwner((owner) => {
+      manager = createChildStoreManager({
+        owner,
+        scope: ServerScope.local,
+        persist,
+        isBooting: () => false,
+        isLoadingSessions: () => false,
+        onBootstrap() {},
+        onMcp() {},
+        onDispose() {},
+        translate: (key) => key,
+        queryOptions: queryOptionsApi,
+        global: {
+          get provider() {
+            return current
+          },
+        },
+      })
+    })
+
+    try {
+      if (!manager) throw new Error("manager required")
+      const [store] = manager.child("/project", { bootstrap: false })
+      expect(store.provider.all.size).toBe(0)
+
+      current = {
+        all: new Map([["demo", { id: "demo", models: {} }]]),
+        connected: ["demo"],
+        default: {},
+      } as unknown as NormalizedProviderListResponse
+      expect(store.provider.all.size).toBe(1)
+      expect(store.provider.connected).toEqual(["demo"])
     } finally {
       dispose()
     }

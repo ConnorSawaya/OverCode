@@ -1,16 +1,16 @@
 import { afterEach, describe, expect } from "bun:test"
-import { ConfigV1 } from "@opencode-ai/core/v1/config/config"
-import { SessionV1 } from "@opencode-ai/core/v1/session"
+import { ConfigV1 } from "@overcode-ai/core/v1/config/config"
+import { SessionV1 } from "@overcode-ai/core/v1/session"
 import { Deferred, Effect, Layer } from "effect"
 import type * as Scope from "effect/Scope"
 import { HttpServer } from "effect/unstable/http"
 import { ChildProcessSpawner } from "effect/unstable/process"
-import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
-import { LayerNode } from "@opencode-ai/core/effect/layer-node"
-import { FSUtil } from "@opencode-ai/core/fs-util"
-import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
-import { Flag } from "@opencode-ai/core/flag/flag"
-import { createOpencodeClient } from "@opencode-ai/sdk/v2"
+import { AppNodeBuilder } from "@overcode-ai/core/effect/app-node-builder"
+import { LayerNode } from "@overcode-ai/core/effect/layer-node"
+import { FSUtil } from "@overcode-ai/core/fs-util"
+import { CrossSpawnSpawner } from "@overcode-ai/core/cross-spawn-spawner"
+import { Flag } from "@overcode-ai/core/flag/flag"
+import { createOpencodeClient } from "@overcode-ai/sdk/v2"
 import { validateSession } from "../../src/cli/tui/validate-session"
 import { InstanceBootstrap } from "../../src/project/bootstrap"
 import { InstanceStore } from "../../src/project/instance-store"
@@ -26,9 +26,9 @@ import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, TestInstance, tmpdirScoped } from "../fixture/fixture"
 import { awaitWithTimeout, pollWithTimeout, testEffect } from "../lib/effect"
 import { testProviderConfig } from "../lib/test-provider"
-import { ProviderV2 } from "@opencode-ai/core/provider"
-import { ModelV2 } from "@opencode-ai/core/model"
-import { Database } from "@opencode-ai/core/database/database"
+import { ProviderV2 } from "@overcode-ai/core/provider"
+import { ModelV2 } from "@overcode-ai/core/model"
+import { Database } from "@overcode-ai/core/database/database"
 import { httpApiLayer } from "./httpapi-layer"
 
 const noopBootstrapLayer = Layer.succeed(InstanceBootstrap.Service, InstanceBootstrap.Service.of({ run: Effect.void }))
@@ -436,6 +436,46 @@ describe("HttpApi SDK", () => {
       firstEvent((signal) => sdk.event.subscribe(undefined, { signal })).pipe(
         Effect.map((event) => ({ type: record(record(event).payload).type })),
       ),
+    ),
+  )
+
+  serverPathParity("keeps the v2 event stream relay-safe while idle", (serverPath) =>
+    withStandardProject(serverPath, ({ directory }) =>
+      Effect.gen(function* () {
+        const fetch = yield* serverFetch(serverPath)
+        const controller = new AbortController()
+        const response = yield* call(() =>
+          fetch(`http://localhost/api/event?directory=${encodeURIComponent(directory)}`, {
+            signal: controller.signal,
+          }),
+        )
+        expect(response.status).toBe(200)
+        const reader = response.body?.getReader()
+        if (!reader) throw new Error("event response did not include a body")
+
+        try {
+          const heartbeats = yield* call(() =>
+            Promise.race<number>([
+              (async () => {
+                let count = 0
+                while (count < 2) {
+                  const next = await reader.read()
+                  if (next.done) throw new Error("event stream ended before two heartbeats")
+                  count += (new TextDecoder().decode(next.value).match(/: heartbeat\n\n/g) ?? []).length
+                }
+                return count
+              })(),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error("event heartbeat exceeded relay idle window")), 4_500),
+              ),
+            ]),
+          )
+          expect(heartbeats).toBeGreaterThanOrEqual(2)
+        } finally {
+          controller.abort()
+          yield* call(() => reader.cancel().catch(() => undefined))
+        }
+      }),
     ),
   )
 

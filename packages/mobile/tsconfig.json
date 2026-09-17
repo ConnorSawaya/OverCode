@@ -15,5 +15,6 @@
       "@/*": ["../app/src/*"]
     }
   },
-  "include": ["src", "vite.config.ts", "capacitor.config.ts", "package.json"]
+  "include": ["src", "vite.config.ts", "capacitor.config.ts", "package.json"],
+  "exclude": ["src/**/*.test.ts"]
 }

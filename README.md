@@ -56,6 +56,19 @@ bun run --cwd packages/overcode src/index.ts
 > [!TIP]
 > Remove versions older than 0.1.x before installing.
 
+### Command line and background server
+
+The same repository includes a plain terminal CLI for scripts and remote use:
+
+```bash
+overcode cli "summarize the current project"
+overcode cli --attach https://your-relay.example --dir /path/to/project "list the TODOs"
+```
+
+Set `OVERCODE_SERVER_PASSWORD` and, for a relay connection, `OVERCODE_CHANNEL_TOKEN` in the environment instead of putting credentials in shell history. To start the primary server automatically at login, run `overcode service enable`; use `overcode service disable` to remove the user-scoped launcher.
+
+Custom themes can be imported from **Settings → General → Appearance** as a local JSON file or an HTTP(S) URL. Imported themes are validated and saved locally on that device. The format is documented by [`desktop-theme.schema.json`](packages/ui/src/theme/desktop-theme.schema.json).
+
 ### Desktop App (Overcode)
 
 Overcode ships as a desktop application with a custom sidebar, dictation input, and session panels.

@@ -1,4 +1,4 @@
-import { ComputerUse } from "@opencode-ai/core/computer-use"
+import { ComputerUse } from "@overcode-ai/core/computer-use"
 import { Effect } from "effect"
 import { HttpClient } from "effect/unstable/http"
 import { Tool } from "./tool"

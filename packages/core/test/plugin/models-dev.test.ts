@@ -1,18 +1,18 @@
 import path from "path"
 import { describe, expect } from "bun:test"
 import { Effect, Layer } from "effect"
-import { Catalog } from "@opencode-ai/core/catalog"
-import { Integration } from "@opencode-ai/core/integration"
-import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
-import { LayerNode } from "@opencode-ai/core/effect/layer-node"
-import { EventV2 } from "@opencode-ai/core/event"
-import { Flag } from "@opencode-ai/core/flag/flag"
-import { Location } from "@opencode-ai/core/location"
-import { ModelV2 } from "@opencode-ai/core/model"
-import { ModelsDev } from "@opencode-ai/core/models-dev"
-import { ModelsDevPlugin } from "@opencode-ai/core/plugin/models-dev"
-import { ProviderV2 } from "@opencode-ai/core/provider"
-import { AbsolutePath } from "@opencode-ai/core/schema"
+import { Catalog } from "@overcode-ai/core/catalog"
+import { Integration } from "@overcode-ai/core/integration"
+import { AppNodeBuilder } from "@overcode-ai/core/effect/app-node-builder"
+import { LayerNode } from "@overcode-ai/core/effect/layer-node"
+import { EventV2 } from "@overcode-ai/core/event"
+import { Flag } from "@overcode-ai/core/flag/flag"
+import { Location } from "@overcode-ai/core/location"
+import { ModelV2 } from "@overcode-ai/core/model"
+import { ModelsDev } from "@overcode-ai/core/models-dev"
+import { ModelsDevPlugin } from "@overcode-ai/core/plugin/models-dev"
+import { ProviderV2 } from "@overcode-ai/core/provider"
+import { AbsolutePath } from "@overcode-ai/core/schema"
 import { location } from "../fixture/location"
 import { testEffect } from "../lib/effect"
 import { catalogHost, host, integrationHost } from "./host"
@@ -121,6 +121,136 @@ describe("ModelsDevPlugin", () => {
           cache: { read: 0.5, write: 0 },
         },
       ])
+    }),
+  )
+
+  it.effect("inherits provider endpoints and projects supported reasoning variants", () =>
+    Effect.gen(function* () {
+      const integrations = yield* Integration.Service
+      const catalog = yield* Catalog.Service
+      const models = ModelsDev.Service.of({
+        get: () =>
+          Effect.succeed({
+            acme: {
+              id: "acme",
+              name: "Acme",
+              env: [],
+              npm: "@ai-sdk/openai-compatible",
+              api: "https://api.acme.test/v1",
+              models: {
+                override: {
+                  id: "override",
+                  name: "Override",
+                  release_date: "2026-01-01",
+                  attachment: false,
+                  reasoning: true,
+                  temperature: true,
+                  tool_call: true,
+                  reasoning_options: [{ type: "effort", values: ["minimal", "high"] }],
+                  provider: { npm: "@ai-sdk/openai" },
+                  limit: { context: 128_000, output: 8_192 },
+                },
+                inherited: {
+                  id: "inherited",
+                  name: "Inherited",
+                  release_date: "2026-01-01",
+                  attachment: false,
+                  reasoning: true,
+                  temperature: true,
+                  tool_call: true,
+                  reasoning_options: [{ type: "effort", values: [null, "high"] }],
+                  limit: { context: 128_000, output: 8_192 },
+                },
+              },
+            },
+          } satisfies Record<string, ModelsDev.Provider>),
+        refresh: () => Effect.void,
+      })
+
+      yield* ModelsDevPlugin.effect(
+        host({
+          catalog: catalogHost(catalog),
+          integration: integrationHost(integrations),
+        }),
+      ).pipe(Effect.provideService(ModelsDev.Service, models))
+
+      const providerID = ProviderV2.ID.make("acme")
+      const override = yield* catalog.model.get(providerID, ModelV2.ID.make("override"))
+      const inherited = yield* catalog.model.get(providerID, ModelV2.ID.make("inherited"))
+
+      expect(override).toMatchObject({
+        api: {
+          type: "aisdk",
+          package: "@ai-sdk/openai",
+          url: "https://api.acme.test/v1",
+        },
+        variants: [
+          {
+            id: "minimal",
+            body: { reasoning: { effort: "minimal", summary: "auto" }, include: ["reasoning.encrypted_content"] },
+          },
+          {
+            id: "high",
+            body: { reasoning: { effort: "high", summary: "auto" }, include: ["reasoning.encrypted_content"] },
+          },
+        ],
+      })
+      expect(inherited).toMatchObject({
+        api: {
+          type: "aisdk",
+          package: "@ai-sdk/openai-compatible",
+          url: "https://api.acme.test/v1",
+        },
+        variants: [
+          { id: "none", body: { reasoning_effort: "none" } },
+          { id: "high", body: { reasoning_effort: "high" } },
+        ],
+      })
+    }),
+  )
+
+  it.effect("keeps upstream and rebranded public provider IDs available", () =>
+    Effect.gen(function* () {
+      const integrations = yield* Integration.Service
+      const catalog = yield* Catalog.Service
+      const models = ModelsDev.Service.of({
+        get: () =>
+          Effect.succeed({
+            opencode: {
+              id: "opencode",
+              name: "Zen",
+              env: [],
+              npm: "@ai-sdk/openai-compatible",
+              api: "https://zen.example.test/v1",
+              models: {
+                "zen-model": {
+                  id: "zen-model",
+                  name: "Zen Model",
+                  release_date: "2026-01-01",
+                  attachment: false,
+                  reasoning: false,
+                  temperature: false,
+                  tool_call: true,
+                  limit: { context: 128_000, output: 8_192 },
+                },
+              },
+            },
+          } satisfies Record<string, ModelsDev.Provider>),
+        refresh: () => Effect.void,
+      })
+
+      yield* ModelsDevPlugin.effect(
+        host({
+          catalog: catalogHost(catalog),
+          integration: integrationHost(integrations),
+        }),
+      ).pipe(Effect.provideService(ModelsDev.Service, models))
+
+      const upstream = yield* catalog.model.get(ProviderV2.ID.make("opencode"), ModelV2.ID.make("zen-model"))
+      const branded = yield* catalog.model.get(ProviderV2.ID.overcode, ModelV2.ID.make("zen-model"))
+
+      expect(upstream).toMatchObject({ providerID: "opencode", api: { url: "https://zen.example.test/v1" } })
+      expect(branded).toMatchObject({ providerID: "overcode", api: { url: "https://zen.example.test/v1" } })
     }),
   )
 

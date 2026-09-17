@@ -19,6 +19,9 @@ export type TuiOptions = {
   config?: Config
 }
 
+/**
+ * @deprecated Use {@link createOvercodeServer} instead. Kept for backwards compatibility.
+ */
 export async function createOpencodeServer(options?: ServerOptions) {
   options = Object.assign(
     {
@@ -99,6 +102,9 @@ export async function createOpencodeServer(options?: ServerOptions) {
   }
 }
 
+/**
+ * @deprecated Use {@link createOvercodeTui} instead. Kept for backwards compatibility.
+ */
 export function createOpencodeTui(options?: TuiOptions) {
   const args = []
 
@@ -132,3 +138,9 @@ export function createOpencodeTui(options?: TuiOptions) {
     },
   }
 }
+
+/** Overcode-branded alias for {@link createOpencodeServer}. */
+export const createOvercodeServer = createOpencodeServer
+
+/** Overcode-branded alias for {@link createOpencodeTui}. */
+export const createOvercodeTui = createOpencodeTui

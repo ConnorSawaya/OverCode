@@ -1,4 +1,4 @@
-import { createSimpleContext } from "@opencode-ai/ui/context"
+import { createSimpleContext } from "@overcode-ai/ui/context"
 import { createEffect, createMemo, createRoot } from "solid-js"
 import { createStore } from "solid-js/store"
 import { createServerProjects, RECENTLY_CLOSED_DISPLAY_LIMIT, ServerConnection, useServer } from "./server"
@@ -9,6 +9,7 @@ import { createServerSyncContext } from "./server-sync"
 import { getOwner } from "solid-js/web"
 import { QueryClient } from "@tanstack/solid-query"
 import type { ServerScope } from "@/utils/server-scope"
+import { mergeRemoteProjects } from "./project-list"
 
 export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext({
   name: "Global",
@@ -127,7 +128,9 @@ function createServerCtx(
     return base
   }
 
-  const projectsList = createMemo(() => projects.list().map(enrich))
+  const projectsList = createMemo(() =>
+    mergeRemoteProjects(projects.list(), sync.data.project, projects.recentlyClosed()).map(enrich),
+  )
   const recentlyClosedList = createMemo(() => {
     const known = new Set(sync.data.project.map((project) => pathKey(project.worktree)))
     return projects

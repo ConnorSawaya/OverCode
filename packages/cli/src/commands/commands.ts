@@ -34,6 +34,8 @@ export const Commands = Spec.make(typeof OVERCODE_CLI_NAME === "string" ? OVERCO
         Spec.make("restart", { description: "Restart the background server" }),
         Spec.make("status", { description: "Show background server status" }),
         Spec.make("stop", { description: "Stop the background server" }),
+        Spec.make("enable", { description: "Start the background server at login" }),
+        Spec.make("disable", { description: "Disable background server startup" }),
         Spec.make("password", {
           description: "Get or set the server password",
           params: { value: Argument.string("value").pipe(Argument.optional) },

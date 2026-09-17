@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto"
 import { asc, desc, eq, gt, ne } from "drizzle-orm"
 import { Context, Effect, Layer } from "effect"
-import { Database } from "@opencode-ai/core/database/database"
-import { EventV2 } from "@opencode-ai/core/event"
-import { EventTable } from "@opencode-ai/core/event/sql"
-import { ProjectTable } from "@opencode-ai/core/project/sql"
-import { AbsolutePath } from "@opencode-ai/core/schema"
+import { Database } from "@overcode-ai/core/database/database"
+import { EventV2 } from "@overcode-ai/core/event"
+import { EventTable } from "@overcode-ai/core/event/sql"
+import { ProjectTable } from "@overcode-ai/core/project/sql"
+import { AbsolutePath } from "@overcode-ai/core/schema"
 import {
   SyncChangeTable,
   SyncProfileTable,
@@ -13,10 +13,10 @@ import {
   SyncStateTable,
   type SyncChange,
   type SyncProfile,
-} from "@opencode-ai/core/sync/sql"
-import { Project } from "@opencode-ai/schema/project"
-import { Durable } from "@opencode-ai/schema/durable-event-manifest"
-import { makeGlobalNode } from "@opencode-ai/core/effect/app-node"
+} from "@overcode-ai/core/sync/sql"
+import { Project } from "@overcode-ai/schema/project"
+import { Durable } from "@overcode-ai/schema/durable-event-manifest"
+import { makeGlobalNode } from "@overcode-ai/core/effect/app-node"
 
 const STATE_ID = "local"
 const DEFAULT_LIMIT = 10_000

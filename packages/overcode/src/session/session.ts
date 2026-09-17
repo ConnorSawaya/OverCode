@@ -1,18 +1,18 @@
-import { LayerNode } from "@opencode-ai/core/effect/layer-node"
-import { PermissionV1 } from "@opencode-ai/core/v1/permission"
-import { Slug } from "@opencode-ai/core/util/slug"
-import { SessionV1 } from "@opencode-ai/core/v1/session"
-import { serviceUse } from "@opencode-ai/core/effect/service-use"
+import { LayerNode } from "@overcode-ai/core/effect/layer-node"
+import { PermissionV1 } from "@overcode-ai/core/v1/permission"
+import { Slug } from "@overcode-ai/core/util/slug"
+import { SessionV1 } from "@overcode-ai/core/v1/session"
+import { serviceUse } from "@overcode-ai/core/effect/service-use"
 import path from "path"
 import { BackgroundJob } from "@/background/job"
 import { Decimal } from "decimal.js"
-import type { ProviderMetadata, Usage } from "@opencode-ai/llm"
-import { InstallationVersion } from "@opencode-ai/core/installation/version"
-import { Database } from "@opencode-ai/core/database/database"
+import type { ProviderMetadata, Usage } from "@overcode-ai/llm"
+import { InstallationVersion } from "@overcode-ai/core/installation/version"
+import { Database } from "@overcode-ai/core/database/database"
 import { EventV2Bridge } from "@/event-v2-bridge"
-import { SessionV2 } from "@opencode-ai/core/session"
-import * as SessionExecutionLocal from "@opencode-ai/core/session/execution/local"
-import { locationServiceMapLayer } from "@opencode-ai/core/location-services"
+import { SessionV2 } from "@overcode-ai/core/session"
+import * as SessionExecutionLocal from "@overcode-ai/core/session/execution/local"
+import { locationServiceMapLayer } from "@overcode-ai/core/location-services"
 
 import { NotFoundError } from "@/storage/storage"
 import { eq } from "drizzle-orm"
@@ -26,33 +26,60 @@ import { inArray } from "drizzle-orm"
 import { lt } from "drizzle-orm"
 import { or } from "drizzle-orm"
 import type { SQL } from "drizzle-orm"
-import { PartTable, SessionTable } from "@opencode-ai/core/session/sql"
-import { ProjectTable } from "@opencode-ai/core/project/sql"
+import { PartTable, SessionTable } from "@overcode-ai/core/session/sql"
+import { ProjectTable } from "@overcode-ai/core/project/sql"
 import { MessageV2 } from "./message-v2"
 import type { InstanceContext } from "../project/instance-context"
 import { InstanceState } from "@/effect/instance-state"
 import { Snapshot } from "@/snapshot"
-import { ProjectV2 } from "@opencode-ai/core/project"
-import { WorkspaceV2 } from "@opencode-ai/core/workspace"
+import { ProjectV2 } from "@overcode-ai/core/project"
+import { WorkspaceV2 } from "@overcode-ai/core/workspace"
 import { SessionID, MessageID, PartID } from "./schema"
 
 import type { Provider } from "@/provider/provider"
-import { Global } from "@opencode-ai/core/global"
+import { Global } from "@overcode-ai/core/global"
 import { Effect, Layer, Option, Context, Schema, Types } from "effect"
-import { NonNegativeInt, optional } from "@opencode-ai/core/schema"
+import { NonNegativeInt, optional } from "@overcode-ai/core/schema"
 import { RuntimeFlags } from "@/effect/runtime-flags"
-import { ProviderV2 } from "@opencode-ai/core/provider"
-import { ModelV2 } from "@opencode-ai/core/model"
-import { SessionMessage } from "@opencode-ai/schema/session-message"
+import { ProviderV2 } from "@overcode-ai/core/provider"
+import { ModelV2 } from "@overcode-ai/core/model"
+import { SessionMessage } from "@overcode-ai/schema/session-message"
+import {
+  AUTO_TITLE_METADATA_KEY,
+  MANUAL_TITLE_METADATA_KEY,
+  canAutoTitle,
+  isDefaultTitle,
+} from "@overcode-ai/core/session/title"
 
 const parentTitlePrefix = "New session - "
 const childTitlePrefix = "Child session - "
-export const AUTO_TITLE_METADATA_KEY = "overcode.autoTitle"
+export { AUTO_TITLE_METADATA_KEY, MANUAL_TITLE_METADATA_KEY, canAutoTitle, isDefaultTitle }
 
-export function isDefaultTitle(title: string) {
-  return new RegExp(
-    `^(${parentTitlePrefix}|${childTitlePrefix})\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$`,
-  ).test(title)
+/**
+ * The rename tool is intentionally opt-in. Automatic title generation has its
+ * own path, so a model must only use this tool after the user explicitly
+ * mentions changing the chat/session title or name.
+ */
+export function userRequestedTitleChange(messages: SessionV1.WithParts[]) {
+  const latestUser = [...messages].reverse().find((message) => message.info.role === "user")
+  if (!latestUser) return false
+  const text = latestUser.parts
+    .filter((part): part is SessionV1.TextPart => part.type === "text" && !part.synthetic && !part.ignored)
+    .map((part) => part.text.trim())
+    .filter(Boolean)
+    .join(" ")
+  if (!text) return false
+
+  const rename = /(?:rename|retitle|re[ -]?name)/i
+  const target = /(?:chat|conversation|session|thread|title|name)/i
+  const explicitPhrase = /\b(?:call|name|title)\s+(?:this|the)\s+(?:chat|conversation|session|thread)\b/i
+  const targetAndAction = new RegExp(
+    `\\b${rename.source}\\b[\\s\\S]{0,80}\\b${target.source}\\b|\\b${target.source}\\b[\\s\\S]{0,80}\\b${rename.source}\\b`,
+    "i",
+  )
+  const directTitleAction =
+    /\b(?:change|set|update)\s+(?:the\s+)?(?:chat|conversation|session|thread)\s+(?:name|title)\b/i
+  return explicitPhrase.test(text) || targetAndAction.test(text) || directTitleAction.test(text)
 }
 
 type SessionRow = typeof SessionTable.$inferSelect
@@ -426,7 +453,7 @@ export interface Interface {
   readonly fork: (input: { sessionID: SessionID; messageID?: MessageID }) => Effect.Effect<Info, NotFound>
   readonly touch: (sessionID: SessionID) => Effect.Effect<void>
   readonly get: (id: SessionID) => Effect.Effect<Info, NotFound>
-  readonly setTitle: (input: { sessionID: SessionID; title: string }) => Effect.Effect<void>
+  readonly setTitle: (input: { sessionID: SessionID; title: string; source?: "manual" | "auto" }) => Effect.Effect<void>
   readonly setArchived: (input: { sessionID: SessionID; time?: number }) => Effect.Effect<void>
   readonly setMetadata: (input: typeof SetMetadataInput.Type) => Effect.Effect<void>
   readonly setAgentModel: (input: {
@@ -747,10 +774,20 @@ const layer: Layer.Layer<
       yield* patch(sessionID, { time: { updated: Date.now() } }).pipe(Effect.orDie)
     })
 
-    const setTitle = Effect.fn("Session.setTitle")(function* (input: { sessionID: SessionID; title: string }) {
+    const setTitle = Effect.fn("Session.setTitle")(function* (input: {
+      sessionID: SessionID
+      title: string
+      source?: "manual" | "auto"
+    }) {
       const current = yield* get(input.sessionID).pipe(Effect.orDie)
       const metadata = { ...(current.metadata ?? {}) }
-      delete metadata[AUTO_TITLE_METADATA_KEY]
+      if (input.source === "auto") {
+        delete metadata[MANUAL_TITLE_METADATA_KEY]
+        metadata[AUTO_TITLE_METADATA_KEY] = true
+      } else {
+        delete metadata[AUTO_TITLE_METADATA_KEY]
+        metadata[MANUAL_TITLE_METADATA_KEY] = true
+      }
       yield* patch(input.sessionID, { title: input.title, metadata }).pipe(Effect.orDie)
     })
 

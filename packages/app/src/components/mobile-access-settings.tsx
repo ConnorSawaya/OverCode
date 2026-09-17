@@ -1,5 +1,5 @@
-import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
-import { TextInputV2 } from "@opencode-ai/ui/v2/text-input-v2"
+import { ButtonV2 } from "@overcode-ai/ui/v2/button-v2"
+import { TextInputV2 } from "@overcode-ai/ui/v2/text-input-v2"
 import { For, Show, createEffect, createMemo, createSignal, onMount } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"

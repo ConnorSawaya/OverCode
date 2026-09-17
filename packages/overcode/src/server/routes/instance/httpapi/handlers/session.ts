@@ -1,10 +1,11 @@
-import { PermissionV1 } from "@opencode-ai/core/v1/permission"
+import { PermissionV1 } from "@overcode-ai/core/v1/permission"
 import { Agent } from "@/agent/agent"
-import { SessionV1 } from "@opencode-ai/core/v1/session"
+import { SessionV1 } from "@overcode-ai/core/v1/session"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { Command } from "@/command"
 import { Permission } from "@/permission"
 import { SessionShare } from "@/share/session"
+import { Swarm } from "@/swarm/service"
 import { Session } from "@/session/session"
 import { SessionCompaction } from "@/session/compaction"
 import { MessageV2 } from "@/session/message-v2"
@@ -15,7 +16,7 @@ import { SessionStatus } from "@/session/status"
 import { SessionSummary } from "@/session/summary"
 import { Todo } from "@/session/todo"
 import { MessageID, PartID, SessionID } from "@/session/schema"
-import { NamedError } from "@opencode-ai/core/util/error"
+import { NamedError } from "@overcode-ai/core/util/error"
 import { Cause, Effect, Option, Schema, Scope } from "effect"
 import * as Stream from "effect/Stream"
 import { InstanceState } from "@/effect/instance-state"
@@ -50,6 +51,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     const session = yield* Session.Service
     const shareSvc = yield* SessionShare.Service
     const promptSvc = yield* SessionPrompt.Service
+    const swarmSvc = yield* Swarm.Service
     const revertSvc = yield* SessionRevert.Service
     const compactSvc = yield* SessionCompaction.Service
     const runState = yield* SessionRunState.Service
@@ -307,11 +309,51 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       return true
     })
 
+    const swarmPrompt = Effect.fn("SessionHttpApi.swarmPrompt")(function* (ctx: {
+      params: { sessionID: SessionID }
+      payload: typeof PromptPayload.Type
+    }) {
+      // Persist the user message without running the single-agent loop, then
+      // run the swarm coordinator synchronously and return its final message.
+      // Queued delivery falls through to the normal loop (mode is honored on
+      // immediate prompts only).
+      const userMessage = yield* promptSvc
+        .prompt({ ...ctx.payload, mode: undefined, noReply: true, sessionID: ctx.params.sessionID })
+        .pipe(Effect.mapError(() => new HttpApiError.BadRequest({})))
+      const task = userMessage.parts
+        .flatMap((part) => (part.type === "text" ? [part.text] : []))
+        .join("\n")
+      const { finalMessageID } = yield* swarmSvc
+        .runSync({
+          sessionID: ctx.params.sessionID,
+          task,
+          preset: ctx.payload.mode === "deep" ? "deep" : undefined,
+          ...(ctx.payload.model
+            ? {
+                model: {
+                  providerID: ctx.payload.model.providerID as string,
+                  modelID: ctx.payload.model.modelID as string,
+                },
+              }
+            : {}),
+        })
+        .pipe(Effect.mapError(() => new HttpApiError.BadRequest({})))
+      const message = yield* MessageV2.get({ sessionID: ctx.params.sessionID, messageID: finalMessageID }).pipe(
+        Effect.mapError(() => new HttpApiError.BadRequest({})),
+      )
+      return HttpServerResponse.stream(Stream.make(JSON.stringify(message)).pipe(Stream.encodeText), {
+        contentType: "application/json",
+      })
+    })
+
     const prompt = Effect.fn("SessionHttpApi.prompt")(function* (ctx: {
       params: { sessionID: SessionID }
       payload: typeof PromptPayload.Type
     }) {
       yield* requireSession(ctx.params.sessionID)
+      if (ctx.payload.mode && ctx.payload.mode !== "normal" && ctx.payload.delivery !== "queue") {
+        return yield* swarmPrompt(ctx)
+      }
       const message = yield* promptSvc
         .prompt({
           ...ctx.payload,
@@ -328,6 +370,46 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       payload: typeof PromptPayload.Type
     }) {
       yield* requireSession(ctx.params.sessionID)
+      if (ctx.payload.mode && ctx.payload.mode !== "normal" && ctx.payload.delivery !== "queue") {
+        // Same swarm delegation as the synchronous route, but forked like a
+        // normal async prompt. Failures surface as session error events.
+        const userMessage = yield* promptSvc
+          .prompt({
+            ...ctx.payload,
+            mode: undefined,
+            noReply: true,
+            sessionID: ctx.params.sessionID,
+          })
+          .pipe(Effect.mapError(() => new HttpApiError.BadRequest({})))
+        const task = userMessage.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n")
+        yield* swarmSvc
+          .runSync({
+            sessionID: ctx.params.sessionID,
+            task,
+            preset: ctx.payload.mode === "deep" ? "deep" : undefined,
+            ...(ctx.payload.model
+              ? {
+                  model: {
+                    providerID: ctx.payload.model.providerID as string,
+                    modelID: ctx.payload.model.modelID as string,
+                  },
+                }
+              : {}),
+          })
+          .pipe(
+            Effect.catchCause((cause) =>
+              Effect.gen(function* () {
+                yield* Effect.logError("swarm_async failed", { sessionID: ctx.params.sessionID, cause })
+                yield* events.publish(Session.Event.Error, {
+                  sessionID: ctx.params.sessionID,
+                  error: new NamedError.Unknown({ message: Cause.pretty(cause) }).toObject(),
+                })
+              }),
+            ),
+            Effect.forkIn(scope, { startImmediately: true }),
+          )
+        return HttpApiSchema.NoContent.make()
+      }
       yield* promptSvc.prompt({ ...ctx.payload, sessionID: ctx.params.sessionID }).pipe(
         Effect.catchCause((cause) =>
           Effect.gen(function* () {

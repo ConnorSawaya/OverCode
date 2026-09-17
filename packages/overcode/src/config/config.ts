@@ -1,31 +1,31 @@
-import { LayerNode } from "@opencode-ai/core/effect/layer-node"
-import { httpClient } from "@opencode-ai/core/effect/app-node-platform"
-import { serviceUse } from "@opencode-ai/core/effect/service-use"
+import { LayerNode } from "@overcode-ai/core/effect/layer-node"
+import { httpClient } from "@overcode-ai/core/effect/app-node-platform"
+import { serviceUse } from "@overcode-ai/core/effect/service-use"
 import path from "path"
 import { pathToFileURL } from "url"
 import os from "os"
 import { mergeDeep } from "remeda"
-import { Global } from "@opencode-ai/core/global"
+import { Global } from "@overcode-ai/core/global"
 import fsNode from "fs/promises"
-import { Flag } from "@opencode-ai/core/flag/flag"
+import { Flag } from "@overcode-ai/core/flag/flag"
 import { Auth } from "../auth"
 import { Env } from "../env"
 import { applyEdits, modify } from "jsonc-parser"
-import { InstallationLocal, InstallationVersion } from "@opencode-ai/core/installation/version"
+import { InstallationLocal, InstallationVersion } from "@overcode-ai/core/installation/version"
 import { existsSync } from "fs"
 import { Account } from "@/account/account"
 import { isRecord } from "@/util/record"
-import type { ConsoleState } from "@opencode-ai/core/v1/config/console-state"
-import { FSUtil } from "@opencode-ai/core/fs-util"
+import type { ConsoleState } from "@overcode-ai/core/v1/config/console-state"
+import { FSUtil } from "@overcode-ai/core/fs-util"
 import { InstanceState } from "@/effect/instance-state"
 import { Context, Duration, Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/unstable/http"
-import { EffectFlock } from "@opencode-ai/core/util/effect-flock"
+import { EffectFlock } from "@overcode-ai/core/util/effect-flock"
 import { containsPath, type InstanceContext } from "../project/instance-context"
-import { ConfigV1 } from "@opencode-ai/core/v1/config/config"
-import { RemoteAuthError } from "@opencode-ai/core/v1/config/error"
-import { ConfigPermissionV1 } from "@opencode-ai/core/v1/config/permission"
-import { ConfigPluginV1 } from "@opencode-ai/core/v1/config/plugin"
+import { ConfigV1 } from "@overcode-ai/core/v1/config/config"
+import { RemoteAuthError } from "@overcode-ai/core/v1/config/error"
+import { ConfigPermissionV1 } from "@overcode-ai/core/v1/config/permission"
+import { ConfigPluginV1 } from "@overcode-ai/core/v1/config/plugin"
 import { ConfigAgent } from "./agent"
 import { ConfigCommand } from "./command"
 import { ConfigManaged } from "./managed"
@@ -34,7 +34,7 @@ import { ConfigPaths } from "./paths"
 import { ConfigPlugin } from "./plugin"
 import { ConfigVariable } from "./variable"
 import { ConfigV2Compat } from "./v2-compat"
-import { Npm } from "@opencode-ai/core/npm"
+import { Npm } from "@overcode-ai/core/npm"
 import { withTransientReadRetry } from "@/util/effect-http-client"
 
 // Custom merge function that concatenates array fields instead of replacing them
@@ -147,6 +147,10 @@ function globalConfigFile() {
   return candidates[0]
 }
 
+function opencodeConfigDirectory() {
+  return path.join(path.dirname(Global.Path.config), "opencode")
+}
+
 function patchJsonc(input: string, patch: unknown, path: string[] = []): string {
   if (!isRecord(patch)) {
     const edits = modify(input, path, patch, {
@@ -257,6 +261,28 @@ const layer = Layer.effect(
       return yield* loadConfig(text, { path: filepath }, env)
     })
 
+    // OpenCode and Overcode use the same config format. Import the legacy
+    // global files read-only so env/file references keep their original base
+    // directory and the user's OpenCode config is never rewritten.
+    const loadOpenCodeFile = Effect.fnUntraced(function* (filepath: string, env?: Record<string, string>) {
+      const text = yield* readConfigFile(filepath)
+      if (!text) return {} as Info
+      const data = yield* loadConfig(
+        text,
+        {
+          dir: path.dirname(filepath),
+          source: filepath,
+        },
+        env,
+      )
+      // Resolve path-like plugin specs against the OpenCode file that declared
+      // them so `./plugins/x.js` keeps pointing at the OpenCode installation
+      // instead of being reinterpreted relative to Overcode. This is pure path
+      // normalization; nothing is executed and the OpenCode files are never
+      // rewritten.
+      return yield* Effect.promise(() => resolveLoadedPlugins(data, filepath))
+    })
+
     const loadGlobal = Effect.fnUntraced(function* (env?: Record<string, string>) {
       let result: Info = {}
       // Seed the default global config with the schema for editor completion, but avoid writing when the user
@@ -269,6 +295,17 @@ const layer = Layer.effect(
             .pipe(Effect.catch(() => Effect.void))
         }
       }
+      const opencodeDir = opencodeConfigDirectory()
+      if (path.resolve(opencodeDir) !== path.resolve(Global.Path.config) && existsSync(opencodeDir)) {
+        for (const file of ["config.json", "opencode.json", "opencode.jsonc"]) {
+          const source = path.join(opencodeDir, file)
+          const imported = yield* loadOpenCodeFile(source, env).pipe(
+            Effect.catchCause(() => Effect.succeed({} as Info)),
+          )
+          result = mergeConfig(result, imported)
+        }
+      }
+
       result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, "config.json"), env))
       result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, "overcode.json"), env))
       result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, "overcode.jsonc"), env))
@@ -453,7 +490,7 @@ const layer = Layer.effect(
             .install(dir, {
               add: [
                 {
-                  name: "@opencode-ai/plugin",
+                  name: "@overcode-ai/plugin",
                   version: InstallationLocal ? undefined : InstallationVersion,
                 },
               ],

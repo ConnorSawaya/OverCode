@@ -6,7 +6,8 @@
 // history ring. All are async because they read config or hit the SDK, but
 // none block each other.
 import { Context, Effect, Layer } from "effect"
-import { resolve } from "@opencode-ai/tui/config"
+import { normalizeProviderCatalog } from "@overcode-ai/sdk/v2/data"
+import { resolve } from "@overcode-ai/tui/config"
 import { TuiConfig } from "@/config/tui"
 import { makeRuntime } from "@/effect/run-service"
 import { reusePendingTask } from "./runtime.shared"
@@ -95,20 +96,35 @@ const layer = Layer.effect(
       directory: string,
       model: RunInput["model"],
     ) {
-      const connected = yield* Effect.promise(() =>
-        sdk.config
-          .providers({ directory })
-          .then((item) => item.data?.providers)
-          .catch(() => undefined),
-      )
-      const providers = yield* Effect.promise(() =>
-        connected
-          ? Promise.resolve(connected)
-          : sdk.provider
-              .list()
-              .then((item) => item.data?.all ?? [])
-              .catch(() => []),
-      )
+      const catalog = yield* Effect.promise(() => {
+        if (!sdk.v2?.provider || !sdk.v2.model) return Promise.resolve(undefined)
+        const location = { location: { directory } }
+        return Promise.all([
+          sdk.v2.provider.list(location),
+          sdk.v2.model.list(location),
+        ])
+          .then(([providers, models]) =>
+            normalizeProviderCatalog(providers.data?.data ?? [], models.data?.data ?? []),
+          )
+          .catch(() => undefined)
+      })
+      let providers = catalog && catalog.all.size > 0 ? [...catalog.all.values()] : undefined
+      if (!providers) {
+        providers = yield* Effect.promise(() =>
+          sdk.config
+            .providers({ directory })
+            .then((item) => item.data?.providers)
+            .catch(() => undefined),
+        )
+      }
+      if (!providers) {
+        providers = yield* Effect.promise(() =>
+          sdk.provider
+            .list()
+            .then((item) => item.data?.all ?? [])
+            .catch(() => []),
+        )
+      }
       const limits = Object.fromEntries(
         providers.flatMap((provider) =>
           Object.entries(provider.models ?? {}).flatMap(([modelID, info]) => {

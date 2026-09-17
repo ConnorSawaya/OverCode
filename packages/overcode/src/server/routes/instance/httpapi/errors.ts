@@ -140,6 +140,15 @@ export class PermissionNotFoundError extends Schema.TaggedErrorClass<PermissionN
   { httpApiStatus: 404 },
 ) {}
 
+export class SwarmNotFoundError extends Schema.TaggedErrorClass<SwarmNotFoundError>()(
+  "SwarmNotFoundError",
+  {
+    swarmID: Schema.String,
+    message: Schema.String,
+  },
+  { httpApiStatus: 404 },
+) {}
+
 export class McpServerNotFoundError extends Schema.TaggedErrorClass<McpServerNotFoundError>()(
   "McpServerNotFoundError",
   {

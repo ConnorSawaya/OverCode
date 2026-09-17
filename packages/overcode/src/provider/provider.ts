@@ -1,38 +1,54 @@
-import { LayerNode } from "@opencode-ai/core/effect/layer-node"
+import { LayerNode } from "@overcode-ai/core/effect/layer-node"
 import os from "os"
-import { ConfigV1 } from "@opencode-ai/core/v1/config/config"
+import { ConfigV1 } from "@overcode-ai/core/v1/config/config"
 import fuzzysort from "fuzzysort"
 import { Config } from "@/config/config"
 import { mapValues, mergeDeep, omit, pickBy, sortBy } from "remeda"
 import { NoSuchModelError, type Provider as SDK } from "ai"
-import { Npm } from "@opencode-ai/core/npm"
-import { Hash } from "@opencode-ai/core/util/hash"
+import { Npm } from "@overcode-ai/core/npm"
+import { Hash } from "@overcode-ai/core/util/hash"
 import { Plugin } from "../plugin"
-import { serviceUse } from "@opencode-ai/core/effect/service-use"
+import { serviceUse } from "@overcode-ai/core/effect/service-use"
 import { type LanguageModelV3 } from "@ai-sdk/provider"
-import { ModelsDev } from "@opencode-ai/core/models-dev"
+import { ModelsDev } from "@overcode-ai/core/models-dev"
 import { Auth } from "../auth"
 import { Env } from "../env"
-import { InstallationVersion } from "@opencode-ai/core/installation/version"
+import { InstallationVersion } from "@overcode-ai/core/installation/version"
 import { iife } from "@/util/iife"
-import { Global } from "@opencode-ai/core/global"
+import { Global } from "@overcode-ai/core/global"
 import path from "path"
 import { pathToFileURL } from "url"
 import { Effect, Layer, Context, Schema, Types } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { InstanceState } from "@/effect/instance-state"
 import { EffectPromise } from "@/effect/promise"
-import { FSUtil } from "@opencode-ai/core/fs-util"
+import { FSUtil } from "@overcode-ai/core/fs-util"
 import { isRecord } from "@/util/record"
-import { optional } from "@opencode-ai/core/schema"
+import { optional } from "@overcode-ai/core/schema"
 import { ProviderTransform } from "./transform"
-import { ProviderV2 } from "@opencode-ai/core/provider"
-import { ModelV2 } from "@opencode-ai/core/model"
+import { ProviderV2 } from "@overcode-ai/core/provider"
+import { ModelV2 } from "@overcode-ai/core/model"
 import { ModelStatus } from "./model-status"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { ProviderError } from "./error"
 
 const OPENAI_HEADER_TIMEOUT_DEFAULT = 300_000
+const DEFAULT_PROVIDER_STREAM_TIMEOUT = 300_000
+export const OVERCODE_PROVIDER_STREAM_TIMEOUT = 90_000
+
+function usesBoundedProviderTimeout(providerID: string) {
+  return providerID.startsWith("overcode") || providerID.startsWith("opencode")
+}
+
+export function providerTimeouts(providerID: string, options: Record<string, any>) {
+  const fallback = usesBoundedProviderTimeout(providerID)
+    ? OVERCODE_PROVIDER_STREAM_TIMEOUT
+    : DEFAULT_PROVIDER_STREAM_TIMEOUT
+  return {
+    chunk: options["chunkTimeout"] ?? fallback,
+    header: options["headerTimeout"] ?? fallback,
+  }
+}
 
 function wrapSSE(res: Response, ms: number, ctl: AbortController) {
   if (typeof ms !== "number" || ms <= 0) return res
@@ -135,7 +151,7 @@ const BUNDLED_PROVIDERS: Record<string, () => Promise<(opts: any) => BundledSDK>
   "@ai-sdk/alibaba": () => import("@ai-sdk/alibaba").then((m) => m.createAlibaba),
   "gitlab-ai-provider": () => import("gitlab-ai-provider").then((m) => m.createGitLab),
   "@ai-sdk/github-copilot": () =>
-    import("@opencode-ai/core/github-copilot/copilot-provider").then((m) => m.createOpenaiCompatible),
+    import("@overcode-ai/core/github-copilot/copilot-provider").then((m) => m.createOpenaiCompatible),
   "venice-ai-sdk-provider": () => import("venice-ai-sdk-provider").then((m) => m.createVenice),
 }
 
@@ -172,6 +188,29 @@ function selectBedrockMantleLanguageModel(sdk: BundledSDK, modelID: string) {
 }
 
 function custom(dep: CustomDep): Record<string, CustomLoader> {
+  const openCodeZen = Effect.fnUntraced(function* (input: Info) {
+    const env = yield* dep.env()
+    const hasKey = iife(() => {
+      if (input.env.some((item) => env[item])) return true
+      return false
+    })
+    const cfg = yield* dep.config()
+    const configuredKey = cfg.provider?.[input.id]?.options?.apiKey ?? cfg.provider?.["overcode"]?.options?.apiKey
+    const ok = hasKey || Boolean(yield* dep.auth(input.id)) || Boolean(configuredKey)
+
+    if (!ok) {
+      for (const [key, value] of Object.entries(input.models)) {
+        if (value.cost.input === 0) continue
+        delete input.models[key]
+      }
+    }
+
+    return {
+      autoload: Object.keys(input.models).length > 0,
+      options: ok ? {} : { apiKey: "public" },
+    }
+  })
+
   return {
     anthropic: () =>
       Effect.succeed({
@@ -182,29 +221,11 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
           },
         },
       }),
-    overcode: Effect.fnUntraced(function* (input: Info) {
-      const env = yield* dep.env()
-      const hasKey = iife(() => {
-        if (input.env.some((item) => env[item])) return true
-        return false
-      })
-      const ok =
-        hasKey ||
-        Boolean(yield* dep.auth(input.id)) ||
-        Boolean((yield* dep.config()).provider?.["overcode"]?.options?.apiKey)
-
-      if (!ok) {
-        for (const [key, value] of Object.entries(input.models)) {
-          if (value.cost.input === 0) continue
-          delete input.models[key]
-        }
-      }
-
-      return {
-        autoload: Object.keys(input.models).length > 0,
-        options: ok ? {} : { apiKey: "public" },
-      }
-    }),
+    // The upstream catalog still calls this public Zen provider "opencode",
+    // while the rebranded app calls it "overcode". Keep both IDs on the same
+    // public/free-model loader so the mobile and desktop pickers agree.
+    overcode: openCodeZen,
+    opencode: openCodeZen,
     openai: () =>
       Effect.succeed({
         autoload: false,
@@ -1792,8 +1813,9 @@ const layer = Layer.effect(
         if (existing) return existing
 
         const customFetch = options["fetch"]
-        const chunkTimeout = options["chunkTimeout"] ?? 300_000
-        const headerTimeout = options["headerTimeout"] ?? 300_000
+        const timeouts = providerTimeouts(String(model.providerID), options)
+        const chunkTimeout = timeouts.chunk
+        const headerTimeout = timeouts.header
         delete options["chunkTimeout"]
         delete options["headerTimeout"]
 

@@ -1,12 +1,12 @@
-import { ImagePreview } from "@opencode-ai/ui/image-preview"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
-import { Icon as LegacyIcon } from "@opencode-ai/ui/icon"
-import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
-import { Icon } from "@opencode-ai/ui/v2/icon"
-import { KeybindV2 } from "@opencode-ai/ui/v2/keybind-v2"
-import { MenuV2 } from "@opencode-ai/ui/v2/menu-v2"
-import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
-import type { ReferenceInfo } from "@opencode-ai/sdk/v2/client"
+import { ImagePreview } from "@overcode-ai/ui/image-preview"
+import { useDialog } from "@overcode-ai/ui/context/dialog"
+import { Icon as LegacyIcon } from "@overcode-ai/ui/icon"
+import { ButtonV2 } from "@overcode-ai/ui/v2/button-v2"
+import { Icon } from "@overcode-ai/ui/v2/icon"
+import { KeybindV2 } from "@overcode-ai/ui/v2/keybind-v2"
+import { MenuV2 } from "@overcode-ai/ui/v2/menu-v2"
+import { TooltipV2 } from "@overcode-ai/ui/v2/tooltip-v2"
+import type { ReferenceInfo } from "@overcode-ai/sdk/v2/client"
 import { createEffect, createMemo, For, on, onCleanup, Show } from "solid-js"
 import { ModelSelectorPopoverV2 } from "@/components/dialog-select-model"
 import { DialogSelectModelUnpaidV2 } from "@/components/dialog-select-model-unpaid-v2"
@@ -39,12 +39,12 @@ import {
   PromptInputV2,
   type PromptInputV2Prompt,
   type PromptInputV2Suggestion,
-} from "@opencode-ai/session-ui/v2/prompt-input"
+} from "@overcode-ai/session-ui/v2/prompt-input"
 import {
   createPromptInputV2Controller,
   createPromptInputV2State,
   type PromptInputV2Interaction,
-} from "@opencode-ai/session-ui/v2/prompt-input/interaction"
+} from "@overcode-ai/session-ui/v2/prompt-input/interaction"
 
 export type PromptInputV2ComposerProps = {
   class?: string
@@ -445,6 +445,17 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
         current: () => props.controls.model.selection.variant.current() ?? "default",
         onSelect: (value) => props.controls.model.selection.variant.set(value === "default" ? undefined : value),
         keybind: () => command.keybindParts("model.variant.cycle"),
+      },
+      executionMode: {
+        options: () =>
+          props.controls.executionMode.options.map((value) => ({
+            id: value,
+            label: value === "normal" ? "Normal" : value === "deep" ? "Deep Think" : "Swarm",
+          })),
+        current: () => props.controls.executionMode.current,
+        onSelect: (value) =>
+          props.controls.executionMode.select(value as "normal" | "deep" | "swarm"),
+        keybind: () => command.keybindParts("executionMode.cycle"),
       },
       submit: {
         stopping,

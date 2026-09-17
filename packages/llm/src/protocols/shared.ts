@@ -202,7 +202,9 @@ export const validateMedia = Effect.fn("ProviderShared.validateMedia")(function*
   if (bytes.byteLength > MAX_MEDIA_DECODED_BYTES)
     return yield* invalidRequest(`${route} media exceeds the ${MAX_MEDIA_DECODED_BYTES} byte decoded limit`)
   if (bytes.toString("base64") !== base64) return yield* invalidRequest(`${route} media must contain canonical base64`)
-  return { mime, base64, dataUrl: `data:${mime};base64,${base64}`, bytes } satisfies ValidatedMedia
+  // Buffer is a Uint8Array at runtime; newer @types/node brands it so the
+  // plain Uint8Array field rejects it statically.
+  return { mime, base64, dataUrl: `data:${mime};base64,${base64}`, bytes: bytes as unknown as Uint8Array } satisfies ValidatedMedia
 })
 
 export const validateToolFile = (route: string, part: ToolFileContent, supportedMimes: ReadonlySet<string>) =>

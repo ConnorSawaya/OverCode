@@ -36,16 +36,14 @@ export function IconGemini(props: JSX.SvgSVGAttributes<SVGSVGElement>) {
   )
 }
 
-export function IconOpencode(props: JSX.SvgSVGAttributes<SVGSVGElement>) {
+export function IconOvercode(props: JSX.SvgSVGAttributes<SVGSVGElement>) {
   return (
-    <svg {...props} viewBox="0 0 70 70" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg {...props} viewBox="0 0 16 20" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path
-        fill-rule="evenodd"
-        clip-rule="evenodd"
-        d="M0 13H35V58H0V13ZM26.25 22.1957H8.75V48.701H26.25V22.1957Z"
+        d="M12 16H4V8H12V16Z"
         fill="currentColor"
       />
-      <path d="M43.75 13H70V22.1957H52.5V48.701H70V57.8967H43.75V13Z" fill="currentColor" />
+      <path d="M12 4H4V16H12V4ZM16 20H0V0H16V20Z" fill="currentColor" />
     </svg>
   )
 }

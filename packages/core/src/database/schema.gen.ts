@@ -247,6 +247,25 @@ export default {
         );
       `)
       yield* tx.run(`
+        CREATE TABLE \`swarm\` (
+          \`id\` text PRIMARY KEY,
+          \`session_id\` text NOT NULL,
+          \`status\` text NOT NULL,
+          \`preset\` text NOT NULL,
+          \`config\` text,
+          \`agents\` text DEFAULT '[]' NOT NULL,
+          \`result\` text,
+          \`instrumentation\` text,
+          \`cost\` real DEFAULT 0 NOT NULL,
+          \`tokens_input\` integer DEFAULT 0 NOT NULL,
+          \`tokens_output\` integer DEFAULT 0 NOT NULL,
+          \`tokens_reasoning\` integer DEFAULT 0 NOT NULL,
+          \`time_created\` integer NOT NULL,
+          \`time_updated\` integer NOT NULL,
+          CONSTRAINT \`fk_swarm_session_id_session_id_fk\` FOREIGN KEY (\`session_id\`) REFERENCES \`session\`(\`id\`) ON DELETE CASCADE
+        );
+      `)
+      yield* tx.run(`
         CREATE TABLE \`sync_change\` (
           \`revision\` integer PRIMARY KEY AUTOINCREMENT,
           \`id\` text NOT NULL,
@@ -318,6 +337,7 @@ export default {
       yield* tx.run(`CREATE INDEX \`session_workspace_idx\` ON \`session\` (\`workspace_id\`);`)
       yield* tx.run(`CREATE INDEX \`session_parent_idx\` ON \`session\` (\`parent_id\`);`)
       yield* tx.run(`CREATE INDEX \`todo_session_idx\` ON \`todo\` (\`session_id\`);`)
+      yield* tx.run(`CREATE INDEX \`swarm_session_idx\` ON \`swarm\` (\`session_id\`);`)
       yield* tx.run(`CREATE UNIQUE INDEX \`sync_change_id_idx\` ON \`sync_change\` (\`id\`);`)
       yield* tx.run(`CREATE INDEX \`sync_change_revision_idx\` ON \`sync_change\` (\`revision\`);`)
       yield* tx.run(`CREATE INDEX \`sync_change_aggregate_idx\` ON \`sync_change\` (\`aggregate_id\`,\`seq\`);`)

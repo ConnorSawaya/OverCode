@@ -8,7 +8,7 @@ import type {
   QuestionRequest,
   ReferenceInfo,
   Session,
-} from "@opencode-ai/sdk/v2/client"
+} from "@overcode-ai/sdk/v2/client"
 import type {
   AgentListInput,
   AgentListOutput,
@@ -22,10 +22,10 @@ import type {
   ReferenceListInput,
   ReferenceListOutput,
   SessionApi,
-} from "@opencode-ai/client/promise"
+} from "@overcode-ai/client/promise"
 import { showToast } from "@/utils/toast"
-import { getFilename } from "@opencode-ai/core/util/path"
-import { retry } from "@opencode-ai/core/util/retry"
+import { getFilename } from "@overcode-ai/core/util/path"
+import { retry } from "@overcode-ai/core/util/retry"
 import { batch } from "solid-js"
 import { produce, reconcile, type SetStoreFunction, type Store } from "solid-js/store"
 import type { State, VcsCache } from "./types"
@@ -36,11 +36,12 @@ import {
   normalizePermissionRequest,
   normalizeProjectInfo,
   normalizeProviderList,
+  normalizeV2ProviderList,
 } from "./utils"
 import { formatServerError } from "@/utils/server-errors"
 import { QueryClient, queryOptions } from "@tanstack/solid-query"
 import { loadMcpQuery, loadMcpResourcesQuery } from "../server-sync"
-import { NormalizedProviderListResponse } from "@opencode-ai/session-ui/context"
+import { NormalizedProviderListResponse } from "@overcode-ai/session-ui/context"
 import { ScopedKey, type ServerScope } from "@/utils/server-scope"
 import { normalizeSessionInfo } from "@/utils/session"
 import type { ServerProtocol } from "@/utils/server-protocol"
@@ -80,6 +81,9 @@ function errors(list: PromiseSettledResult<unknown>[]) {
 }
 
 const providerRev = new Map<string, number>()
+// Provider/model catalogs are large on current servers. Keep a warm catalog
+// fresh for a short window, while explicit provider refreshes still bypass it.
+export const PROVIDER_CATALOG_STALE_TIME_MS = 60_000
 
 export function clearProviderRev(scope: ServerScope, directory: string) {
   providerRev.delete(ScopedKey.from(scope, directory))
@@ -119,25 +123,34 @@ type ProjectApi = {
   readonly current: (input?: ProjectCurrentInput) => Promise<ProjectCurrentOutput>
 }
 
+type CurrentProjectApi = Pick<OpencodeClient["project"], "list" | "current">
+
 type McpApi = ServerApi["mcp"]
 type PermissionApi = ServerApi["permission"]
 type QuestionApi = ServerApi["question"]
 type VcsApi = ServerApi["vcs"]
 
-export const loadProjectsQuery = (scope: ServerScope, api: ProjectApi) =>
+export const loadProjectsQuery = (
+  scope: ServerScope,
+  api: ProjectApi,
+  current?: CurrentProjectApi,
+  protocol?: Promise<ServerProtocol>,
+) =>
   queryOptions({
     queryKey: [scope, "project"],
+    staleTime: 30_000,
+    gcTime: 10 * 60_000,
     queryFn: () =>
-      retry(() =>
-        api.list().then((projects) => {
-          return projects
-            .filter((p) => !!p?.id)
-            .filter((p) => !!p.worktree && !p.worktree.includes("overcode-test"))
-            .map(normalizeProjectInfo)
-            .slice()
-            .sort((a, b) => cmp(a.id, b.id))
-        }),
-      ),
+      retry(async () => {
+        const projects =
+          (await protocol) === "v2" && current ? ((await current.list()).data ?? []) : await api.list()
+        return projects
+          .filter((p) => !!p?.id)
+          .filter((p) => !!p.worktree && !p.worktree.includes("overcode-test"))
+          .map(normalizeProjectInfo)
+          .slice()
+          .sort((a, b) => cmp(a.id, b.id))
+      }),
   })
 
 export async function bootstrapGlobal(input: {
@@ -160,7 +173,7 @@ export async function bootstrapGlobal(input: {
     () => input.queryClient.fetchQuery(loadPathQuery(input.scope, null, input.serverSDK, input.protocol)),
     () =>
       input.queryClient
-        .fetchQuery(loadProjectsQuery(input.scope, input.serverAPI.project))
+        .fetchQuery(loadProjectsQuery(input.scope, input.serverAPI.project, input.serverSDK.project, input.protocol))
         .then((data) => input.setGlobalStore("project", data)),
   ]
   await runAll(slow)
@@ -227,17 +240,28 @@ export const loadProvidersQuery = (
 ) =>
   queryOptions({
     queryKey: [scope, directory, "providers"],
+    staleTime: PROVIDER_CATALOG_STALE_TIME_MS,
     queryFn: () =>
       retry(async () => {
         if ((await protocol) === "v1" && legacy) {
           const result = await legacy.provider.list()
           return normalizeProviderList(result.data!)
         }
+        if ((await protocol) === "v2" && legacy) {
+          const location = directory ? { location: { directory } } : undefined
+          const [providers, models] = await Promise.all([
+            legacy.v2.provider.list(location),
+            legacy.v2.model.list(location),
+          ])
+          return normalizeV2ProviderList(providers.data?.data ?? [], models.data?.data ?? [])
+        }
         const location = directory ? { location: { directory } } : undefined
+        // Older and newer servers disagree on whether a default-model route
+        // exists, so a missing default must not reject the whole catalog.
         const [providers, models, defaultModel] = await Promise.all([
           sdk.provider.list(location),
           sdk.model.list(location),
-          sdk.model.default(location),
+          sdk.model.default(location).catch(() => ({ data: undefined })),
         ])
         return normalizeProviderList(providers.data, models.data, defaultModel.data)
       }),
@@ -267,6 +291,10 @@ export const loadAgentsQuery = (
     queryFn: () =>
       retry(async () => {
         if ((await protocol) === "v1" && legacy) return normalizeAgentList((await legacy.app.agents()).data ?? [])
+        if ((await protocol) === "v2" && legacy) {
+          const result = await legacy.v2.agent.list({ location: { directory } })
+          return normalizeAgentList(result.data?.data ?? [])
+        }
         return sdk.list({ location: { directory } }).then((result) => normalizeAgentList(result.data))
       }),
   })
@@ -303,11 +331,45 @@ export const loadPathQuery = (
 ) =>
   queryOptions<Path>({
     queryKey: [scope, directory, "path"],
-    queryFn: async () => {
-      if ((await protocol) !== "v1")
-        return { state: "", config: "", worktree: "", directory: directory ?? "", home: "" }
-      return retry(() => sdk.path.get({ directory: directory ?? undefined }).then((result) => result.data!))
-    },
+    queryFn: () =>
+      retry(async () => {
+        // The legacy `/path` route does not exist on V2-only daemons (404 +
+        // retries). Resolve through `v2.location.get` and project it onto the
+        // legacy Path shape instead.
+        if ((await protocol) === "v2") {
+          try {
+            const location = await (sdk as unknown as OpencodeClient & {
+              v2: { location: { get: (input?: unknown) => Promise<{ data?: unknown }> } }
+            }).v2.location.get(directory ? { location: { directory } } : undefined)
+            const raw = (location as { data?: unknown }).data as
+              | { directory?: string; project?: { directory?: string }; data?: unknown }
+              | undefined
+            // Tolerate both the bare Location.Info shape and a
+            // Location.response envelope around it.
+            const info = (
+              raw && typeof raw === "object" && "data" in raw && raw.data && typeof raw.data === "object" ?
+                (raw.data as { directory?: string; project?: { directory?: string } })
+              : (raw as { directory?: string; project?: { directory?: string } } | undefined)
+            )
+            return {
+              state: "",
+              config: "",
+              worktree: info?.project?.directory ?? directory ?? "",
+              directory: info?.directory ?? directory ?? "",
+              home: "",
+            } satisfies Path
+          } catch {
+            return {
+              state: "",
+              config: "",
+              worktree: directory ?? "",
+              directory: directory ?? "",
+              home: "",
+            } satisfies Path
+          }
+        }
+        return sdk.path.get({ directory: directory ?? undefined }).then((result) => result.data!)
+      }),
   })
 
 export const loadReferencesQuery = (
@@ -412,9 +474,13 @@ export async function bootstrapDirectory(input: {
         ),
       !seededProject &&
         (() =>
-          retry(() => input.api.project.current({ location: { directory: input.directory } })).then((project) =>
-            input.setStore("project", project.id),
-          )),
+          retry(async () => {
+            const project =
+              (await input.protocol) === "v2"
+                ? (await input.sdk.project.current({ directory: input.directory })).data
+                : await input.api.project.current({ location: { directory: input.directory } })
+            if (project) input.setStore("project", project.id)
+          })),
       !seededPath &&
         (() =>
           input.queryClient
@@ -513,7 +579,6 @@ export async function bootstrapDirectory(input: {
             )
           }),
         ),
-      () => Promise.resolve(input.loadSessions(input.directory)),
       input.mcp &&
         (() =>
           input.queryClient.fetchQuery(

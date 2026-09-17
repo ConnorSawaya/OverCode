@@ -1,7 +1,7 @@
 import { describe, expect } from "bun:test"
 import { Cause, Effect, Exit, Fiber, Layer } from "effect"
 import { FetchHttpClient, HttpClient } from "effect/unstable/http"
-import { ComputerUse } from "@opencode-ai/core/computer-use"
+import { ComputerUse } from "@overcode-ai/core/computer-use"
 import { Agent } from "@/agent/agent"
 import { MessageID, SessionID } from "@/session/schema"
 import { ComputerUseTool } from "@/tool/computer-use"

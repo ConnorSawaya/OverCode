@@ -1,5 +1,5 @@
-import { createEffect, createMemo, createRoot, For } from "solid-js"
-import { base64Encode } from "@opencode-ai/core/util/encode"
+import { createEffect, createMemo, For } from "solid-js"
+import { base64Encode } from "@overcode-ai/core/util/encode"
 import { useCommand } from "@/context/command"
 import { useGlobal } from "@/context/global"
 import { useLanguage } from "@/context/language"
@@ -12,8 +12,9 @@ import { adjacentTabKey } from "./titlebar-tab-order"
 import { useTabModel } from "./tab-model"
 
 // Invisible per-tab upkeep formerly done by the top tab strip: session
-// resolution (warms the titles the sidebar shows), prompt-state creation
-// (preserves composer models for new tabs), and one-time message prefetch.
+// resolution (warms the titles the sidebar shows) and prompt-state creation
+// (preserves composer models for new tabs). Message bodies stay lazy until
+// the user opens the chat.
 function SessionTabWarmer(props: { tab: SessionTab }) {
   const tabs = useTabs()
   const global = useGlobal()
@@ -22,8 +23,6 @@ function SessionTabWarmer(props: { tab: SessionTab }) {
     if (conn) return global.ensureServerCtx(conn)
   })
   const session = createMemo(() => serverCtx()?.sync.session.peek(props.tab.sessionId))
-  let warmed = false
-
   createEffect(() => {
     const ctx = serverCtx()
     if (!ctx) return
@@ -38,24 +37,6 @@ function SessionTabWarmer(props: { tab: SessionTab }) {
     createTabPromptState(tabs, props.tab, ctx.sdk.scope, {
       dir: base64Encode(value.directory),
       id: value.id,
-    })
-  })
-
-  createEffect(() => {
-    const ctx = serverCtx()
-    const value = session()
-    if (!ctx || !value || warmed) return
-    warmed = true
-    createRoot((dispose) => {
-      try {
-        void ctx.sync
-          .ensureDirSyncContext(value.directory)
-          .session.sync(value.id)
-          .catch(() => {})
-          .finally(dispose)
-      } catch {
-        dispose()
-      }
     })
   })
 

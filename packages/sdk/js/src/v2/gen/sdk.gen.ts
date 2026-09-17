@@ -177,6 +177,8 @@ import type {
   QuestionV2Reply,
   SessionAbortErrors,
   SessionAbortResponses,
+  SessionCancelPendingErrors,
+  SessionCancelPendingResponses,
   SessionChildrenErrors,
   SessionChildrenResponses,
   SessionCommandErrors,
@@ -201,6 +203,10 @@ import type {
   SessionMessageResponses,
   SessionMessagesErrors,
   SessionMessagesResponses,
+  SessionPendingErrors,
+  SessionPendingResponses,
+  SessionPromotePendingErrors,
+  SessionPromotePendingResponses,
   SessionPromptAsyncErrors,
   SessionPromptAsyncResponses,
   SessionPromptErrors,
@@ -224,6 +230,16 @@ import type {
   SessionUpdateErrors,
   SessionUpdateResponses,
   SubtaskPartInput,
+  SwarmAgentsErrors,
+  SwarmAgentsResponses,
+  SwarmCancelErrors,
+  SwarmCancelResponses,
+  SwarmGetErrors,
+  SwarmGetResponses,
+  SwarmListErrors,
+  SwarmListResponses,
+  SwarmStartErrors,
+  SwarmStartResponses,
   SyncHistoryListErrors,
   SyncHistoryListResponses,
   SyncReplayErrors,
@@ -3750,7 +3766,9 @@ export class Session2 extends HeyApiClient {
         modelID: string
       }
       agent?: string
+      mode?: "normal" | "deep" | "swarm"
       noReply?: boolean
+      delivery?: "steer" | "queue"
       tools?: {
         [key: string]: boolean
       }
@@ -3772,7 +3790,9 @@ export class Session2 extends HeyApiClient {
             { in: "body", key: "messageID" },
             { in: "body", key: "model" },
             { in: "body", key: "agent" },
+            { in: "body", key: "mode" },
             { in: "body", key: "noReply" },
+            { in: "body", key: "delivery" },
             { in: "body", key: "tools" },
             { in: "body", key: "format" },
             { in: "body", key: "system" },
@@ -4103,7 +4123,9 @@ export class Session2 extends HeyApiClient {
         modelID: string
       }
       agent?: string
+      mode?: "normal" | "deep" | "swarm"
       noReply?: boolean
+      delivery?: "steer" | "queue"
       tools?: {
         [key: string]: boolean
       }
@@ -4125,7 +4147,9 @@ export class Session2 extends HeyApiClient {
             { in: "body", key: "messageID" },
             { in: "body", key: "model" },
             { in: "body", key: "agent" },
+            { in: "body", key: "mode" },
             { in: "body", key: "noReply" },
+            { in: "body", key: "delivery" },
             { in: "body", key: "tools" },
             { in: "body", key: "format" },
             { in: "body", key: "system" },
@@ -4144,6 +4168,114 @@ export class Session2 extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    })
+  }
+
+  /**
+   * List pending prompts
+   *
+   * List durable queued prompts for this session in execution order.
+   */
+  public pending<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SessionPendingResponses, SessionPendingErrors, ThrowOnError>({
+      url: "/session/{sessionID}/pending",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Cancel pending prompt
+   *
+   * Cancel one queued prompt owned by this session.
+   */
+  public cancelPending<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      messageID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "path", key: "messageID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      SessionCancelPendingResponses,
+      SessionCancelPendingErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionID}/pending/{messageID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Run pending prompt now
+   *
+   * Promote one queued prompt into this session's active run without affecting other sessions.
+   */
+  public promotePending<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      messageID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "path", key: "messageID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SessionPromotePendingResponses,
+      SessionPromotePendingErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionID}/pending/{messageID}/promote",
+      ...options,
+      ...params,
     })
   }
 
@@ -4400,6 +4532,201 @@ export class Part extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    })
+  }
+}
+
+export class Swarm extends HeyApiClient {
+  /**
+   * List swarm runs
+   *
+   * List swarm runs started on a session.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SwarmListResponses, SwarmListErrors, ThrowOnError>({
+      url: "/swarm",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Start a swarm run
+   *
+   * Start coordinated multi-agent execution on a session task.
+   */
+  public start<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      sessionID?: string
+      task?: string
+      preset?: "fast" | "balanced" | "max" | "custom" | "deep"
+      config?: {
+        enabled?: boolean
+        preset?: "fast" | "balanced" | "max" | "custom" | "deep"
+        workers?: number
+        maxRounds?: number
+        maxModelCalls?: number
+        maxTokens?: number
+        repairAttempts?: number
+        timeoutMs?: number
+        stopWhenVerified?: boolean
+        roleModels?: {
+          [key: string]: string
+        }
+        reasoning?: {
+          [key: string]: string
+        }
+      }
+      model?: {
+        providerID: string
+        modelID: string
+        variant?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "sessionID" },
+            { in: "body", key: "task" },
+            { in: "body", key: "preset" },
+            { in: "body", key: "config" },
+            { in: "body", key: "model" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<SwarmStartResponses, SwarmStartErrors, ThrowOnError>({
+      url: "/swarm",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Get swarm state
+   *
+   * Get the current state, agents, and result of a swarm run.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters: {
+      swarmID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "swarmID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SwarmGetResponses, SwarmGetErrors, ThrowOnError>({
+      url: "/swarm/{swarmID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Cancel a swarm run
+   *
+   * Cancel a swarm run and all of its child agents.
+   */
+  public cancel<ThrowOnError extends boolean = false>(
+    parameters: {
+      swarmID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "swarmID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<SwarmCancelResponses, SwarmCancelErrors, ThrowOnError>({
+      url: "/swarm/{swarmID}/cancel",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List swarm agents
+   *
+   * List child agents of a swarm run with their statuses.
+   */
+  public agents<ThrowOnError extends boolean = false>(
+    parameters: {
+      swarmID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "swarmID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SwarmAgentsResponses, SwarmAgentsErrors, ThrowOnError>({
+      url: "/swarm/{swarmID}/agents",
+      ...options,
+      ...params,
     })
   }
 }
@@ -6278,7 +6605,7 @@ export class Credential extends HeyApiClient {
   /**
    * Update credential
    *
-   * Update a stored credential label.
+   * Update a stored credential label or make it the active connection.
    */
   public update<ThrowOnError extends boolean = false>(
     parameters: {
@@ -6288,6 +6615,7 @@ export class Credential extends HeyApiClient {
         workspace?: string
       }
       label?: string
+      active?: boolean
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -6299,6 +6627,7 @@ export class Credential extends HeyApiClient {
             { in: "path", key: "credentialID" },
             { in: "query", key: "location" },
             { in: "body", key: "label" },
+            { in: "body", key: "active" },
           ],
         },
       ],
@@ -7200,6 +7529,11 @@ export class OpencodeClient extends HeyApiClient {
   private _part?: Part
   get part(): Part {
     return (this._part ??= new Part({ client: this.client }))
+  }
+
+  private _swarm?: Swarm
+  get swarm(): Swarm {
+    return (this._swarm ??= new Swarm({ client: this.client }))
   }
 
   private _sync?: Sync

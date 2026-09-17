@@ -7,8 +7,8 @@ import type {
   SyncProjectMapping,
   SyncDevicesState,
   SyncPeer,
-} from "@opencode-ai/app"
-import { isPairingCode, isRelayToken, isRelayUrl, normalizePairingCode } from "@opencode-ai/mobile-relay/pairing"
+} from "@overcode-ai/app"
+import { isPairingCode, isRelayToken, isRelayUrl, normalizePairingCode } from "@overcode-ai/mobile-relay/pairing"
 import type { ServerReadyData } from "../preload/types"
 import { getStore } from "./store"
 import { SYNC_DEVICES_KEY, SYNC_PROFILE_STATE_KEY } from "./store-keys"

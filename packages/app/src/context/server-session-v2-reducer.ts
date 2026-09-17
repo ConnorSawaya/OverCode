@@ -1,4 +1,4 @@
-import type { OpenCodeEvent, SessionMessageInfo, SessionPendingMessage } from "@opencode-ai/client/promise"
+import type { OpenCodeEvent, SessionMessageInfo, SessionPendingMessage } from "@overcode-ai/client/promise"
 
 type Assistant = Extract<SessionMessageInfo, { type: "assistant" }>
 type Compaction = Extract<SessionMessageInfo, { type: "compaction" }>
@@ -11,10 +11,20 @@ export type V2SessionReduction = {
   missing?: string
 }
 
+type EventRecord = {
+  id: string
+  type: string
+  data: Record<string, unknown>
+  metadata?: unknown
+  created?: number
+}
+
 export function createV2SessionReducer() {
   const pending = new Map<string, SessionPendingMessage>()
+  const streams = new Map<string, Map<string, number>>()
 
   const reduce = (source: readonly SessionMessageInfo[], event: OpenCodeEvent): V2SessionReduction | undefined => {
+    event = normalizeEvent(source, event, streams)
     if (!("data" in event) || !("sessionID" in event.data) || typeof event.data.sessionID !== "string") return
     const sessionID = event.data.sessionID
     const result = (messages: SessionMessageInfo[], touched: string[] = []): V2SessionReduction => ({
@@ -54,7 +64,7 @@ export function createV2SessionReducer() {
       }
       case "session.agent.selected":
         return append({
-          id: messageID(event.id),
+          id: messageIDFromEvent(event),
           type: "agent-switched",
           metadata: event.metadata,
           agent: event.data.agent,
@@ -62,7 +72,7 @@ export function createV2SessionReducer() {
         })
       case "session.model.selected":
         return append({
-          id: messageID(event.id),
+          id: messageIDFromEvent(event),
           type: "model-switched",
           metadata: event.metadata,
           model: event.data.model,
@@ -74,7 +84,7 @@ export function createV2SessionReducer() {
         })
       case "session.synthetic":
         return append({
-          id: messageID(event.id),
+          id: messageIDFromEvent(event),
           type: "synthetic",
           metadata: event.data.metadata,
           text: event.data.text,
@@ -321,10 +331,17 @@ export function createV2SessionReducer() {
           }
         })
       case "session.retry.scheduled":
-        return updateAssistant(source, event.data.assistantMessageID, sessionID, (item) => ({
-          ...item,
-          retry: { attempt: event.data.attempt, at: event.data.at, error: event.data.error },
-        }))
+        return updateAssistant(
+          source,
+          event.data.assistantMessageID ??
+            source.findLast((item): item is Assistant => item.type === "assistant" && !item.time.completed)?.id ??
+            "",
+          sessionID,
+          (item) => ({
+            ...item,
+            retry: { attempt: event.data.attempt, at: event.data.at, error: event.data.error },
+          }),
+        )
       case "session.execution.succeeded":
       case "session.execution.failed":
       case "session.execution.interrupted": {
@@ -412,8 +429,135 @@ export function createV2SessionReducer() {
       for (const id of pending.keys()) {
         if (id.startsWith(`${sessionID}:`)) pending.delete(id)
       }
+      for (const id of streams.keys()) {
+        if (id.startsWith(`${sessionID}:`)) streams.delete(id)
+      }
     },
   }
+}
+
+function normalizeEvent(
+  source: readonly SessionMessageInfo[],
+  event: OpenCodeEvent,
+  streams: Map<string, Map<string, number>>,
+) {
+  const current = event as unknown as EventRecord
+  if (!current.type.startsWith("session.next.")) return event
+
+  const data = { ...current.data }
+  const sessionID = typeof data.sessionID === "string" ? data.sessionID : undefined
+  const assistantMessageID = typeof data.assistantMessageID === "string" ? data.assistantMessageID : undefined
+  const timestamp = typeof data.timestamp === "number" ? data.timestamp : undefined
+  let type = current.type.replace(/^session\.next\./, "session.")
+
+  if (sessionID && assistantMessageID && current.type.startsWith("session.next.text.")) {
+    const textID = typeof data.textID === "string" ? data.textID : undefined
+    if (textID) data.ordinal = streamOrdinal(source, streams, sessionID, assistantMessageID, "text", textID)
+  }
+  if (sessionID && assistantMessageID && current.type.startsWith("session.next.reasoning.")) {
+    const reasoningID = typeof data.reasoningID === "string" ? data.reasoningID : undefined
+    if (reasoningID)
+      data.ordinal = streamOrdinal(source, streams, sessionID, assistantMessageID, "reasoning", reasoningID)
+  }
+
+  switch (current.type) {
+    case "session.next.agent.switched":
+      type = "session.agent.selected"
+      break
+    case "session.next.model.switched":
+      type = "session.model.selected"
+      break
+    case "session.next.prompt.admitted": {
+      type = "session.input.admitted"
+      const prompt = isRecord(data.prompt) ? data.prompt : {}
+      data.inputID = data.messageID
+      data.input = {
+        type: "user",
+        delivery: data.delivery,
+        data: {
+          text: typeof prompt.text === "string" ? prompt.text : "",
+          files: prompt.files,
+          agents: prompt.agents,
+        },
+      }
+      break
+    }
+    case "session.next.prompted":
+      type = "session.input.promoted"
+      data.inputID = data.messageID
+      break
+    case "session.next.shell.started":
+      data.shell = { id: data.callID, command: data.command, status: "running" }
+      break
+    case "session.next.shell.ended":
+      data.shell = { id: data.callID, status: "completed" }
+      break
+    case "session.next.tool.called": {
+      const provider = isRecord(data.provider) ? data.provider : {}
+      data.executed = provider.executed
+      data.state = provider.metadata
+      break
+    }
+    case "session.next.tool.progress":
+      data.metadata = data.structured
+      break
+    case "session.next.tool.success": {
+      const provider = isRecord(data.provider) ? data.provider : {}
+      data.executed = provider.executed
+      data.resultState = provider.metadata
+      data.metadata = data.structured
+      break
+    }
+    case "session.next.tool.failed": {
+      const provider = isRecord(data.provider) ? data.provider : {}
+      data.executed = provider.executed
+      data.resultState = provider.metadata
+      data.metadata = data.structured
+      data.content ??= []
+      break
+    }
+    case "session.next.retried":
+      type = "session.retry.scheduled"
+      break
+    case "session.next.compaction.started":
+      data.inputID = data.messageID
+      break
+  }
+
+  return {
+    ...current,
+    type,
+    data,
+    ...(current.created === undefined && timestamp !== undefined ? { created: timestamp } : {}),
+  } as unknown as OpenCodeEvent
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
+}
+
+function streamOrdinal(
+  source: readonly SessionMessageInfo[],
+  streams: Map<string, Map<string, number>>,
+  sessionID: string,
+  assistantMessageID: string,
+  type: "text" | "reasoning",
+  streamID: string,
+) {
+  const key = `${sessionID}:${assistantMessageID}:${type}`
+  const values = streams.get(key) ?? new Map<string, number>()
+  streams.set(key, values)
+  const existing = values.get(streamID)
+  if (existing !== undefined) return existing
+
+  const assistant = source.find(
+    (item): item is Assistant => item.id === assistantMessageID && item.type === "assistant",
+  )
+  const used = [...values.values()]
+  const next =
+    used.length > 0 ? Math.max(...used) + 1 : (assistant?.content.filter((item) => item.type === type).length ?? 0)
+  values.set(streamID, next)
+  return next
 }
 
 function key(sessionID: string, inputID: string) {
@@ -422,6 +566,11 @@ function key(sessionID: string, inputID: string) {
 
 function messageID(eventID: string) {
   return eventID.replace(/^evt_/, "msg_")
+}
+
+function messageIDFromEvent(event: OpenCodeEvent) {
+  const current = event as unknown as EventRecord
+  return typeof current.data.messageID === "string" ? current.data.messageID : messageID(current.id)
 }
 
 function update(

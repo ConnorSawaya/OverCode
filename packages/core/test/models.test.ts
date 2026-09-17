@@ -1,12 +1,12 @@
-import { describe, expect, beforeAll, beforeEach, afterAll } from "bun:test"
+import { describe, expect, beforeAll, beforeEach, afterAll, test } from "bun:test"
 import { Effect, Layer, Ref } from "effect"
 import { HttpClient, HttpClientResponse } from "effect/unstable/http"
-import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
-import { LayerNodePlatform } from "@opencode-ai/core/effect/app-node-platform"
-import { LayerNode } from "@opencode-ai/core/effect/layer-node"
-import { Flag } from "@opencode-ai/core/flag/flag"
-import { Global } from "@opencode-ai/core/global"
-import { ModelsDev } from "@opencode-ai/core/models-dev"
+import { AppNodeBuilder } from "@overcode-ai/core/effect/app-node-builder"
+import { LayerNodePlatform } from "@overcode-ai/core/effect/app-node-platform"
+import { LayerNode } from "@overcode-ai/core/effect/layer-node"
+import { Flag } from "@overcode-ai/core/flag/flag"
+import { Global } from "@overcode-ai/core/global"
+import { ModelsDev } from "@overcode-ai/core/models-dev"
 import { it } from "./lib/effect"
 import { readFile, rm, writeFile, utimes, mkdir } from "fs/promises"
 import path from "path"
@@ -287,4 +287,51 @@ describe("ModelsDev Service", () => {
       expect(final.calls.length).toBeGreaterThanOrEqual(1)
     }),
   )
+})
+
+describe("ModelsDev provider aliases", () => {
+  const provider = (id: "opencode" | "overcode"): ModelsDev.Provider => ({
+    id,
+    name: "Zen",
+    env: [],
+    models: {
+      zen: {
+        id: "zen",
+        name: "Zen",
+        release_date: "2026-01-01",
+        attachment: false,
+        reasoning: false,
+        temperature: false,
+        tool_call: true,
+        limit: { context: 128_000, output: 8_192 },
+      },
+    },
+  })
+
+  test("adds the rebranded provider without sharing its model map", () => {
+    const input = { opencode: provider("opencode") }
+    const result = ModelsDev.withProviderAliases(input)
+
+    expect(result.opencode).toBe(input.opencode)
+    expect(result.overcode).toMatchObject({ id: "overcode", name: "Zen" })
+    expect(result.overcode.models).toEqual(input.opencode.models)
+    expect(result.overcode.models).not.toBe(input.opencode.models)
+  })
+
+  test("adds the upstream spelling when only the rebranded provider exists", () => {
+    const result = ModelsDev.withProviderAliases({ overcode: provider("overcode") })
+    expect(result.opencode).toMatchObject({ id: "opencode", name: "Zen" })
+    expect(result.overcode.id).toBe("overcode")
+  })
+
+  test("does not replace explicit provider records or alias unrelated providers", () => {
+    const opencode = provider("opencode")
+    const overcode = provider("overcode")
+    const custom = { ...provider("overcode"), id: "custom" }
+    const result = ModelsDev.withProviderAliases({ opencode, overcode, custom })
+
+    expect(result.opencode).toBe(opencode)
+    expect(result.overcode).toBe(overcode)
+    expect(result.custom).toBe(custom)
+  })
 })

@@ -1,7 +1,8 @@
 import { dict as en } from "./en"
 
 const keys = [
-  "side.browser.importSettings", "side.browser.returnAgent",
+  "side.browser.importSettings",
+  "side.browser.returnAgent",
   "sidebar.quickStart",
   "sidebar.quickStart.help",
   "sidebar.quickStart.error",
@@ -181,6 +182,12 @@ const keys = [
   "settings.general.row.background.custom",
   "settings.general.row.background.upload",
   "settings.general.row.background.remove",
+  "settings.general.row.theme.customTitle",
+  "settings.general.row.theme.customDescription",
+  "settings.general.row.theme.urlPlaceholder",
+  "settings.general.row.theme.import",
+  "settings.general.row.theme.file",
+  "settings.general.row.theme.remove",
   "settings.tools.title",
   "settings.tools.description",
   "settings.tools.refresh",

@@ -1,11 +1,11 @@
-import { getFilename } from "@opencode-ai/core/util/path"
-import { type AgentPartInput, type FilePartInput, type Part, type TextPartInput } from "@opencode-ai/sdk/v2/client"
+import { getFilename } from "@overcode-ai/core/util/path"
+import { type AgentPartInput, type FilePartInput, type Part, type TextPartInput } from "@overcode-ai/sdk/v2/client"
 import type { FileSelection } from "@/context/file"
 import { encodeFilePath } from "@/context/file/path"
 import type { AgentPart, FileAttachmentPart, ImageAttachmentPart, PastedTextPart, Prompt } from "@/context/prompt"
 import { Identifier } from "@/utils/id"
 import { createCommentMetadata, formatCommentNote } from "@/utils/comment-note"
-import { isPastedTextMetadata, type PastedTextMetadata } from "@opencode-ai/session-ui/v2/prompt-input/pasted-text"
+import { isPastedTextMetadata, type PastedTextMetadata } from "@overcode-ai/session-ui/v2/prompt-input/pasted-text"
 
 type PromptRequestPart = (TextPartInput | FilePartInput | AgentPartInput) & { id: string }
 

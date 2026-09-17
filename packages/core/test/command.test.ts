@@ -1,9 +1,9 @@
 import { describe, expect } from "bun:test"
 import { Effect } from "effect"
-import { CommandV2 } from "@opencode-ai/core/command"
-import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
-import { ModelV2 } from "@opencode-ai/core/model"
-import { ProviderV2 } from "@opencode-ai/core/provider"
+import { CommandV2 } from "@overcode-ai/core/command"
+import { AppNodeBuilder } from "@overcode-ai/core/effect/app-node-builder"
+import { ModelV2 } from "@overcode-ai/core/model"
+import { ProviderV2 } from "@overcode-ai/core/provider"
 import { testEffect } from "./lib/effect"
 
 const it = testEffect(AppNodeBuilder.build(CommandV2.node))

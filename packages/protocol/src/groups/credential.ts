@@ -1,4 +1,4 @@
-import { Credential } from "@opencode-ai/schema/credential"
+import { Credential } from "@overcode-ai/schema/credential"
 import { Schema } from "effect"
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/unstable/httpapi"
 import { LocationQuery, locationQueryOpenApi } from "./location"
@@ -8,7 +8,7 @@ export const CredentialGroup = HttpApiGroup.make("server.credential")
     HttpApiEndpoint.patch("credential.update", "/api/credential/:credentialID", {
       params: { credentialID: Credential.ID },
       query: LocationQuery,
-      payload: Schema.Struct({ label: Schema.String }),
+      payload: Schema.Struct({ label: Schema.optional(Schema.String), active: Schema.optional(Schema.Boolean) }),
       success: HttpApiSchema.NoContent,
     })
       .annotateMerge(locationQueryOpenApi)
@@ -16,7 +16,7 @@ export const CredentialGroup = HttpApiGroup.make("server.credential")
         OpenApi.annotations({
           identifier: "v2.credential.update",
           summary: "Update credential",
-          description: "Update a stored credential label.",
+          description: "Update a stored credential label or make it the active connection.",
         }),
       ),
   )

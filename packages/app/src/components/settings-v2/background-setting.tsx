@@ -1,6 +1,6 @@
 import { For, Show, type Component } from "solid-js"
-import { Icon } from "@opencode-ai/ui/v2/icon"
-import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
+import { Icon } from "@overcode-ai/ui/v2/icon"
+import { ButtonV2 } from "@overcode-ai/ui/v2/button-v2"
 import { useLanguage } from "@/context/language"
 import { useSettings } from "@/context/settings"
 import { BACKGROUND_PRESETS, type BackgroundPreset } from "@/utils/background"

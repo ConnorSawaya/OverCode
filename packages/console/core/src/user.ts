@@ -139,7 +139,7 @@ export namespace User {
             .then((rows) => rows[0]),
         )
 
-        const { InviteEmail } = await import("@opencode-ai/console-mail/InviteEmail.jsx")
+        const { InviteEmail } = await import("@overcode-ai/console-mail/InviteEmail.jsx")
         await AWS.sendEmail({
           to: email,
           subject: `You've been invited to join the ${emailInfo.workspaceName} workspace on Overcode`,
@@ -147,7 +147,7 @@ export namespace User {
             // @ts-ignore
             InviteEmail({
               inviter: emailInfo.inviterEmail,
-              assetsUrl: `https://github.com/ConnorSawaya/overcode/email`,
+              assetsUrl: `https://overcode.ai/email`,
               workspaceID: workspaceID,
               workspaceName: emailInfo.workspaceName,
             }),

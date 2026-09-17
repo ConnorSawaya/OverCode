@@ -1,5 +1,5 @@
 import { describe, expect } from "bun:test"
-import { LayerNode } from "@opencode-ai/core/effect/layer-node"
+import { LayerNode } from "@overcode-ai/core/effect/layer-node"
 import { Deferred, Effect } from "effect"
 import { BackgroundJob } from "@/background/job"
 import { testEffect } from "../lib/effect"

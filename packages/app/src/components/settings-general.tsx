@@ -1,13 +1,13 @@
 import { Component, Show, createMemo, createResource, onMount, type JSX } from "solid-js"
-import { Button } from "@opencode-ai/ui/button"
-import { Icon } from "@opencode-ai/ui/icon"
-import { Select } from "@opencode-ai/ui/select"
-import { Switch } from "@opencode-ai/ui/switch"
-import { TextField } from "@opencode-ai/ui/text-field"
-import { Tooltip } from "@opencode-ai/ui/tooltip"
-import { Tag } from "@opencode-ai/ui/v2/badge-v2"
-import { useTheme, type ColorScheme } from "@opencode-ai/ui/theme/context"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { Button } from "@overcode-ai/ui/button"
+import { Icon } from "@overcode-ai/ui/icon"
+import { Select } from "@overcode-ai/ui/select"
+import { Switch } from "@overcode-ai/ui/switch"
+import { TextField } from "@overcode-ai/ui/text-field"
+import { Tooltip } from "@overcode-ai/ui/tooltip"
+import { Tag } from "@overcode-ai/ui/v2/badge-v2"
+import { useTheme, type ColorScheme } from "@overcode-ai/ui/theme/context"
+import { useDialog } from "@overcode-ai/ui/context/dialog"
 import { useParams } from "@solidjs/router"
 import { useLanguage } from "@/context/language"
 import { usePermission } from "@/context/permission"
@@ -33,6 +33,7 @@ import { ExternalLink } from "./external-link"
 import { SettingsList } from "./settings-list"
 import { ComputerUseSettings } from "./computer-use-settings"
 import { MobileAccessSettings } from "./mobile-access-settings"
+import { CustomThemeSetting } from "./custom-theme-setting"
 
 let demoSoundState = {
   cleanup: undefined as (() => void) | undefined,
@@ -319,6 +320,13 @@ export const SettingsGeneral: Component = () => {
         </SettingsRow>
 
         <SettingsRow
+          title={language.t("settings.general.row.theme.customTitle")}
+          description={language.t("settings.general.row.theme.customDescription")}
+        >
+          <CustomThemeSetting legacy />
+        </SettingsRow>
+
+        <SettingsRow
           title={language.t("command.permissions.autoaccept.enable")}
           description={language.t("toast.permissions.autoaccept.on.description")}
         >
@@ -511,7 +519,9 @@ export const SettingsGeneral: Component = () => {
           description={
             <>
               {language.t("settings.general.row.theme.description")}{" "}
-              <ExternalLink href="https://github.com/ConnorSawaya/overcode/tree/overcode-rebrand/packages/web/src/content/docs/themes/">{language.t("common.learnMore")}</ExternalLink>
+              <ExternalLink href="https://github.com/ConnorSawaya/overcode/tree/overcode-rebrand/packages/web/src/content/docs/themes/">
+                {language.t("common.learnMore")}
+              </ExternalLink>
             </>
           }
         >

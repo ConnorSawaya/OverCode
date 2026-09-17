@@ -1,11 +1,11 @@
-import type { PluginContext } from "@opencode-ai/plugin/v2/effect"
-import { AgentV2 } from "@opencode-ai/core/agent"
-import { Catalog } from "@opencode-ai/core/catalog"
-import { Credential } from "@opencode-ai/core/credential"
-import { Integration } from "@opencode-ai/core/integration"
-import { ModelV2 } from "@opencode-ai/core/model"
-import { ProviderV2 } from "@opencode-ai/core/provider"
-import type { IntegrationEnvMethod, IntegrationKeyMethod, IntegrationOAuthMethod } from "@opencode-ai/sdk/v2/types"
+import type { PluginContext } from "@overcode-ai/plugin/v2/effect"
+import { AgentV2 } from "@overcode-ai/core/agent"
+import { Catalog } from "@overcode-ai/core/catalog"
+import { Credential } from "@overcode-ai/core/credential"
+import { Integration } from "@overcode-ai/core/integration"
+import { ModelV2 } from "@overcode-ai/core/model"
+import { ProviderV2 } from "@overcode-ai/core/provider"
+import type { IntegrationEnvMethod, IntegrationKeyMethod, IntegrationOAuthMethod } from "@overcode-ai/sdk/v2/types"
 import { Effect } from "effect"
 
 type Overrides = Partial<Omit<PluginContext, "options">>
@@ -147,7 +147,9 @@ export function integrationHost(integration: Integration.Interface): PluginConte
       active: (id) => integration.connection.active(Integration.ID.make(id)),
       resolve: (connection) =>
         integration.connection.resolve(
-          connection.type === "credential" ? { ...connection, id: Credential.ID.make(connection.id) } : connection,
+          connection.type === "credential"
+            ? { type: connection.type, label: connection.label, id: Credential.ID.make(connection.id) }
+            : connection,
         ),
     },
     transform: (callback) =>

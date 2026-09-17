@@ -13,7 +13,7 @@ process.chdir(dir)
 
 const generated = await import("./generate.ts")
 
-import { Script } from "@opencode-ai/script"
+import { Script } from "@overcode-ai/script"
 import pkg from "../package.json"
 
 const singleFlag = process.argv.includes("--single")

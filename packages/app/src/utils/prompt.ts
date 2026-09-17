@@ -1,5 +1,5 @@
-import type { AgentPart as MessageAgentPart, FilePart, Part, TextPart } from "@opencode-ai/sdk/v2"
-import { LOCAL_FILE_REFERENCE_MIME } from "@opencode-ai/core/file"
+import type { AgentPart as MessageAgentPart, FilePart, Part, TextPart } from "@overcode-ai/sdk/v2"
+import { LOCAL_FILE_REFERENCE_MIME } from "@overcode-ai/core/file"
 import type { AgentPart, FileAttachmentPart, ImageAttachmentPart, Prompt } from "@/context/prompt"
 import { createLegacyBlobReference } from "@/utils/draft-store"
 

@@ -1,19 +1,28 @@
-import { DialogBody, DialogHeader, DialogTitle, DialogV2 } from "@opencode-ai/ui/v2/dialog-v2"
-import { Icon } from "@opencode-ai/ui/v2/icon"
-import { ProviderIcon } from "@opencode-ai/ui/provider-icon"
-import { Tag } from "@opencode-ai/ui/v2/badge-v2"
-import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
-import { useTheme } from "@opencode-ai/ui/theme"
+import { DialogBody, DialogHeader, DialogTitle, DialogV2 } from "@overcode-ai/ui/v2/dialog-v2"
+import { Icon } from "@overcode-ai/ui/v2/icon"
+import { ProviderIcon } from "@overcode-ai/ui/provider-icon"
+import { Tag } from "@overcode-ai/ui/v2/badge-v2"
+import { TooltipV2 } from "@overcode-ai/ui/v2/tooltip-v2"
+import { useDialog } from "@overcode-ai/ui/context/dialog"
+import { useTheme } from "@overcode-ai/ui/theme"
 import { createMemo, onCleanup, onMount, type Component, For, Show } from "solid-js"
 import { useLocal } from "@/context/local"
-import { useProviders } from "@/hooks/use-providers"
+import { isOvercodeGoProvider, isOvercodeProvider, useProviders } from "@/hooks/use-providers"
 import { decode64 } from "@/utils/base64"
 import { useLanguage } from "@/context/language"
 import { ModelTooltip } from "./model-tooltip"
 
 type ModelState = ReturnType<typeof useLocal>["model"]
-const featuredProviders = ["overcode", "overcode-go", "openai", "anthropic", "google", "github-copilot"]
+const featuredProviders = [
+  "overcode",
+  "opencode",
+  "overcode-go",
+  "opencode-go",
+  "openai",
+  "anthropic",
+  "google",
+  "github-copilot",
+]
 const displayModelName = (name: string) => name.replace(/\s+(?:\(free\)|free)$/i, "")
 
 export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (props) => {
@@ -30,7 +39,7 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
     return c ? `${c.provider.id}:${c.id}` : undefined
   })
   const isFree = (item: ReturnType<ModelState["list"]>[number]) =>
-    item.provider.id === "overcode" && (!item.cost || item.cost.input === 0)
+    isOvercodeProvider(item.provider.id) && (!item.cost || item.cost.input === 0)
   const freeModels = createMemo(() => model.list().filter(isFree))
 
   const openProviders = (provider?: string) => {
@@ -146,10 +155,10 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
                       <ProviderIcon id={provider.id} class="mt-0.5 size-4 shrink-0 text-v2-icon-icon-base" />
                       <span class="flex min-w-0 flex-col">
                         <span class="truncate">{provider.name}</span>
-                        <Show when={provider.id === "overcode" || provider.id === "overcode-go"}>
+                        <Show when={isOvercodeProvider(provider.id) || isOvercodeGoProvider(provider.id)}>
                           <span class="truncate font-[440] text-v2-text-text-muted">
                             {language.t(
-                              provider.id === "overcode"
+                              isOvercodeProvider(provider.id)
                                 ? "dialog.provider.overcode.tagline"
                                 : "dialog.provider.overcodeGo.tagline",
                             )}

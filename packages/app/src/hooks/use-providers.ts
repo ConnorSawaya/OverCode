@@ -7,7 +7,9 @@ import { selectProviderCatalog } from "./provider-catalog"
 
 export const popularProviders = [
   "overcode",
+  "opencode",
   "overcode-go",
+  "opencode-go",
   "anthropic",
   "github-copilot",
   "openai",
@@ -16,6 +18,14 @@ export const popularProviders = [
   "vercel",
 ]
 const popularProviderSet = new Set(popularProviders)
+
+export function isOvercodeProvider(providerID: string) {
+  return providerID === "overcode" || providerID === "opencode"
+}
+
+export function isOvercodeGoProvider(providerID: string) {
+  return providerID === "overcode-go" || providerID === "opencode-go"
+}
 
 export function useProviders(directory: Accessor<string | undefined>) {
   const serverSync = useServerSync()

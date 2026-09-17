@@ -220,6 +220,7 @@ jobs:
   build-electron:
     needs:
       - version
+      - build-cli
     if: github.repository == 'ConnorSawaya/overcode'
     continue-on-error: false
     env:
@@ -308,6 +309,45 @@ jobs:
         with:
           overcode-app-id: ${{ vars.OVERCODE_APP_ID }}
           overcode-app-secret: ${{ secrets.OVERCODE_APP_SECRET }}
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: overcode-preview-cli
+          path: packages/cli/dist
+
+      - name: Stage CLI binary for desktop
+        shell: bash
+        working-directory: packages/desktop
+        env:
+          RUST_TARGET: ${{ matrix.settings.target }}
+        run: |
+          case "${RUST_TARGET}" in
+            aarch64-apple-darwin)      CLI_DIR="cli-darwin-arm64" ;;
+            x86_64-apple-darwin)       CLI_DIR="cli-darwin-x64-baseline" ;;
+            aarch64-pc-windows-msvc)   CLI_DIR="cli-windows-arm64" ;;
+            x86_64-pc-windows-msvc)    CLI_DIR="cli-windows-x64-baseline" ;;
+            x86_64-unknown-linux-gnu)  CLI_DIR="cli-linux-x64-baseline" ;;
+            aarch64-unknown-linux-gnu) CLI_DIR="cli-linux-arm64" ;;
+            *) echo "Unknown target: ${RUST_TARGET}" && exit 1 ;;
+          esac
+          if [[ "${RUST_TARGET}" == *windows* ]]; then
+            cp "../cli/dist/${CLI_DIR}/bin/lildax.exe" "resources/opencode-cli.exe"
+          else
+            cp "../cli/dist/${CLI_DIR}/bin/lildax" "resources/opencode-cli"
+            chmod +x "resources/opencode-cli"
+          fi
+          echo "Staged ${CLI_DIR} CLI binary into desktop resources"
+
+      - name: Sign staged CLI binary
+        if: runner.os == 'macOS'
+        run: codesign --force --sign - packages/desktop/resources/opencode-cli
+
+      - name: Sign staged CLI binary
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: packages/desktop
+        run: |
+          pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File ../../script/sign-windows.ps1 resources/opencode-cli.exe
 
       - name: Prepare
         run: bun ./scripts/prepare.ts
@@ -435,11 +475,6 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: opencode-cli
-          path: packages/overcode/dist
-
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: opencode-cli-windows
           path: packages/overcode/dist
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0

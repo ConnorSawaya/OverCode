@@ -1,5 +1,5 @@
-import { createSimpleContext } from "@opencode-ai/ui/context"
-import { base64Encode } from "@opencode-ai/core/util/encode"
+import { createSimpleContext } from "@overcode-ai/ui/context"
+import { base64Encode } from "@overcode-ai/core/util/encode"
 import { useParams } from "@solidjs/router"
 import { batch, createEffect, createMemo, createRoot, onCleanup, startTransition } from "solid-js"
 import { createStore } from "solid-js/store"
@@ -16,6 +16,9 @@ import { useServerSDK } from "./server-sdk"
 import { ScopedKey, type ServerScope } from "@/utils/server-scope"
 
 export type ModelKey = { providerID: string; modelID: string; variant?: string }
+
+export type ExecutionMode = "normal" | "deep" | "swarm"
+export const ExecutionModes: ExecutionMode[] = ["normal", "deep", "swarm"]
 
 type State = {
   agent?: string
@@ -390,10 +393,25 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       },
     }
 
+    const [modeStore, setModeStore] = persisted(
+      Persist.serverWorkspace(serverSDK().scope, sdk().directory, "execution-mode", ["execution-mode.v1"]),
+      createStore<{ mode: ExecutionMode }>({ mode: "normal" }),
+    )
+    const executionMode = {
+      list: ExecutionModes,
+      current: () => modeStore.mode,
+      set: (mode: ExecutionMode) => setModeStore("mode", mode),
+      cycle(direction: 1 | -1 = 1) {
+        const index = ExecutionModes.indexOf(executionMode.current())
+        setModeStore("mode", ExecutionModes[(index + direction + ExecutionModes.length) % ExecutionModes.length]!)
+      },
+    }
+
     const result = {
       slug: createMemo(() => base64Encode(sdk().directory)),
       model,
       agent,
+      executionMode,
       session: {
         ready: savedReady,
         reset() {

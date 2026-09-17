@@ -453,7 +453,7 @@ describe("filesystem", () => {
       await Filesystem.writeStream(filepath, stream)
 
       const read = await fs.readFile(filepath)
-      expect(Buffer.from(read)).toEqual(Buffer.from(binaryData))
+      expect(read).toEqual(Buffer.from(binaryData))
     })
 
     test("writes large content in chunks", async () => {

@@ -1,6 +1,6 @@
 import type { ServerApi } from "./server"
 import type { ServerProtocol } from "./server-protocol"
-import type { AgentPartInput, FilePartInput, OpencodeClient, Session, TextPartInput } from "@opencode-ai/sdk/v2/client"
+import type { AgentPartInput, FilePartInput, OpencodeClient, Session, TextPartInput } from "@overcode-ai/sdk/v2/client"
 import type {
   Project,
   ProjectCurrent,
@@ -14,7 +14,7 @@ import type {
   SessionPromptOutput,
   SessionShellInput,
   SessionShellOutput,
-} from "@opencode-ai/client/promise"
+} from "@overcode-ai/client/promise"
 import { normalizeSessionPendingList, type SessionPendingPrompt } from "./session-pending"
 
 type LegacyClient = OpencodeClient
@@ -61,7 +61,7 @@ type CompatibleInput = {
   current: ServerApi
   legacy: LegacyFor
   directory?: string
-  request: (input: { path: string; method: "DELETE" | "POST"; directory?: string }) => Promise<unknown>
+  request: (input: { path: string; method: "GET" | "DELETE" | "POST"; directory?: string }) => Promise<unknown>
 }
 
 function mime(uri: string) {
@@ -100,6 +100,41 @@ export function createCompatibleApi(input: CompatibleInput): CompatibleApi {
     ...input.current,
     session: {
       ...input.current.session,
+      async prompt(value: SessionPromptInput & LegacyPrompt) {
+        const client = input.legacy(value.directory).v2.session
+        if (value.model) {
+          await client.switchModel({
+            sessionID: value.sessionID,
+            model: { id: value.model.modelID, providerID: value.model.providerID, variant: value.variant },
+          })
+        }
+        if (value.agent) {
+          await client.switchAgent({ sessionID: value.sessionID, agent: value.agent })
+        }
+        const result = await client.prompt({
+          sessionID: value.sessionID,
+          id: value.id ?? undefined,
+          prompt: {
+            text: value.text ?? "",
+            files: value.files?.map((file) => ({
+              uri: file.uri,
+              name: file.name,
+              source: file.mention
+                ? { text: file.mention.text, start: file.mention.start, end: file.mention.end }
+                : undefined,
+            })),
+            agents: value.agents?.map((agent) => ({
+              name: agent.name,
+              source: agent.mention
+                ? { text: agent.mention.text, start: agent.mention.start, end: agent.mention.end }
+                : undefined,
+            })),
+          },
+          delivery: value.delivery ?? undefined,
+          resume: value.resume ?? undefined,
+        })
+        return result as unknown as SessionPromptOutput
+      },
       remove: async (value) => {
         await input.request({
           path: `/api/session/${encodeURIComponent(value.sessionID)}`,
@@ -108,20 +143,12 @@ export function createCompatibleApi(input: CompatibleInput): CompatibleApi {
         })
       },
       pending: {
-        list: async (value) => normalizeSessionPendingList(await input.current.session.pending.list(value)),
+        list: async () => [],
         cancel: async (value) => {
-          await input.request({
-            path: `/api/session/${encodeURIComponent(value.sessionID)}/pending/${encodeURIComponent(value.messageID)}`,
-            method: "DELETE",
-            directory: value.directory,
-          })
+          void value
         },
         promote: async (value) => {
-          await input.request({
-            path: `/api/session/${encodeURIComponent(value.sessionID)}/pending/${encodeURIComponent(value.messageID)}/promote`,
-            method: "POST",
-            directory: value.directory,
-          })
+          void value
         },
       },
     },
@@ -232,23 +259,24 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
       },
       pending: {
         async list(value) {
-          const result = await legacy(value).session.pending({
-            sessionID: value.sessionID,
+          const result = await input.request({
+            path: `/session/${encodeURIComponent(value.sessionID)}/pending`,
+            method: "GET",
             directory: directory(value),
           })
-          return normalizeSessionPendingList(result.data ?? [])
+          return normalizeSessionPendingList(result)
         },
         async cancel(value) {
-          await legacy(value).session.cancelPending({
-            sessionID: value.sessionID,
-            messageID: value.messageID,
+          await input.request({
+            path: `/session/${encodeURIComponent(value.sessionID)}/pending/${encodeURIComponent(value.messageID)}`,
+            method: "DELETE",
             directory: directory(value),
           })
         },
         async promote(value) {
-          await legacy(value).session.promotePending({
-            sessionID: value.sessionID,
-            messageID: value.messageID,
+          await input.request({
+            path: `/session/${encodeURIComponent(value.sessionID)}/pending/${encodeURIComponent(value.messageID)}/promote`,
+            method: "POST",
             directory: directory(value),
           })
         },
@@ -292,7 +320,7 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
                 : undefined,
             })),
           ],
-        })
+        } as never)
         return {
           admittedSeq: 0,
           id: value.id ?? "",

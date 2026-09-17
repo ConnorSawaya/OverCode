@@ -1,13 +1,14 @@
-import { LayerNode } from "@opencode-ai/core/effect/layer-node"
+import { LayerNode } from "@overcode-ai/core/effect/layer-node"
 import path from "path"
 import { Effect, Layer, Record, Result, Schema, Context } from "effect"
-import { NonNegativeInt } from "@opencode-ai/core/schema"
-import { Global } from "@opencode-ai/core/global"
-import { FSUtil } from "@opencode-ai/core/fs-util"
+import { NonNegativeInt } from "@overcode-ai/core/schema"
+import { Global } from "@overcode-ai/core/global"
+import { FSUtil } from "@overcode-ai/core/fs-util"
 
 export const OAUTH_DUMMY_KEY = "opencode-oauth-dummy-key"
 
 const file = path.join(Global.Path.data, "auth.json")
+const opencodeFile = path.join(path.dirname(Global.Path.data), "opencode", "auth.json")
 
 const fail = (message: string) => (cause: unknown) => new AuthError({ message, cause })
 
@@ -55,6 +56,10 @@ const layer = Layer.effect(
     const fsys = yield* FSUtil.Service
     const decode = Schema.decodeUnknownOption(Info)
 
+    const read = Effect.fnUntraced(function* (filepath: string) {
+      return (yield* fsys.readJson(filepath).pipe(Effect.orElseSucceed(() => ({})))) as Record<string, unknown>
+    })
+
     const all = Effect.fn("Auth.all")(function* () {
       if (process.env.OVERCODE_AUTH_CONTENT) {
         try {
@@ -62,7 +67,10 @@ const layer = Layer.effect(
         } catch (err) {}
       }
 
-      const data = (yield* fsys.readJson(file).pipe(Effect.orElseSucceed(() => ({})))) as Record<string, unknown>
+      const data: Record<string, unknown> = yield* read(opencodeFile)
+      if (opencodeFile !== file) {
+        Object.assign(data, yield* read(file))
+      }
       return Record.filterMap(data, (value) => Result.fromOption(decode(value), () => undefined))
     })
 
@@ -72,7 +80,7 @@ const layer = Layer.effect(
 
     const set = Effect.fn("Auth.set")(function* (key: string, info: Info) {
       const norm = key.replace(/\/+$/, "")
-      const data = yield* all()
+      const data = yield* read(file)
       if (norm !== key) delete data[key]
       delete data[norm + "/"]
       yield* fsys
@@ -82,7 +90,7 @@ const layer = Layer.effect(
 
     const remove = Effect.fn("Auth.remove")(function* (key: string) {
       const norm = key.replace(/\/+$/, "")
-      const data = yield* all()
+      const data = yield* read(file)
       delete data[key]
       delete data[norm]
       yield* fsys.writeJson(file, data, 0o600).pipe(Effect.mapError(fail("Failed to write auth data")))

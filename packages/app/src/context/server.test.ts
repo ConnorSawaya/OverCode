@@ -7,6 +7,7 @@ import {
   nextServerAfterRemoval,
   resolveServerList,
   ServerConnection,
+  storedServerKey,
 } from "./server"
 import { ServerScope } from "@/utils/server-scope"
 
@@ -58,6 +59,40 @@ describe("resolveServerList", () => {
       password: "saved",
     })
     expect(list[0]?.type === "http" ? list[0].authToken : true).toBeUndefined()
+  })
+
+  test("keeps same-relay mobile connections distinct", () => {
+    const list = resolveServerList({
+      stored: [],
+      props: [
+        { type: "http", http: { url: "https://relay.example.test", token: "a", deviceId: "pc-a" } },
+        { type: "http", http: { url: "https://relay.example.test", token: "b", deviceId: "pc-b" } },
+      ],
+    })
+
+    expect(list).toHaveLength(2)
+    expect(list.map(ServerConnection.key)).toEqual([
+      ServerConnection.Key.make("https://relay.example.test#device=pc-a"),
+      ServerConnection.Key.make("https://relay.example.test#device=pc-b"),
+    ])
+  })
+
+  test("uses the device-aware key for persisted mobile connections", () => {
+    const first = {
+      url: "https://relay.example.test",
+      token: "a",
+      deviceId: "pc-a",
+    }
+    const second = {
+      url: "https://relay.example.test",
+      token: "b",
+      deviceId: "pc-b",
+    }
+
+    expect(storedServerKey(first)).not.toBe(storedServerKey(second))
+    expect(
+      resolveServerList({ stored: [first, second] }).map(ServerConnection.key),
+    ).toEqual([storedServerKey(first), storedServerKey(second)])
   })
 })
 

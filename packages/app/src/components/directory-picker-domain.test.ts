@@ -153,6 +153,40 @@ test("resolves directory autocomplete from the current browser root", async () =
   expect(directories).toEqual(["/repo", "/repo/src"])
 })
 
+test("uses current v2 filesystem routes for the project picker", async () => {
+  const calls: string[] = []
+  const sdk = {
+    protocol: Promise.resolve("v2"),
+    client: {
+      file: {
+        list: (input: { directory?: string; path: string }) => {
+          calls.push(`list:${input.directory}:${input.path}`)
+          return Promise.resolve({ data: [{ path: "projects/", type: "directory" as const }] })
+        },
+      },
+      v2: {
+        fs: {
+          find: (input: { location: { directory: string }; query: string }) => {
+            calls.push(`find:${input.location.directory}:${input.query}`)
+            return Promise.resolve({ data: [{ path: "projects/", type: "directory" as const }] })
+          },
+        },
+      },
+    },
+    api: {
+      file: {
+        find: () => { throw new Error("legacy file search should not be called") },
+        list: () => { throw new Error("legacy file list should not be called") },
+      },
+    },
+  } as unknown as Parameters<typeof createDirectorySearch>[0]["sdk"]
+  const search = createDirectorySearch({ sdk, home: () => "C:/Users/test", base: () => "C:/Users/test" })
+
+  expect(await search("")).toEqual(["C:/Users/test/projects"])
+  expect(await search("proj")).toEqual(["C:/Users/test/projects"])
+  expect(calls).toEqual(["list:C:/Users/test:.", "find:C:/Users/test:proj"])
+})
+
 test("keeps indexed directory results for servers that support empty search", async () => {
   const sdk = {
     api: {

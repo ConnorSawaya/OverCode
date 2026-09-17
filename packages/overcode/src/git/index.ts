@@ -1,5 +1,5 @@
-import { LayerNode } from "@opencode-ai/core/effect/layer-node"
-import { AppProcess } from "@opencode-ai/core/process"
+import { LayerNode } from "@overcode-ai/core/effect/layer-node"
+import { AppProcess } from "@overcode-ai/core/process"
 import { Effect, Layer, Context, Stream } from "effect"
 import { ChildProcess } from "effect/unstable/process"
 

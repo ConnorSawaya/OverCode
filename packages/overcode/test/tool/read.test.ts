@@ -1,15 +1,15 @@
-import { PermissionV1 } from "@opencode-ai/core/v1/permission"
+import { PermissionV1 } from "@overcode-ai/core/v1/permission"
 import { afterEach, describe, expect } from "bun:test"
-import { LayerNode } from "@opencode-ai/core/effect/layer-node"
+import { LayerNode } from "@overcode-ai/core/effect/layer-node"
 import { Cause, Effect, Exit, Layer, Stream } from "effect"
 import path from "path"
 import { Agent } from "../../src/agent/agent"
-import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
-import { FSUtil } from "@opencode-ai/core/fs-util"
-import { Global } from "@opencode-ai/core/global"
+import { CrossSpawnSpawner } from "@overcode-ai/core/cross-spawn-spawner"
+import { FSUtil } from "@overcode-ai/core/fs-util"
+import { Global } from "@overcode-ai/core/global"
 import { Config } from "@/config/config"
 import { RuntimeFlags } from "@/effect/runtime-flags"
-import { Ripgrep } from "@opencode-ai/core/ripgrep"
+import { Ripgrep } from "@overcode-ai/core/ripgrep"
 import { LSP } from "@/lsp/lsp"
 import { Permission } from "../../src/permission"
 import { SessionID, MessageID } from "../../src/session/schema"
@@ -126,7 +126,7 @@ const git = Effect.fn("ReadToolTest.git")(function* (cwd: string, args: string[]
     return stdout.trim()
   })
 })
-const put = Effect.fn("ReadToolTest.put")(function* (p: string, content: string | Buffer | Uint8Array) {
+const put = Effect.fn("ReadToolTest.put")(function* (p: string, content: string | Uint8Array) {
   const fs = yield* FSUtil.Service
   yield* fs.writeWithDirs(p, content)
 })
@@ -485,9 +485,11 @@ describe("tool.read truncation", () => {
   it.live("image files set truncated to false", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped()
-      const png = Buffer.from(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==",
-        "base64",
+      const png = new Uint8Array(
+        Buffer.from(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==",
+          "base64",
+        ),
       )
       yield* put(path.join(dir, "image.png"), png)
 
@@ -504,7 +506,7 @@ describe("tool.read truncation", () => {
   it.live("detects attachment media from file contents", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped()
-      const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01])
+      const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01])
       yield* put(path.join(dir, "image.bin"), jpeg)
 
       const result = yield* exec(dir, { filePath: path.join(dir, "image.bin") })
@@ -588,7 +590,7 @@ describe("tool.read binary detection", () => {
   it.live("rejects text extension files with null bytes", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped()
-      const bytes = Buffer.from([0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x00, 0x77, 0x6f, 0x72, 0x6c, 0x64])
+      const bytes = new Uint8Array([0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x00, 0x77, 0x6f, 0x72, 0x6c, 0x64])
       yield* put(path.join(dir, "null-byte.txt"), bytes)
 
       const err = yield* fail(dir, { filePath: path.join(dir, "null-byte.txt") })

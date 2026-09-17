@@ -16,17 +16,17 @@ import { useNavigate, useParams } from "@solidjs/router"
 import { useLayout, LocalProject } from "@/context/layout"
 import { useServerSync } from "@/context/server-sync"
 import { Persist, persisted } from "@/utils/persist"
-import { base64Encode } from "@opencode-ai/core/util/encode"
+import { base64Encode } from "@overcode-ai/core/util/encode"
 import { decode64 } from "@/utils/base64"
-import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
-import { Button } from "@opencode-ai/ui/button"
-import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { Tooltip } from "@opencode-ai/ui/tooltip"
-import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
-import { Dialog } from "@opencode-ai/ui/dialog"
-import { getFilename } from "@opencode-ai/core/util/path"
-import { Session } from "@opencode-ai/sdk/v2/client"
+import { ResizeHandle } from "@overcode-ai/ui/resize-handle"
+import { Button } from "@overcode-ai/ui/button"
+import { Icon as IconV2 } from "@overcode-ai/ui/v2/icon"
+import { IconButton } from "@overcode-ai/ui/icon-button"
+import { Tooltip } from "@overcode-ai/ui/tooltip"
+import { DropdownMenu } from "@overcode-ai/ui/dropdown-menu"
+import { Dialog } from "@overcode-ai/ui/dialog"
+import { getFilename } from "@overcode-ai/core/util/path"
+import { Session } from "@overcode-ai/sdk/v2/client"
 import { useSettings } from "@/context/settings"
 import { createStore, produce, reconcile } from "solid-js/store"
 import { DragDropProvider, DragDropSensors, DragOverlay, SortableProvider, closestCenter } from "@thisbeyond/solid-dnd"
@@ -41,8 +41,8 @@ import { useNotification } from "@/context/notification"
 import { usePermission } from "@/context/permission"
 import { usePins } from "@/context/pins"
 import { usePlatform } from "@/context/platform"
-import { Binary } from "@opencode-ai/core/util/binary"
-import { retry } from "@opencode-ai/core/util/retry"
+import { Binary } from "@overcode-ai/core/util/binary"
+import { retry } from "@overcode-ai/core/util/retry"
 import { playSoundById } from "@/utils/sound"
 import { createAim } from "@/utils/aim"
 import { Worktree as WorktreeState } from "@/utils/worktree"
@@ -50,8 +50,8 @@ import { setSessionHandoff } from "@/pages/session/handoff"
 import { SessionRouteKey, SessionStateKey } from "@/utils/server-scope"
 import { listAllSessions } from "@/utils/session"
 
-import { useDialog } from "@opencode-ai/ui/context/dialog"
-import { useTheme, type ColorScheme } from "@opencode-ai/ui/theme/context"
+import { useDialog } from "@overcode-ai/ui/context/dialog"
+import { useTheme, type ColorScheme } from "@overcode-ai/ui/theme/context"
 import { useCommand, type CommandOption } from "@/context/command"
 import { ConstrainDragXAxis, getDraggableId } from "@/utils/solid-dnd"
 import { DebugBar } from "@/components/debug-bar"
@@ -783,15 +783,14 @@ export default function LegacyLayout(props: ParentProps) {
     const sessions = currentSessions()
     if (sessions.length === 0) return
 
-    const index = params.id ? sessions.findIndex((s) => s.id === params.id) : 0
+    // Home is an index view: keep its session rows summary-only. A route with
+    // an id is already an explicit chat open, so only hydrate that chat.
+    if (!params.id) return
+    const index = sessions.findIndex((s) => s.id === params.id)
     if (index === -1) return
 
-    if (!params.id) {
-      const first = sessions[index]
-      if (first) prefetchSession(first, "high")
-    }
-
-    warm(sessions, index)
+    const current = sessions[index]
+    if (current) prefetchSession(current, "high")
   })
 
   function navigateSessionByOffset(offset: number) {
