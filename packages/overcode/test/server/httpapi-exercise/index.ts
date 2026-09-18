@@ -1467,6 +1467,38 @@ const scenarios: Scenario[] = [
     }))
     .json(404, () => {}),
   http.protected
+    .get("/session/{sessionID}/pending", "session.pending")
+    .seeded((ctx) => ctx.session({ title: "Pending prompts owner" }))
+    .at((ctx) => ({
+      path: route("/session/{sessionID}/pending", { sessionID: ctx.state.id }),
+      headers: ctx.headers(),
+    }))
+    .json(200, array),
+  http.protected
+    .delete("/session/{sessionID}/pending/{messageID}", "session.cancel_pending")
+    .seeded((ctx) => ctx.session({ title: "Pending cancel owner" }))
+    .mutating()
+    .at((ctx) => ({
+      path: route("/session/{sessionID}/pending/{messageID}", {
+        sessionID: ctx.state.id,
+        messageID: "msg_httpapi_missing",
+      }),
+      headers: ctx.headers(),
+    }))
+    .json(200, (body) => check(body === false, "cancelling an unknown pending prompt reports false")),
+  http.protected
+    .post("/session/{sessionID}/pending/{messageID}/promote", "session.promote_pending")
+    .seeded((ctx) => ctx.session({ title: "Pending promote owner" }))
+    .mutating()
+    .at((ctx) => ({
+      path: route("/session/{sessionID}/pending/{messageID}/promote", {
+        sessionID: ctx.state.id,
+        messageID: "msg_httpapi_missing",
+      }),
+      headers: ctx.headers(),
+    }))
+    .json(200, (body) => check(body === false, "promoting an unknown pending prompt reports false")),
+  http.protected
     .post("/session/{sessionID}/init", "session.init")
     .preserveDatabase()
     .withLlm()
