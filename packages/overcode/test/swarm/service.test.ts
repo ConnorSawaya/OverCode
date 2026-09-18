@@ -401,6 +401,8 @@ describe("swarm service", () => {
       expect(allows("notes.txt")).toEqual(expect.arrayContaining(["edit"]))
       expect(rules.some((r) => r.action === "deny" && r.pattern === "*" && r.permission === "edit")).toBe(true)
       expect(rules.some((r) => r.action === "deny" && r.pattern === "*" && r.permission === "bash")).toBe(true)
+      // Headless workers must never wait on an interactive permission prompt.
+      expect(rules.some((r) => r.action === "deny" && r.pattern === "*" && r.permission === "external_directory")).toBe(true)
       // …but the parent deny on secret.txt still wins over ownership.
       expect(allows("secret.txt")).toEqual([])
       const texts = yield* parentTexts(parent.id)

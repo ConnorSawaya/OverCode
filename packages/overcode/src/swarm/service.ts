@@ -11,6 +11,7 @@ import { deriveSubagentSessionPermission } from "@/agent/subagent-permissions"
 import { MessageV2 } from "@/session/message-v2"
 import { Session } from "@/session/session"
 import { SessionPrompt } from "@/session/prompt"
+import { InstanceState } from "@/effect/instance-state"
 import { Config } from "@/config/config"
 import { evaluate as evaluatePermission } from "@/permission/index"
 import { SwarmSchema } from "./schema"
@@ -62,6 +63,15 @@ const isExactRelativePath = (value: string) =>
   !path.isAbsolute(value) &&
   !value.split(/[\\/]+/).includes("..") &&
   !/[?*\[\]]/.test(value)
+
+// Tools ask permission with native path separators (path.relative on Windows
+// yields `src\math.ts`), while judge-proposed paths use `/`. Ownership rules
+// must cover both spellings or the wildcard deny blocks the edit.
+const separatorVariants = (value: string) => [...new Set([value, value.replace(/\//g, "\\"), value.replace(/\\/g, "/")])]
+
+// A hung provider stream must fail its worker, not stall the whole run until
+// the run-level timeout. Bounded by the run timeout.
+const WORKER_TIMEOUT_MS = 8 * 60_000
 
 type Ctx = {
   record: SwarmSchema.MutableRecord
@@ -303,6 +313,28 @@ const layer = Layer.effect(
       return first.items.flatMap((msg) => msg.parts).filter((part) => part.type === "tool").length
     })
 
+    // Real edit evidence from a writer's transcript, not its self-report.
+    // Denied edit attempts are counted so a blocked writer cannot claim success.
+    const editEvidence = Effect.fn("Swarm.editEvidence")(function* (sessionID: SessionID) {
+      const page = yield* pageMessages(sessionID)
+      const files = new Set<string>()
+      let denied = 0
+      for (const message of page.items) {
+        for (const part of message.parts) {
+          if (part.type !== "tool") continue
+          const tool = part as SessionV1.ToolPart
+          if (!(WRITE_KEYS as readonly string[]).includes(tool.tool)) continue
+          const state = tool.state as { status?: string; input?: Record<string, unknown> }
+          if (state?.status === "completed") {
+            const file = state.input?.["filePath"] ?? state.input?.["path"]
+            if (typeof file === "string") files.add(file)
+          }
+          if (state?.status === "error") denied += 1
+        }
+      }
+      return { files: [...files], denied }
+    })
+
     const spawnWorker = Effect.fn("Swarm.spawnWorker")(function* (
       ctx: Ctx,
       opts: {
@@ -334,15 +366,32 @@ const layer = Layer.effect(
         objective += `\n\nThese proposed paths are not exact relative files and must not be edited: ${invalidFiles.join(", ")}.`
       }
       if (def.mayOwnFiles) {
+        // The edit/write tools ask permission with `path.relative(worktree, absolute)`,
+        // and non-git projects use worktree "/", yielding a drive-root-relative
+        // path. Allow every spelling that resolves to the same owned file.
+        const instanceCtx = yield* InstanceState.context.pipe(
+          Effect.catch(() => Effect.succeed(undefined as { worktree?: string } | undefined)),
+        )
+        const worktree = instanceCtx?.worktree ?? "/"
+        const filePatternVariants = (file: string) => {
+          const absolute = path.resolve(parent.directory, file)
+          const root = path.parse(absolute).root
+          const asks = [file, absolute, path.relative(worktree, absolute), path.relative(root, absolute)]
+          return [...new Set(asks.filter((value) => value.length > 0).flatMap(separatorVariants))]
+        }
         const exactFiles = requestedFiles.filter(isExactRelativePath)
-        const allowed = exactFiles.filter(
-          (file) => evaluatePermission("edit", file, parent.permission ?? []).action !== "deny",
+        const allowed = exactFiles.filter((file) =>
+          filePatternVariants(file).every(
+            (variant) => evaluatePermission("edit", variant, parent.permission ?? []).action !== "deny",
+          ),
         )
         const denied = exactFiles.filter((file) => !allowed.includes(file))
         ownership = [
           ...WRITE_KEYS.flatMap((permission) => [{ permission, pattern: "*", action: "deny" as const }]),
           ...allowed.flatMap((pattern) =>
-            WRITE_KEYS.map((permission) => ({ permission, pattern, action: "allow" as const })),
+            filePatternVariants(pattern).flatMap((variant) =>
+              WRITE_KEYS.map((permission) => ({ permission, pattern: variant, action: "allow" as const })),
+            ),
           ),
         ]
         if (denied.length > 0) {
@@ -353,6 +402,15 @@ const layer = Layer.effect(
       const restrictions = [
         ...(def.readOnly ? WRITE_KEYS.map((permission) => ({ permission, pattern: "*", action: "deny" as const })) : []),
         ...(!def.mayRunShell ? [{ permission: "bash", pattern: "*", action: "deny" as const }] : []),
+      ]
+      // Headless workers have nobody to answer permission prompts: anything
+      // that would default to "ask" must fail fast instead of hanging the
+      // worker. These come first so explicit parent-session allows still win.
+      const headlessDenies = [
+        { permission: "external_directory", pattern: "*", action: "deny" as const },
+        { permission: "doom_loop", pattern: "*", action: "deny" as const },
+        { permission: "read", pattern: "*.env", action: "deny" as const },
+        { permission: "read", pattern: "*.env.*", action: "deny" as const },
       ]
       const model =
         SwarmConfig.roleModel({ effective: ctx.effective, role: opts.role, fallback: ctx.parentModel }) ??
@@ -366,7 +424,7 @@ const layer = Layer.effect(
         ...(model
           ? { model: { id: model.modelID as never, providerID: model.providerID as never, variant: model.variant } }
           : {}),
-        permission: [...childPermission, ...restrictions, ...ownership] as never,
+        permission: [...headlessDenies, ...childPermission, ...restrictions, ...ownership] as never,
       })
       const now = Date.now()
       const state: SwarmSchema.MutableAgentState = {
@@ -410,6 +468,7 @@ const layer = Layer.effect(
         ].join("\n")
         // NOTE: Effect.catch traps failures (worker error -> failed result) but
         // never interruption, so cancellation still propagates to the caller.
+        const workerTimeoutMs = Math.min(ctx.effective.timeoutMs, WORKER_TIMEOUT_MS)
         const reply = (yield* prompting
           .prompt({
             sessionID: child.id,
@@ -418,6 +477,21 @@ const layer = Layer.effect(
             parts: [{ type: "text", text: promptText } as never],
           })
           .pipe(
+            Effect.timeout(workerTimeoutMs),
+            Effect.map((maybe) =>
+              maybe === undefined
+                ? ({
+                    info: {
+                      role: "assistant",
+                      error: {
+                        name: "SwarmWorkerTimeout",
+                        message: `Worker made no progress within ${workerTimeoutMs}ms`,
+                      },
+                    },
+                    parts: [],
+                  } as never)
+                : maybe,
+            ),
             Effect.catch((cause) =>
               Effect.succeed({
                 info: { role: "assistant", error: { name: "SwarmWorkerError", message: String(cause) } },
@@ -427,7 +501,7 @@ const layer = Layer.effect(
           )) as SessionV1.WithParts
         const failed = (reply.info as { error?: unknown }).error !== undefined
         const transcript = failed ? "" : textOf(reply)
-        const result = failed
+        let result = failed
           ? ({
               agentId: state.id,
               role: opts.role,
@@ -435,6 +509,27 @@ const layer = Layer.effect(
               summary: `Worker failed: ${JSON.stringify((reply.info as { error?: unknown }).error).slice(0, 500)}`,
             } as SwarmSchema.AgentResult)
           : parseResult(transcript, state.id, opts.role)
+        if (def.mayOwnFiles) {
+          const edits = yield* editEvidence(child.id)
+          if (edits.files.length > 0) {
+            const normalize = (file: string) => {
+              const value = path.isAbsolute(file) ? path.relative(ctx.parent.directory, file) : file
+              return value.split(path.sep).join("/")
+            }
+            const touched = [...(result.filesTouched ?? []), ...edits.files]
+              .map(normalize)
+              .filter((file) => file.length > 0 && !file.startsWith(".."))
+            result = { ...result, filesTouched: [...new Set(touched)] }
+          } else if (result.status === "completed" && edits.denied > 0) {
+            // The writer claims success, but every edit attempt was denied and
+            // nothing changed. Report failure instead of a false success.
+            result = {
+              ...result,
+              status: "failed",
+              summary: `Editing was blocked by permissions ${edits.denied} time(s); no changes were applied.`,
+            }
+          }
+        }
         const tools = yield* countTools(child.id)
         ctx.usage.toolCalls += tools
         yield* collectUsage(ctx, child.id)
@@ -616,6 +711,10 @@ const layer = Layer.effect(
           if (repaired.status !== "completed") break
         }
       }
+      // A run that changed files must not finalize as a success when the
+      // tester never confirmed them.
+      if (cfg.tester && needsEdits && !verified)
+        return yield* fail(ctx, `Changes were not verified: ${testsPassed} passed, ${testsFailed} failed.`)
 
       // 7. Reviewer (max preset).
       if (cfg.reviewer && needsEdits) {
@@ -886,7 +985,14 @@ const layer = Layer.effect(
             return yield* Effect.fail(new Error(`Swarm timed out after ${ctx.effective.timeoutMs}ms`))
           }
           const record = (yield* dbStore.get(ctx.record.id)) ?? ctx.record
-          if (!ctx.finalMessageID) return yield* Effect.fail(new Error("Swarm finished without a final message"))
+          if (!ctx.finalMessageID)
+            return yield* Effect.fail(
+              new Error(
+                record.status === "failed"
+                  ? "Swarm failed before producing a final message"
+                  : "Swarm finished without a final message",
+              ),
+            )
           return { record, finalMessageID: ctx.finalMessageID }
         }),
       cancel: (id) =>
