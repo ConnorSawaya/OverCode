@@ -4642,6 +4642,7 @@ export class Swarm extends HeyApiClient {
   public get<ThrowOnError extends boolean = false>(
     parameters: {
       swarmID: string
+      sessionID: string
       directory?: string
       workspace?: string
     },
@@ -4653,6 +4654,7 @@ export class Swarm extends HeyApiClient {
         {
           args: [
             { in: "path", key: "swarmID" },
+            { in: "query", key: "sessionID" },
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
           ],
@@ -4674,6 +4676,7 @@ export class Swarm extends HeyApiClient {
   public cancel<ThrowOnError extends boolean = false>(
     parameters: {
       swarmID: string
+      sessionID: string
       directory?: string
       workspace?: string
     },
@@ -4685,6 +4688,7 @@ export class Swarm extends HeyApiClient {
         {
           args: [
             { in: "path", key: "swarmID" },
+            { in: "query", key: "sessionID" },
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
           ],
@@ -4706,6 +4710,7 @@ export class Swarm extends HeyApiClient {
   public agents<ThrowOnError extends boolean = false>(
     parameters: {
       swarmID: string
+      sessionID: string
       directory?: string
       workspace?: string
     },
@@ -4717,6 +4722,7 @@ export class Swarm extends HeyApiClient {
         {
           args: [
             { in: "path", key: "swarmID" },
+            { in: "query", key: "sessionID" },
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
           ],

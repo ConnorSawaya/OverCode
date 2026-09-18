@@ -72,7 +72,11 @@ export function useSwarmStatus(sessionID: Accessor<string | undefined>) {
 
   const cancel = async (swarmID: string) => {
     await serverSDK()
-      .request({ path: `/swarm/${encodeURIComponent(swarmID)}/cancel`, method: "POST", directory: sdk().directory })
+      .request({
+        path: `/swarm/${encodeURIComponent(swarmID)}/cancel?sessionID=${encodeURIComponent(sessionID() ?? "")}`,
+        method: "POST",
+        directory: sdk().directory,
+      })
       .catch(() => undefined)
     await load()
   }

@@ -2,6 +2,7 @@ export * as Swarm from "./service"
 
 import { SessionV1 } from "@overcode-ai/core/v1/session"
 import { Context, Effect, Fiber, Layer, Ref, Schema } from "effect"
+import path from "node:path"
 import { LayerNode } from "@overcode-ai/core/effect/layer-node"
 import { Database } from "@overcode-ai/core/database/database"
 import { MessageID, PartID, SessionID } from "@/session/schema"
@@ -48,11 +49,16 @@ const RoleAgent: Record<Role, string> = {
   critic: "explore",
   tester: "explore",
   reviewer: "explore",
-  judge: "general",
+  judge: "explore",
   repair: "build",
 }
 
 const WRITE_KEYS = ["edit", "write", "apply_patch"] as const
+const isExactRelativePath = (value: string) =>
+  value.length > 0 &&
+  !path.isAbsolute(value) &&
+  !value.split(/[\\/]+/).includes("..") &&
+  !/[?*\[\]]/.test(value)
 
 type Ctx = {
   record: SwarmSchema.MutableRecord
@@ -229,6 +235,9 @@ const layer = Layer.effect(
           return yield* Effect.fail(new Error(`Swarm model-call budget exhausted (${cfg.maxModelCalls})`))
         if (ctx.usage.input + ctx.usage.output >= cfg.maxTokens)
           return yield* Effect.fail(new Error(`Swarm token budget exhausted (${cfg.maxTokens})`))
+        // Reserve before the next yield so parallel workers cannot all pass
+        // the check and exceed the model-call cap.
+        ctx.usage.modelCalls += 1
       })
 
     const collectUsage = Effect.fn("Swarm.collectUsage")(function* (ctx: Ctx, sessionID: SessionID) {
@@ -278,11 +287,17 @@ const layer = Layer.effect(
       // reported back as a constraint instead of overriding the parent.
       let objective = opts.objective
       let ownership: { permission: string; pattern: string; action: "allow" | "deny" }[] = []
-      if (def.mayOwnFiles && opts.ownedFiles?.length) {
-        const allowed = opts.ownedFiles.filter(
+      const requestedFiles = [...new Set(opts.ownedFiles ?? [])]
+      const invalidFiles = requestedFiles.filter((file) => !isExactRelativePath(file))
+      if (invalidFiles.length > 0) {
+        objective += `\n\nThese proposed paths are not exact relative files and must not be edited: ${invalidFiles.join(", ")}.`
+      }
+      if (def.mayOwnFiles) {
+        const exactFiles = requestedFiles.filter(isExactRelativePath)
+        const allowed = exactFiles.filter(
           (file) => evaluatePermission("edit", file, parent.permission ?? []).action !== "deny",
         )
-        const denied = opts.ownedFiles.filter((file) => !allowed.includes(file))
+        const denied = exactFiles.filter((file) => !allowed.includes(file))
         ownership = [
           ...WRITE_KEYS.flatMap((permission) => [{ permission, pattern: "*", action: "deny" as const }]),
           ...allowed.flatMap((pattern) =>
@@ -294,6 +309,10 @@ const layer = Layer.effect(
         }
         objective += `\n\nYou own exactly these files for editing: ${allowed.join(", ") || "(none)"}. Do not edit anything else.`
       }
+      const restrictions = [
+        ...(def.readOnly ? WRITE_KEYS.map((permission) => ({ permission, pattern: "*", action: "deny" as const })) : []),
+        ...(!def.mayRunShell ? [{ permission: "bash", pattern: "*", action: "deny" as const }] : []),
+      ]
       const model =
         SwarmConfig.roleModel({ effective: ctx.effective, role: opts.role, fallback: ctx.parentModel }) ??
         ctx.parentModel
@@ -306,7 +325,7 @@ const layer = Layer.effect(
         ...(model
           ? { model: { id: model.modelID as never, providerID: model.providerID as never, variant: model.variant } }
           : {}),
-        permission: [...childPermission, ...ownership] as never,
+        permission: [...childPermission, ...restrictions, ...ownership] as never,
       })
       const now = Date.now()
       const state: SwarmSchema.MutableAgentState = {
@@ -324,7 +343,9 @@ const layer = Layer.effect(
             }
           : {}),
         progress: "starting",
-        ...(opts.ownedFiles?.length ? { filesClaimed: opts.ownedFiles } : {}),
+        ...(def.mayOwnFiles && requestedFiles.some(isExactRelativePath)
+          ? { filesClaimed: requestedFiles.filter(isExactRelativePath) }
+          : {}),
         timeCreated: now,
         timeUpdated: now,
       }
@@ -345,7 +366,6 @@ const layer = Layer.effect(
           ``,
           RESULT_CONTRACT,
         ].join("\n")
-        ctx.usage.modelCalls += 1
         // NOTE: Effect.catch traps failures (worker error -> failed result) but
         // never interruption, so cancellation still propagates to the caller.
         const reply = (yield* prompting
@@ -438,6 +458,14 @@ const layer = Layer.effect(
       return ctx.record
     })
 
+    const failureText = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause)).slice(0, 1000)
+
+    const failAndRethrow = (ctx: Ctx, cause: unknown, prefix: string) =>
+      Effect.gen(function* () {
+        yield* fail(ctx, `${prefix}: ${failureText(cause)}`)
+        return yield* Effect.fail(cause instanceof Error ? cause : new Error(String(cause)))
+      })
+
     const execute = Effect.fn("Swarm.execute")(function* (ctx: Ctx, userMessageID: MessageID) {
       const cfg = ctx.effective
       const startedAt = Date.now()
@@ -490,7 +518,8 @@ const layer = Layer.effect(
           ].join("\n"),
         },
       ])
-      const ownedFiles = [...new Set((judged.proposedChanges ?? []).map((c) => c.path))]
+      if (judged.status !== "completed") return yield* fail(ctx, "Judge failed.")
+      const ownedFiles = [...new Set((judged.proposedChanges ?? []).map((c) => c.path))].filter(isExactRelativePath)
       const needsEdits = ownedFiles.length > 0
 
       // 5. Implement (single writer owns the files).
@@ -528,7 +557,7 @@ const layer = Layer.effect(
           testsFailed = ran.filter((t) => !t.passed).length
           verified = tested.status === "completed" && ran.length > 0 && testsFailed === 0
           if (verified && cfg.stopWhenVerified) break
-          if (round >= cfg.repairAttempts || tested.status !== "completed") break
+           if (round >= Math.min(cfg.repairAttempts, cfg.maxRounds - 1) || tested.status !== "completed") break
           ctx.record.status = "repairing"
           yield* persist(ctx.record)
           repairRounds += 1
@@ -621,6 +650,15 @@ const layer = Layer.effect(
             for (const child of ctx.children.keys()) {
               yield* prompting.cancel(child).pipe(Effect.catch(() => Effect.void))
             }
+            if (!(["completed", "failed", "cancelled"] as string[]).includes(ctx.record.status)) {
+              ctx.record.status = "cancelled"
+              ctx.record.agents = ctx.record.agents.map((agent) =>
+                ["queued", "running", "waiting_for_permission"].includes(agent.status)
+                  ? { ...agent, status: "cancelled", timeUpdated: Date.now() }
+                  : agent,
+              )
+              yield* persist(ctx.record).pipe(Effect.catch(() => Effect.void))
+            }
           }),
         ),
       )
@@ -670,10 +708,15 @@ const layer = Layer.effect(
     })
 
     // HTTP start() must work on a fresh session: post the task as the user
-    // message when none exists yet so progress has something to attach to.
+    // message when it is not already the latest user message so progress has
+    // something to attach to without discarding a direct-start task.
     const ensureUserMessage = Effect.fn("Swarm.ensureUserMessage")(function* (ctx: Ctx, input: StartInput) {
       const existing = yield* latestUserMessage(ctx.record.sessionID)
-      if (existing) return existing
+      if (existing) {
+        const messages = yield* pageMessages(ctx.record.sessionID)
+        const match = messages.items.find((message) => message.info.id === existing)
+        if (match && textOf(match).trim() === input.task.trim()) return existing
+      }
       const model = input.model ??
         (ctx.parent.model
           ? { providerID: ctx.parent.model.providerID as string, modelID: ctx.parent.model.id as string }
@@ -727,11 +770,14 @@ const layer = Layer.effect(
       start: (input) =>
         Effect.gen(function* () {
           const ctx = yield* boot(input)
-          const userMessageID = yield* ensureUserMessage(ctx, input)
+          const userMessageID = yield* ensureUserMessage(ctx, input).pipe(
+            Effect.catch((cause) => failAndRethrow(ctx, cause, "Swarm could not start")),
+          )
           const fiber = yield* Effect.forkDetach(
             withCancelScope(
               ctx,
               execute(ctx, userMessageID).pipe(
+                Effect.catch((cause) => failAndRethrow(ctx, cause, "Swarm failed")),
                 Effect.timeout(ctx.effective.timeoutMs),
                 Effect.flatMap((completed) =>
                   Effect.gen(function* () {
@@ -760,11 +806,16 @@ const layer = Layer.effect(
       runSync: (input) =>
         Effect.gen(function* () {
           const ctx = yield* boot(input)
-          const userMessageID = yield* latestUserMessage(input.sessionID)
-          if (!userMessageID) return yield* Effect.fail(new Error("Swarm needs an existing user message to attach progress to"))
-          const completed = yield* withCancelScope(ctx, execute(ctx, userMessageID)).pipe(
-            Effect.timeout(ctx.effective.timeoutMs),
+          const userMessageID = yield* latestUserMessage(input.sessionID).pipe(
+            Effect.flatMap((id) =>
+              id ? Effect.succeed(id) : Effect.fail(new Error("Swarm needs an existing user message to attach progress to")),
+            ),
+            Effect.catch((cause) => failAndRethrow(ctx, cause, "Swarm could not start")),
           )
+          const completed = yield* withCancelScope(
+            ctx,
+            execute(ctx, userMessageID).pipe(Effect.catch((cause) => failAndRethrow(ctx, cause, "Swarm failed"))),
+          ).pipe(Effect.timeout(ctx.effective.timeoutMs))
           if (!completed) {
             ctx.record.status = "failed"
             yield* persist(ctx.record)
@@ -791,7 +842,14 @@ const layer = Layer.effect(
           }
           const record = yield* dbStore.get(id)
           if (record && !["completed", "failed", "cancelled"].includes(record.status)) {
-            yield* dbStore.update(id, { status: "cancelled" })
+            yield* dbStore.update(id, {
+              status: "cancelled",
+              agents: record.agents.map((agent) =>
+                ["queued", "running", "waiting_for_permission"].includes(agent.status)
+                  ? { ...agent, status: "cancelled", timeUpdated: Date.now() }
+                  : agent,
+              ),
+            })
           }
         }),
       get: (id) => dbStore.get(id),

@@ -1444,27 +1444,28 @@ const scenarios: Scenario[] = [
     }),
   http.protected
     .get("/swarm/{swarmID}", "swarm.get.missing")
+    .seeded((ctx) => ctx.session({ title: "Swarm get exercise" }))
     .at((ctx) => ({
-      path: route("/swarm/{swarmID}", { swarmID: "swm_httpapi_missing" }),
+      path: `${route("/swarm/{swarmID}", { swarmID: "swm_httpapi_missing" })}?sessionID=${encodeURIComponent(ctx.state.id)}`,
       headers: ctx.headers(),
     }))
     .json(404, () => {}),
   http.protected
     .get("/swarm/{swarmID}/agents", "swarm.agents.missing")
+    .seeded((ctx) => ctx.session({ title: "Swarm agents exercise" }))
     .at((ctx) => ({
-      path: route("/swarm/{swarmID}/agents", { swarmID: "swm_httpapi_missing" }),
+      path: `${route("/swarm/{swarmID}/agents", { swarmID: "swm_httpapi_missing" })}?sessionID=${encodeURIComponent(ctx.state.id)}`,
       headers: ctx.headers(),
     }))
     .json(404, () => {}),
   http.protected
     .post("/swarm/{swarmID}/cancel", "swarm.cancel.missing")
+    .seeded((ctx) => ctx.session({ title: "Swarm cancel exercise" }))
     .at((ctx) => ({
-      path: route("/swarm/{swarmID}/cancel", { swarmID: "swm_httpapi_missing" }),
+      path: `${route("/swarm/{swarmID}/cancel", { swarmID: "swm_httpapi_missing" })}?sessionID=${encodeURIComponent(ctx.state.id)}`,
       headers: ctx.headers(),
     }))
-    .json(200, (body) => {
-      check(body === true, "missing swarm cancel should remain a no-op success")
-    }),
+    .json(404, () => {}),
   http.protected
     .post("/session/{sessionID}/init", "session.init")
     .preserveDatabase()

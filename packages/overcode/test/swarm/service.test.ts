@@ -49,6 +49,7 @@ import { Swarm } from "../../src/swarm/service"
 import { SwarmSchema } from "../../src/swarm/schema"
 import { parseResult } from "../../src/swarm/service"
 import { resolvePreset } from "../../src/swarm/preset"
+import { SwarmConfig } from "../../src/swarm/config"
 import { TestLLMServer } from "../lib/llm-server"
 import { testEffect } from "../lib/effect"
 import path from "path"
@@ -262,6 +263,24 @@ describe("swarm pure units", () => {
     expect(resolvePreset({ workers: 0 }).workers).toBe(4)
     expect(resolvePreset({ repairAttempts: 9 }).repairAttempts).toBe(5)
   })
+
+  test("normalizes legacy snake_case config and allows per-run disable", () => {
+    const global = SwarmConfig.normalize({
+      preset: "deep",
+      max_rounds: 1,
+      max_model_calls: 3,
+      max_tokens: 4000,
+      repair_attempts: 0,
+      timeout_ms: 20000,
+      stop_when_verified: false,
+      role_models: { judge: "test/model" },
+    })
+    expect(global?.preset).toBe("deep")
+    expect(global?.maxRounds).toBe(1)
+    expect(global?.maxModelCalls).toBe(3)
+    expect(global?.roleModels).toEqual({ judge: "test/model" })
+    expect(SwarmConfig.resolve({ global, override: { enabled: false } }).enabled).toBe(false)
+  })
 })
 
 const bodyIncludes = (text: string) => (hit: { body: Record<string, unknown> }) =>
@@ -363,6 +382,7 @@ describe("swarm service", () => {
       // Ownership enforced: notes.txt writable, everything else denied…
       expect(allows("notes.txt")).toEqual(expect.arrayContaining(["edit"]))
       expect(rules.some((r) => r.action === "deny" && r.pattern === "*" && r.permission === "edit")).toBe(true)
+      expect(rules.some((r) => r.action === "deny" && r.pattern === "*" && r.permission === "bash")).toBe(true)
       // …but the parent deny on secret.txt still wins over ownership.
       expect(allows("secret.txt")).toEqual([])
       const texts = yield* parentTexts(parent.id)
@@ -403,6 +423,7 @@ describe("swarm service", () => {
       if (Exit.isFailure(exit)) {
         expect(String(Cause.pretty(exit.cause))).toContain("budget")
       }
+      expect((yield* swarm.listBySession(parent.id))[0]?.status).toBe("failed")
     }),
   )
 
@@ -420,6 +441,7 @@ describe("swarm service", () => {
       yield* llm.hold(`Working…\n${fence({ summary: "late" })}`, gate)
 
       const record = yield* swarm.start({ sessionID: parent.id, task: "slow task", preset: "fast", model: ref })
+      expect((yield* parentTexts(parent.id)).some((text) => text === "slow task")).toBe(true)
       let running = false
       for (let i = 0; i < 200 && !running; i++) {
         const current = yield* swarm.get(record.id)
@@ -431,6 +453,7 @@ describe("swarm service", () => {
       release()
       const final = yield* swarm.get(record.id)
       expect(final?.status).toBe("cancelled")
+      expect(final?.agents.every((agent) => ["cancelled", "completed", "failed"].includes(agent.status))).toBe(true)
     }),
   )
 })

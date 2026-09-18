@@ -34,9 +34,9 @@ export const swarmHandlers = HttpApiBuilder.group(InstanceHttpApi, "swarm", (han
         .pipe(Effect.mapError(() => new HttpApiError.BadRequest({})))
     })
 
-    const get = Effect.fn("SwarmHttpApi.get")(function* (ctx: { params: { swarmID: SwarmSchema.ID } }) {
+    const get = Effect.fn("SwarmHttpApi.get")(function* (ctx: { params: { swarmID: SwarmSchema.ID }; query: { sessionID: SessionID } }) {
       const record = yield* svc.get(ctx.params.swarmID)
-      if (!record) return yield* Effect.fail(missing(ctx.params.swarmID))
+      if (!record || record.sessionID !== ctx.query.sessionID) return yield* Effect.fail(missing(ctx.params.swarmID))
       return record
     })
 
@@ -44,14 +44,16 @@ export const swarmHandlers = HttpApiBuilder.group(InstanceHttpApi, "swarm", (han
       return yield* svc.listBySession(ctx.query.sessionID)
     })
 
-    const cancel = Effect.fn("SwarmHttpApi.cancel")(function* (ctx: { params: { swarmID: SwarmSchema.ID } }) {
+    const cancel = Effect.fn("SwarmHttpApi.cancel")(function* (ctx: { params: { swarmID: SwarmSchema.ID }; query: { sessionID: SessionID } }) {
+      const record = yield* svc.get(ctx.params.swarmID)
+      if (!record || record.sessionID !== ctx.query.sessionID) return yield* Effect.fail(missing(ctx.params.swarmID))
       yield* svc.cancel(ctx.params.swarmID)
       return true
     })
 
-    const agents = Effect.fn("SwarmHttpApi.agents")(function* (ctx: { params: { swarmID: SwarmSchema.ID } }) {
+    const agents = Effect.fn("SwarmHttpApi.agents")(function* (ctx: { params: { swarmID: SwarmSchema.ID }; query: { sessionID: SessionID } }) {
       const record = yield* svc.get(ctx.params.swarmID)
-      if (!record) return yield* Effect.fail(missing(ctx.params.swarmID))
+      if (!record || record.sessionID !== ctx.query.sessionID) return yield* Effect.fail(missing(ctx.params.swarmID))
       return record.agents
     })
 

@@ -39,8 +39,9 @@ export function DialogSwarmStatus() {
 
   const cancel = async () => {
     const current = record()
-    if (!current || TERMINAL.has(current.status)) return
-    await sdk.client.swarm.cancel({ swarmID: current.id }).catch(() => undefined)
+    const id = sessionID()
+    if (!current || !id || TERMINAL.has(current.status)) return
+    await sdk.client.swarm.cancel({ swarmID: current.id, sessionID: id }).catch(() => undefined)
     dialog.clear()
   }
 
@@ -85,8 +86,6 @@ export async function cancelActiveSwarm(
   const res = await sdk.client.swarm.list({ sessionID }).catch(() => undefined)
   const active = (res?.data ?? []).find((item) => !TERMINAL.has(item.status))
   if (!active) return false
-  await sdk.client.swarm.cancel({ swarmID: active.id }).catch(() => undefined)
+  await sdk.client.swarm.cancel({ swarmID: active.id, sessionID }).catch(() => undefined)
   return true
 }
-
-

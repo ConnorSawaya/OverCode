@@ -115,7 +115,7 @@ describe("swarm http api", () => {
 
         let ready = false
         for (let i = 0; i < 200 && !ready; i++) {
-          const fetched = yield* get(call, `/swarm/${id}`)
+          const fetched = yield* get(call, `/swarm/${id}?sessionID=${sessionID}`)
           const agents = (fetched.json as { status: string; agents: { status: string }[] }).agents ?? []
           ready = agents.length === 2 && agents.some((a) => a.status === "running")
           if (!ready) yield* Effect.sleep("20 millis")
@@ -126,17 +126,17 @@ describe("swarm http api", () => {
         expect(listed.status).toBe(200)
         expect((listed.json as unknown[]).length).toBe(1)
 
-        const agents = yield* get(call, `/swarm/${id}/agents`)
+        const agents = yield* get(call, `/swarm/${id}/agents?sessionID=${sessionID}`)
         expect(agents.status).toBe(200)
         expect((agents.json as unknown[]).length).toBe(2)
 
-        const cancelled = yield* post(call, `/swarm/${id}/cancel`, {})
+        const cancelled = yield* post(call, `/swarm/${id}/cancel?sessionID=${sessionID}`, {})
         expect(cancelled.status).toBe(200)
         expect(cancelled.json).toBe(true)
         release()
-        expect(((yield* get(call, `/swarm/${id}`)).json as { status: string }).status).toBe("cancelled")
+        expect(((yield* get(call, `/swarm/${id}?sessionID=${sessionID}`)).json as { status: string }).status).toBe("cancelled")
 
-        const missing = yield* get(call, `/swarm/swm_nope`)
+        const missing = yield* get(call, `/swarm/swm_nope?sessionID=${sessionID}`)
         expect(missing.status).toBe(404)
       }).pipe(Effect.provide(TestLLMServer.layer)),
     { timeout: 60000 },

@@ -2047,7 +2047,7 @@ export type Config = {
   }
   swarm?: {
     enabled?: boolean
-    preset?: "fast" | "balanced" | "max" | "custom"
+    preset?: "fast" | "balanced" | "max" | "custom" | "deep"
     workers?: number
     max_rounds?: number
     max_model_calls?: number
@@ -2056,6 +2056,9 @@ export type Config = {
     timeout_ms?: number
     stop_when_verified?: boolean
     role_models?: {
+      [key: string]: string
+    }
+    reasoning?: {
       [key: string]: string
     }
   }
@@ -11033,7 +11036,8 @@ export type SwarmGetData = {
   path: {
     swarmID: string
   }
-  query?: {
+  query: {
+    sessionID: string
     directory?: string
     workspace?: string
   }
@@ -11152,7 +11156,8 @@ export type SwarmCancelData = {
   path: {
     swarmID: string
   }
-  query?: {
+  query: {
+    sessionID: string
     directory?: string
     workspace?: string
   }
@@ -11161,9 +11166,13 @@ export type SwarmCancelData = {
 
 export type SwarmCancelErrors = {
   /**
-   * Bad request
+   * BadRequest | InvalidRequestError
    */
-  400: BadRequestError
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * SwarmNotFoundError
+   */
+  404: SwarmNotFoundError
 }
 
 export type SwarmCancelError = SwarmCancelErrors[keyof SwarmCancelErrors]
@@ -11182,7 +11191,8 @@ export type SwarmAgentsData = {
   path: {
     swarmID: string
   }
-  query?: {
+  query: {
+    sessionID: string
     directory?: string
     workspace?: string
   }

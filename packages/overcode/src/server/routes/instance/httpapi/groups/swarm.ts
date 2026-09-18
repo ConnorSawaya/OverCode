@@ -23,6 +23,11 @@ const ListQuery = Schema.Struct({
   ...WorkspaceRoutingQueryFields,
 })
 
+const OwnershipQuery = Schema.Struct({
+  sessionID: SessionID,
+  ...WorkspaceRoutingQueryFields,
+})
+
 export type StartPayload = typeof StartPayload.Type
 
 export const SwarmApi = HttpApi.make("swarm")
@@ -43,7 +48,7 @@ export const SwarmApi = HttpApi.make("swarm")
         ),
         HttpApiEndpoint.get("get", `${root}/:swarmID`, {
           params: { swarmID: SwarmSchema.ID },
-          query: WorkspaceRoutingQuery,
+          query: OwnershipQuery,
           success: described(SwarmSchema.Record, "Swarm run state"),
           error: [HttpApiError.BadRequest, SwarmNotFoundError],
         }).annotateMerge(
@@ -65,8 +70,9 @@ export const SwarmApi = HttpApi.make("swarm")
         ),
         HttpApiEndpoint.post("cancel", `${root}/:swarmID/cancel`, {
           params: { swarmID: SwarmSchema.ID },
-          query: WorkspaceRoutingQuery,
+          query: OwnershipQuery,
           success: described(Schema.Boolean, "Swarm cancelled"),
+          error: [HttpApiError.BadRequest, SwarmNotFoundError],
         }).annotateMerge(
           OpenApi.annotations({
             identifier: "swarm.cancel",
@@ -76,7 +82,7 @@ export const SwarmApi = HttpApi.make("swarm")
         ),
         HttpApiEndpoint.get("agents", `${root}/:swarmID/agents`, {
           params: { swarmID: SwarmSchema.ID },
-          query: WorkspaceRoutingQuery,
+          query: OwnershipQuery,
           success: described(Schema.Array(SwarmSchema.AgentState), "Swarm child agents"),
           error: [HttpApiError.BadRequest, SwarmNotFoundError],
         }).annotateMerge(

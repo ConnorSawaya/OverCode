@@ -8,7 +8,7 @@ import { app } from "electron"
 
 const execFileAsync = promisify(execFile)
 const root = dirname(fileURLToPath(import.meta.url))
-const stateHome = process.env.XDG_STATE_HOME
+const currentStateHome = () => process.env.XDG_STATE_HOME
 const desktopStateNames = [
   "ai.overcode.desktop.dev",
   "ai.overcode.desktop.beta",
@@ -26,6 +26,10 @@ type Logger = {
 }
 
 export async function startBackgroundCli(logger: Logger, shellStateHome?: string) {
+  // Resolve this after the main process applies the app environment. Reading
+  // XDG_STATE_HOME at module load can capture the shell value before
+  // preferAppEnv() has selected the desktop state directory.
+  const stateHome = currentStateHome()
   const bundled = app.isPackaged
     ? join(process.resourcesPath, executableName())
     : join(root, "../../resources", executableName())

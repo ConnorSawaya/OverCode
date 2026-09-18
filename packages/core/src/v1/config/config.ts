@@ -171,7 +171,7 @@ export const Info = Schema.Struct({
       enabled: Schema.optional(Schema.Boolean).annotate({
         description: "Enable swarm execution modes (default: true)",
       }),
-      preset: Schema.optional(Schema.Literals(["fast", "balanced", "max", "custom"])).annotate({
+       preset: Schema.optional(Schema.Literals(["fast", "balanced", "max", "custom", "deep"])).annotate({
         description: "Default swarm preset (default: balanced)",
       }),
       workers: Schema.optional(PositiveInt).annotate({
@@ -195,9 +195,12 @@ export const Info = Schema.Struct({
       stop_when_verified: Schema.optional(Schema.Boolean).annotate({
         description: "Stop early once verification passes (default: true)",
       }),
-      role_models: Schema.optional(Schema.Record(Schema.String, Schema.String)).annotate({
-        description: 'Per-role model overrides, e.g. { "critic": "openai/gpt-5" }',
-      }),
+       role_models: Schema.optional(Schema.Record(Schema.String, Schema.String)).annotate({
+         description: 'Per-role model overrides, e.g. { "critic": "openai/gpt-5" }',
+       }),
+       reasoning: Schema.optional(Schema.Record(Schema.String, Schema.String)).annotate({
+         description: "Per-role reasoning variants.",
+       }),
     }),
   ).annotate({
     description: "Swarm Mode orchestration settings (multi-agent execution)",

@@ -588,13 +588,13 @@ export function createPromptSubmit(input: PromptSubmitInput) {
         const deadline = Date.now() + 30 * 60_000
         for (;;) {
           if (controller.signal.aborted) {
-            await sdk().client.swarm.cancel({ swarmID: started.id }).catch(() => undefined)
+            await sdk().client.swarm.cancel({ swarmID: started.id, sessionID: session.id }).catch(() => undefined)
             return
           }
           if (Date.now() > deadline) throw new Error(language.t("common.requestFailed"))
           await new Promise((resolve) => setTimeout(resolve, 2000))
           const state = await sdk()
-            .client.swarm.get({ swarmID: started.id })
+            .client.swarm.get({ swarmID: started.id, sessionID: session.id })
             .then((x) => x.data)
             .catch(() => undefined)
           if (!state) continue
