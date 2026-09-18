@@ -38,7 +38,7 @@ describe("inlineCodeKind", () => {
   })
 
   test("detects urls", () => {
-    expect(inlineCodeKind(`https://github.com/ConnorSawaya/overcode/tree/overcode-rebrand/packages/web/src/content/docs`)).toBe("url")
+    expect(inlineCodeKind(`https://github.com/ConnorSawaya/overcode/tree/plain-cli/packages/web/src/content/docs`)).toBe("url")
     expect(inlineCodeKind(`http://localhost:4444`)).toBe("url")
     expect(inlineCodeKind(`file:///tmp/overcode`)).toBeUndefined()
     expect(inlineCodeKind(`ftp://overcode.ai/docs`)).toBeUndefined()

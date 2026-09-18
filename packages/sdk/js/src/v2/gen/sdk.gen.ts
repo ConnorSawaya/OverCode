@@ -4580,6 +4580,7 @@ export class Swarm extends HeyApiClient {
       workspace?: string
       sessionID?: string
       task?: string
+      parts?: Array<TextPartInput | FilePartInput>
       preset?: "fast" | "balanced" | "max" | "custom" | "deep"
       config?: {
         enabled?: boolean
@@ -4615,6 +4616,7 @@ export class Swarm extends HeyApiClient {
             { in: "query", key: "workspace" },
             { in: "body", key: "sessionID" },
             { in: "body", key: "task" },
+            { in: "body", key: "parts" },
             { in: "body", key: "preset" },
             { in: "body", key: "config" },
             { in: "body", key: "model" },

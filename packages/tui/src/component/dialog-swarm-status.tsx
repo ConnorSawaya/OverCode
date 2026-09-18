@@ -31,9 +31,10 @@ export function DialogSwarmStatus() {
     return res.data[0]
   })
 
+  // Poll unconditionally so a new run started after a finished one appears
+  // without reopening the dialog.
   const timer = setInterval(() => {
-    const current = record()
-    if (current && !TERMINAL.has(current.status)) refetch()
+    refetch()
   }, 3000)
   onCleanup(() => clearInterval(timer))
 

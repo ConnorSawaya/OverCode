@@ -138,6 +138,12 @@ describe("swarm http api", () => {
 
         const missing = yield* get(call, `/swarm/swm_nope?sessionID=${sessionID}`)
         expect(missing.status).toBe(404)
+
+        // A swarm is only addressable through its owning session.
+        const other = yield* post(call, "/session", {})
+        const otherSessionID = (other.json as { id: string }).id
+        const foreign = yield* get(call, `/swarm/${id}?sessionID=${otherSessionID}`)
+        expect(foreign.status).toBe(404)
       }).pipe(Effect.provide(TestLLMServer.layer)),
     { timeout: 60000 },
   )

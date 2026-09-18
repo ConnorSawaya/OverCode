@@ -157,7 +157,7 @@ const AppearanceSection: Component<{ controller: AppearanceSettingsController }>
               {language.t("settings.general.row.theme.description")}{" "}
               <ExternalLink
                 class="settings-v2-link"
-                href="https://github.com/ConnorSawaya/overcode/tree/overcode-rebrand/packages/web/src/content/docs/themes/"
+                href="https://github.com/ConnorSawaya/overcode/tree/plain-cli/packages/web/src/content/docs/themes/"
               >
                 {language.t("common.learnMore")}
               </ExternalLink>

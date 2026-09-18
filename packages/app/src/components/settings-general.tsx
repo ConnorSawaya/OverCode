@@ -519,7 +519,7 @@ export const SettingsGeneral: Component = () => {
           description={
             <>
               {language.t("settings.general.row.theme.description")}{" "}
-              <ExternalLink href="https://github.com/ConnorSawaya/overcode/tree/overcode-rebrand/packages/web/src/content/docs/themes/">
+              <ExternalLink href="https://github.com/ConnorSawaya/overcode/tree/plain-cli/packages/web/src/content/docs/themes/">
                 {language.t("common.learnMore")}
               </ExternalLink>
             </>

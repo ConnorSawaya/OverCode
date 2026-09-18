@@ -47,7 +47,7 @@
 
 ```bash
 # YOLO
-curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/overcode-rebrand/install | bash
+curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/plain-cli/install | bash
 
 # Gestionnaires de paquets
 npm i -g overcode-ai@latest        # ou bun/pnpm/yarn
@@ -93,8 +93,8 @@ Le script d'installation respecte l'ordre de priorité suivant pour le chemin d'
 
 ```bash
 # Exemples
-OVERCODE_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/overcode-rebrand/install | bash
-XDG_BIN_DIR=$HOME/.local/bin curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/overcode-rebrand/install | bash
+OVERCODE_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/plain-cli/install | bash
+XDG_BIN_DIR=$HOME/.local/bin curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/plain-cli/install | bash
 ```
 
 ### Agents
@@ -110,11 +110,11 @@ Overcode inclut deux agents intégrés que vous pouvez basculer avec la touche `
 Un sous-agent **general** est aussi inclus pour les recherches complexes et les tâches en plusieurs étapes.
 Il est utilisé en interne et peut être invoqué via `@general` dans les messages.
 
-En savoir plus sur les [agents](https://github.com/ConnorSawaya/overcode/tree/overcode-rebrand/packages/web/src/content/docs).
+En savoir plus sur les [agents](https://github.com/ConnorSawaya/overcode/tree/plain-cli/packages/web/src/content/docs).
 
 ### Documentation
 
-Pour plus d'informations sur la configuration d'Overcode, [**consultez notre documentation**](https://github.com/ConnorSawaya/overcode/tree/overcode-rebrand/packages/web/src/content/docs).
+Pour plus d'informations sur la configuration d'Overcode, [**consultez notre documentation**](https://github.com/ConnorSawaya/overcode/tree/plain-cli/packages/web/src/content/docs).
 
 ### Contribuer
 

@@ -19,6 +19,7 @@ export const swarmHandlers = HttpApiBuilder.group(InstanceHttpApi, "swarm", (han
         .start({
           sessionID: ctx.payload.sessionID,
           task: ctx.payload.task,
+          ...(ctx.payload.parts ? { parts: ctx.payload.parts } : {}),
           preset: ctx.payload.preset,
           config: ctx.payload.config,
           ...(ctx.payload.model

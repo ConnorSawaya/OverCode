@@ -10896,6 +10896,7 @@ export type SwarmStartData = {
   body?: {
     sessionID: string
     task: string
+    parts?: Array<TextPartInput | FilePartInput>
     preset?: "fast" | "balanced" | "max" | "custom" | "deep"
     config?: {
       enabled?: boolean

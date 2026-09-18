@@ -47,7 +47,7 @@
 
 ```bash
 # YOLO
-curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/overcode-rebrand/install | bash
+curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/plain-cli/install | bash
 
 # Package managers
 npm i -g overcode-ai@latest        # or bun/pnpm/yarn
@@ -93,8 +93,8 @@ scoop bucket add extras; scoop install extras/overcode-desktop
 
 ```bash
 # উদাহরণ
-OVERCODE_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/overcode-rebrand/install | bash
-XDG_BIN_DIR=$HOME/.local/bin curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/overcode-rebrand/install | bash
+OVERCODE_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/plain-cli/install | bash
+XDG_BIN_DIR=$HOME/.local/bin curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/plain-cli/install | bash
 ```
 
 ### এজেন্টস (Agents)
@@ -110,11 +110,11 @@ Overcode এ দুটি বিল্ট-ইন এজেন্ট রয়ে
 এছাড়াও জটিল অনুসন্ধান এবং মাল্টিস্টেপ টাস্কের জন্য একটি **general** সাবএজেন্ট অন্তর্ভুক্ত রয়েছে।
 এটি অভ্যন্তরীণভাবে ব্যবহৃত হয় এবং মেসেজে `@general` লিখে ব্যবহার করা যেতে পারে।
 
-এজেন্টদের সম্পর্কে আরও জানুন: [docs](https://github.com/ConnorSawaya/overcode/tree/overcode-rebrand/packages/web/src/content/docs)।
+এজেন্টদের সম্পর্কে আরও জানুন: [docs](https://github.com/ConnorSawaya/overcode/tree/plain-cli/packages/web/src/content/docs)।
 
 ### ডকুমেন্টেশন (Documentation)
 
-কিভাবে Overcode কনফিগার করবেন সে সম্পর্কে আরও তথ্যের জন্য, [**আমাদের ডকস দেখুন**](https://github.com/ConnorSawaya/overcode/tree/overcode-rebrand/packages/web/src/content/docs)।
+কিভাবে Overcode কনফিগার করবেন সে সম্পর্কে আরও তথ্যের জন্য, [**আমাদের ডকস দেখুন**](https://github.com/ConnorSawaya/overcode/tree/plain-cli/packages/web/src/content/docs)।
 
 ### অবদান (Contributing)
 

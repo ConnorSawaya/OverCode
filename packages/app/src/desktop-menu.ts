@@ -279,7 +279,7 @@ export const DESKTOP_MENU: DesktopMenu[] = [
     id: "help",
     labelKey: "desktop.menu.help",
     items: [
-      { type: "item", labelKey: "desktop.menu.documentation", href: "https://github.com/ConnorSawaya/overcode/tree/overcode-rebrand/packages/web/src/content/docs" },
+      { type: "item", labelKey: "desktop.menu.documentation", href: "https://github.com/ConnorSawaya/overcode/tree/plain-cli/packages/web/src/content/docs" },
       { type: "item", labelKey: "desktop.menu.supportForum", href: "https://discord.com/invite/overcode" },
       { type: "item", labelKey: "desktop.menu.exportLogs", command: "logs.export" },
       { type: "separator" },

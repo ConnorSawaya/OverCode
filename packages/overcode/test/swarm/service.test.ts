@@ -427,6 +427,56 @@ describe("swarm service", () => {
     }),
   )
 
+  it.instance("direct start persists attachments on the task message", () =>
+    Effect.gen(function* () {
+      const { directory } = yield* TestInstance
+      const llm = yield* TestLLMServer
+      yield* writeConfig(directory, providerCfg(llm.url))
+      const sessions = yield* Session.Service
+      const swarm = yield* Swarm.Service
+      const parent = yield* sessions.create({ title: "Attach" })
+      const record = yield* swarm.start({
+        sessionID: parent.id,
+        task: "review the attachment",
+        preset: "fast",
+        model: ref,
+        parts: [
+          { type: "text", text: "review the attachment" },
+          { type: "file", mime: "text/plain", filename: "notes.txt", url: "file:///tmp/notes.txt" },
+        ],
+      })
+      const page = yield* MessageV2.page({ sessionID: parent.id, limit: 20 })
+      const parts = page.items.flatMap((message) => message.parts)
+      expect(parts.some((part) => part.type === "text" && part.text === "review the attachment")).toBe(true)
+      expect(parts.some((part) => part.type === "file" && part.filename === "notes.txt")).toBe(true)
+      yield* swarm.cancel(record.id)
+    }),
+  )
+
+  it.instance("surfaces attached local files to every worker", () =>
+    Effect.gen(function* () {
+      const { directory } = yield* TestInstance
+      const llm = yield* TestLLMServer
+      yield* writeConfig(directory, providerCfg(llm.url))
+      const swarm = yield* Swarm.Service
+      const parent = yield* seedParent()
+      yield* llm.textMatch(bodyIncludes("Files attached to the task"), `Analysis done.\n${fence({ summary: "saw the file" })}`)
+      yield* llm.textMatch(bodyIncludes("Files attached to the task"), `Analysis done.\n${fence({ summary: "saw the file" })}`)
+      yield* llm.textMatch(bodyIncludes("You are the Judge"), `Decision.\n${fence({ summary: "Final: done." })}`)
+
+      const { record } = yield* swarm.runSync({
+        sessionID: parent.id,
+        task: "review the attachment",
+        preset: "fast",
+        model: ref,
+        parts: [{ type: "file", mime: "text/plain", filename: "notes.txt", url: "file:///tmp/notes.txt" }],
+      })
+
+      expect(record.status).toBe("completed")
+      expect(record.agents.filter((agent) => agent.role === "solver").every((agent) => agent.status === "completed")).toBe(true)
+    }),
+  )
+
   it.instance("cancel stops a running swarm", () =>
     Effect.gen(function* () {
       const { directory } = yield* TestInstance

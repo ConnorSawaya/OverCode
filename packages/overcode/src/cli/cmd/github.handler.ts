@@ -202,7 +202,7 @@ export const githubInstall = Effect.fn("Cli.github.install")(function* () {
             "",
             "    3. Go to a GitHub issue and comment `/oc summarize` to see the agent in action",
             "",
-            "   Learn more about the GitHub agent - https://github.com/ConnorSawaya/overcode/tree/overcode-rebrand/packages/web/src/content/docs/github/#usage-examples",
+            "   Learn more about the GitHub agent - https://github.com/ConnorSawaya/overcode/tree/plain-cli/packages/web/src/content/docs/github/#usage-examples",
           ].join("\n"),
         )
       }

@@ -14,7 +14,7 @@ const OvercodeUpdater = registerPlugin<OvercodeUpdaterPlugin>("OvercodeUpdater")
 
 const UPDATE_MANIFEST_URL =
   import.meta.env.VITE_OVERCODE_MOBILE_UPDATE_URL ??
-  "https://raw.githubusercontent.com/ConnorSawaya/overcode/overcode-rebrand/packages/mobile/update.json"
+  "https://raw.githubusercontent.com/ConnorSawaya/overcode/plain-cli/packages/mobile/update.json"
 
 export async function checkForMobileUpdate(currentVersion: string): Promise<MobileUpdateManifest | undefined> {
   const response = await fetch(UPDATE_MANIFEST_URL, { cache: "no-store" })

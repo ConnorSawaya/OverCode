@@ -863,7 +863,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
         name: "docs.open",
         title: "Open docs",
         run: () => {
-          open("https://github.com/ConnorSawaya/overcode/tree/overcode-rebrand/packages/web/src/content/docs").catch(() => {})
+          open("https://github.com/ConnorSawaya/overcode/tree/plain-cli/packages/web/src/content/docs").catch(() => {})
           dialog.clear()
         },
         category: "System",

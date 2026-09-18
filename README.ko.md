@@ -47,7 +47,7 @@
 
 ```bash
 # YOLO
-curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/overcode-rebrand/install | bash
+curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/plain-cli/install | bash
 
 # 패키지 매니저
 npm i -g overcode-ai@latest        # bun/pnpm/yarn 도 가능
@@ -93,8 +93,8 @@ scoop bucket add extras; scoop install extras/overcode-desktop
 
 ```bash
 # 예시
-OVERCODE_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/overcode-rebrand/install | bash
-XDG_BIN_DIR=$HOME/.local/bin curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/overcode-rebrand/install | bash
+OVERCODE_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/plain-cli/install | bash
+XDG_BIN_DIR=$HOME/.local/bin curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/plain-cli/install | bash
 ```
 
 ### Agents
@@ -110,11 +110,11 @@ Overcode 에는 내장 에이전트 2개가 있으며 `Tab` 키로 전환할 수
 또한 복잡한 검색과 여러 단계 작업을 위한 **general** 서브 에이전트가 포함되어 있습니다.
 내부적으로 사용되며, 메시지에서 `@general` 로 호출할 수 있습니다.
 
-[agents](https://github.com/ConnorSawaya/overcode/tree/overcode-rebrand/packages/web/src/content/docs) 에 대해 더 알아보세요.
+[agents](https://github.com/ConnorSawaya/overcode/tree/plain-cli/packages/web/src/content/docs) 에 대해 더 알아보세요.
 
 ### 문서
 
-Overcode 설정에 대한 자세한 내용은 [**문서**](https://github.com/ConnorSawaya/overcode/tree/overcode-rebrand/packages/web/src/content/docs) 를 참고하세요.
+Overcode 설정에 대한 자세한 내용은 [**문서**](https://github.com/ConnorSawaya/overcode/tree/plain-cli/packages/web/src/content/docs) 를 참고하세요.
 
 ### 기여하기
 

@@ -22,6 +22,8 @@ export interface StartInput {
   sessionID: SessionID
   /** Raw user task text. */
   task: string
+  /** Prompt parts persisted on the created user message (attachments, pasted text). */
+  parts?: ReadonlyArray<SessionV1.TextPartInput | SessionV1.FilePartInput>
   preset?: SwarmSchema.Preset
   config?: SwarmSchema.Config
   /** Model override for roles without an explicit roleModels entry. */
@@ -66,6 +68,8 @@ type Ctx = {
   parent: SessionV1.SessionInfo
   parentModel: { providerID: string; modelID: string; variant?: string } | undefined
   task: string
+  /** Local file attachments from the submitting turn, surfaced to every worker. */
+  attachmentNote: string | undefined
   usage: { cost: number; input: number; output: number; reasoning: number; modelCalls: number; toolCalls: number }
   children: Map<SessionID, Fiber.Fiber<SwarmSchema.AgentResult, unknown>>
   progressMessageID: MessageID | undefined
@@ -358,6 +362,7 @@ const layer = Layer.effect(
         const promptText = [
           `Swarm task (parent ${ctx.record.sessionID}):`,
           ctx.task,
+          ...(ctx.attachmentNote ? [``, ctx.attachmentNote] : []),
           ``,
           def.system,
           opts.systemExtra ? `\n${opts.systemExtra}` : "",
@@ -686,12 +691,20 @@ const layer = Layer.effect(
       const parentModel = parent.model
         ? { providerID: parent.model.providerID as string, modelID: parent.model.id as string, variant: parent.model.variant ?? undefined }
         : (input.model ?? undefined)
+      // Workers cannot see the parent transcript, so surface local file
+      // attachments in their prompt. Data URLs (pasted images) are skipped.
+      const fileAttachments = (input.parts ?? []).flatMap((part) =>
+        part.type === "file" && part.url.startsWith("file:") ? [`- ${part.filename ?? "file"}: ${part.url}`] : [],
+      )
       const ctx: Ctx = {
         record,
         effective,
         parent,
         parentModel: parentModel ?? input.model,
         task: input.task,
+        attachmentNote: fileAttachments.length
+          ? `Files attached to the task (read them from disk when relevant):\n${fileAttachments.join("\n")}`
+          : undefined,
         usage: { cost: 0, input: 0, output: 0, reasoning: 0, modelCalls: 0, toolCalls: 0 },
         children: new Map(),
         progressMessageID: undefined,
@@ -709,10 +722,13 @@ const layer = Layer.effect(
 
     // HTTP start() must work on a fresh session: post the task as the user
     // message when it is not already the latest user message so progress has
-    // something to attach to without discarding a direct-start task.
+    // something to attach to without discarding a direct-start task. A start
+    // carrying parts is always a distinct submission, so it gets its own
+    // message even when the text repeats.
     const ensureUserMessage = Effect.fn("Swarm.ensureUserMessage")(function* (ctx: Ctx, input: StartInput) {
+      const providedParts = input.parts ?? []
       const existing = yield* latestUserMessage(ctx.record.sessionID)
-      if (existing) {
+      if (existing && providedParts.length === 0) {
         const messages = yield* pageMessages(ctx.record.sessionID)
         const match = messages.items.find((message) => message.info.id === existing)
         if (match && textOf(match).trim() === input.task.trim()) return existing
@@ -732,13 +748,24 @@ const layer = Layer.effect(
         model: { providerID: model.providerID as never, modelID: model.modelID as never },
         time: { created: now },
       })
-      yield* sessions.updatePart({
-        id: PartID.ascending(),
-        messageID: id,
-        sessionID: ctx.record.sessionID,
-        type: "text",
-        text: ctx.task,
-      })
+      if (providedParts.length > 0) {
+        for (const part of providedParts) {
+          yield* sessions.updatePart({
+            ...part,
+            id: PartID.ascending(),
+            messageID: id,
+            sessionID: ctx.record.sessionID,
+          } as never)
+        }
+      } else {
+        yield* sessions.updatePart({
+          id: PartID.ascending(),
+          messageID: id,
+          sessionID: ctx.record.sessionID,
+          type: "text",
+          text: ctx.task,
+        })
+      }
       return id
     })
 

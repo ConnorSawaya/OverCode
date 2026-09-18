@@ -10,4 +10,4 @@ export const CHANNEL: Channel = raw === "dev" || raw === "beta" || raw === "prod
 export const UPDATER_ENABLED = true
 export const UPDATE_MANIFEST_URL =
   process.env.OVERCODE_UPDATE_URL?.trim() ||
-  "https://raw.githubusercontent.com/ConnorSawaya/overcode/overcode-rebrand/packages/desktop/update.json"
+  "https://raw.githubusercontent.com/ConnorSawaya/overcode/plain-cli/packages/desktop/update.json"

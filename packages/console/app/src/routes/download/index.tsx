@@ -120,7 +120,7 @@ export default function Download() {
             <div data-component="section-content">
               <button
                 data-component="cli-row"
-                onClick={handleCopyClick("curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/overcode-rebrand/install | bash")}
+                onClick={handleCopyClick("curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/plain-cli/install | bash")}
               >
                 <code>
                   curl -fsSL https://<strong>overcode.ai/install</strong> | bash

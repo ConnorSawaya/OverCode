@@ -47,7 +47,7 @@
 
 ```bash
 # 直接安裝 (YOLO)
-curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/overcode-rebrand/install | bash
+curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/plain-cli/install | bash
 
 # 套件管理員
 npm i -g overcode-ai@latest        # 也可使用 bun/pnpm/yarn
@@ -93,8 +93,8 @@ scoop bucket add extras; scoop install extras/overcode-desktop
 
 ```bash
 # 範例
-OVERCODE_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/overcode-rebrand/install | bash
-XDG_BIN_DIR=$HOME/.local/bin curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/overcode-rebrand/install | bash
+OVERCODE_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/plain-cli/install | bash
+XDG_BIN_DIR=$HOME/.local/bin curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/plain-cli/install | bash
 ```
 
 ### Agents
@@ -109,11 +109,11 @@ Overcode 內建了兩種 Agent，您可以使用 `Tab` 鍵快速切換。
 
 此外，Overcode 還包含一個 **general** 子 Agent，用於處理複雜搜尋與多步驟任務。此 Agent 供系統內部使用，亦可透過在訊息中輸入 `@general` 來呼叫。
 
-了解更多關於 [Agents](https://github.com/ConnorSawaya/overcode/tree/overcode-rebrand/packages/web/src/content/docs) 的資訊。
+了解更多關於 [Agents](https://github.com/ConnorSawaya/overcode/tree/plain-cli/packages/web/src/content/docs) 的資訊。
 
 ### 線上文件
 
-關於如何設定 Overcode 的詳細資訊，請參閱我們的 [**官方文件**](https://github.com/ConnorSawaya/overcode/tree/overcode-rebrand/packages/web/src/content/docs)。
+關於如何設定 Overcode 的詳細資訊，請參閱我們的 [**官方文件**](https://github.com/ConnorSawaya/overcode/tree/plain-cli/packages/web/src/content/docs)。
 
 ### 參與貢獻
 

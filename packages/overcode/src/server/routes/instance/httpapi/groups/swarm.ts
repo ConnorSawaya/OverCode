@@ -1,3 +1,4 @@
+import { SessionV1 } from "@overcode-ai/core/v1/session"
 import { Schema } from "effect"
 import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
 import { SessionID } from "@/session/schema"
@@ -10,9 +11,17 @@ import { described } from "./metadata"
 
 const root = "/swarm"
 
+/** Prompt parts persisted on the user message a direct swarm start creates. */
+const PartsPayload = Schema.Array(
+  Schema.Union([SessionV1.TextPartInput, SessionV1.FilePartInput]).annotate({ discriminator: "type" }),
+)
+
 const StartPayload = Schema.Struct({
   sessionID: SessionID,
   task: Schema.String,
+  parts: Schema.optional(PartsPayload).annotate({
+    description: "Optional prompt parts (text/file attachments) persisted on the task's user message.",
+  }),
   preset: Schema.optional(SwarmSchema.Preset),
   config: Schema.optional(SwarmSchema.Config),
   model: Schema.optional(SwarmSchema.ModelRef),

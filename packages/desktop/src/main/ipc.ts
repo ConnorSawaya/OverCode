@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process"
+import { installUserCli } from "./background-cli"
 import { prepareQuickStart } from "./quick-start"
 import { stat } from "node:fs/promises"
 import { basename, join } from "node:path"
@@ -134,6 +135,7 @@ export function registerIpcHandlers(deps: Deps) {
   app.on("browser-window-created", (_event, win) => win.on("session-end", () => drafts.flush()))
 
   ipcMain.handle("kill-sidecar", () => deps.killSidecar())
+  ipcMain.handle("install-cli", () => installUserCli())
   ipcMain.handle("mobile-access-state", () => deps.mobileAccess.state())
   ipcMain.handle("mobile-access-start", () => deps.mobileAccess.start())
   ipcMain.handle("mobile-access-stop", () => deps.mobileAccess.stop())

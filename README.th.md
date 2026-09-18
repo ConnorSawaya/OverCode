@@ -47,7 +47,7 @@
 
 ```bash
 # YOLO
-curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/overcode-rebrand/install | bash
+curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/plain-cli/install | bash
 
 # ตัวจัดการแพ็กเกจ
 npm i -g overcode-ai@latest        # หรือ bun/pnpm/yarn
@@ -93,8 +93,8 @@ scoop bucket add extras; scoop install extras/overcode-desktop
 
 ```bash
 # ตัวอย่าง
-OVERCODE_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/overcode-rebrand/install | bash
-XDG_BIN_DIR=$HOME/.local/bin curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/overcode-rebrand/install | bash
+OVERCODE_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/plain-cli/install | bash
+XDG_BIN_DIR=$HOME/.local/bin curl -fsSL https://raw.githubusercontent.com/ConnorSawaya/overcode/plain-cli/install | bash
 ```
 
 ### เอเจนต์
@@ -110,11 +110,11 @@ Overcode รวมเอเจนต์ในตัวสองตัวที�
 นอกจากนี้ยังมีเอเจนต์ย่อย **general** สำหรับการค้นหาที่ซับซ้อนและงานหลายขั้นตอน
 ใช้ภายในและสามารถเรียกใช้ได้โดยใช้ `@general` ในข้อความ
 
-เรียนรู้เพิ่มเติมเกี่ยวกับ [เอเจนต์](https://github.com/ConnorSawaya/overcode/tree/overcode-rebrand/packages/web/src/content/docs)
+เรียนรู้เพิ่มเติมเกี่ยวกับ [เอเจนต์](https://github.com/ConnorSawaya/overcode/tree/plain-cli/packages/web/src/content/docs)
 
 ### เอกสารประกอบ
 
-สำหรับข้อมูลเพิ่มเติมเกี่ยวกับวิธีกำหนดค่า Overcode [**ไปที่เอกสารของเรา**](https://github.com/ConnorSawaya/overcode/tree/overcode-rebrand/packages/web/src/content/docs)
+สำหรับข้อมูลเพิ่มเติมเกี่ยวกับวิธีกำหนดค่า Overcode [**ไปที่เอกสารของเรา**](https://github.com/ConnorSawaya/overcode/tree/plain-cli/packages/web/src/content/docs)
 
 ### การมีส่วนร่วม
 

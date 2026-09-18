@@ -59,9 +59,10 @@ export function useSwarmStatus(sessionID: Accessor<string | undefined>) {
     }
   }
 
+  // Poll unconditionally: a run that starts after a previous run finished
+  // would otherwise never be picked up, leaving the dock stuck.
   const timer = window.setInterval(() => {
-    const current = record()
-    if (!current || !TERMINAL.has(current.status)) void load()
+    void load()
   }, 3000)
   onCleanup(() => window.clearInterval(timer))
 

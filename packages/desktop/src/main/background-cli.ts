@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process"
 import { existsSync } from "node:fs"
 import { chmod, copyFile, mkdir, rename, rm } from "node:fs/promises"
+import { homedir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
@@ -25,14 +26,47 @@ type Logger = {
   error(message: string, meta?: Record<string, unknown>): void
 }
 
+export function bundledCliPath() {
+  return app.isPackaged ? join(process.resourcesPath, executableName()) : join(root, "../../resources", executableName())
+}
+
+/**
+ * Install the bundled CLI as a user-facing command (the "Install CLI" menu
+ * action). Mirrors the standalone installer: `~/.overcode/bin` on Windows and
+ * `XDG_BIN_DIR` or `~/.local/bin` elsewhere. The Windows user PATH is updated
+ * best-effort so a new terminal picks the command up.
+ */
+export async function installUserCli(): Promise<string> {
+  const source = bundledCliPath()
+  if (!existsSync(source)) throw new Error(`Bundled CLI not found at ${source}`)
+  const directory =
+    process.platform === "win32"
+      ? join(homedir(), ".overcode", "bin")
+      : (process.env.XDG_BIN_DIR ?? join(homedir(), ".local", "bin"))
+  const destination = join(directory, process.platform === "win32" ? "overcode.exe" : "overcode")
+  await mkdir(directory, { recursive: true })
+  await copyFile(source, destination)
+  if (process.platform !== "win32") await chmod(destination, 0o755)
+  if (process.platform === "win32") await ensureWindowsPath(directory).catch(() => undefined)
+  return destination
+}
+
+async function ensureWindowsPath(directory: string) {
+  const quoted = directory.replace(/'/g, "''")
+  const script = [
+    "$path=[Environment]::GetEnvironmentVariable('Path','User')",
+    "if (-not $path) { $path='' }",
+    `if (($path -split ';') -notcontains '${quoted}') { [Environment]::SetEnvironmentVariable('Path', ($path.TrimEnd(';') + ';${quoted}'), 'User') }`,
+  ].join("; ")
+  await execFileAsync("powershell", ["-NoProfile", "-NonInteractive", "-Command", script], { windowsHide: true })
+}
+
 export async function startBackgroundCli(logger: Logger, shellStateHome?: string) {
   // Resolve this after the main process applies the app environment. Reading
   // XDG_STATE_HOME at module load can capture the shell value before
   // preferAppEnv() has selected the desktop state directory.
   const stateHome = currentStateHome()
-  const bundled = app.isPackaged
-    ? join(process.resourcesPath, executableName())
-    : join(root, "../../resources", executableName())
+  const bundled = bundledCliPath()
   logger.log("v2 CLI executable resolved", { bundled, packaged: app.isPackaged })
   const version = await run(bundled, ["--version"], logger)
   const binary = app.isPackaged ? await installCli(bundled, version, logger) : bundled

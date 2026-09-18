@@ -565,6 +565,37 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       // optimistic one to avoid a duplicate in the timeline.
       removeOptimisticMessage()
       clearInput()
+      const encodedImages = await Promise.all(
+        images.map(async (attachment) => ({
+          ...attachment,
+          dataUrl: await blobDataUrl(attachment.blob, attachment.mime),
+        })),
+      )
+      const pastedTexts = await Promise.all(
+        pastedTextParts.map(async (part) => ({
+          part,
+          text: await (input.loadPastedText
+            ? input.loadPastedText(part)
+            : fetch(part.blob.url).then((response) => response.text())),
+        })),
+      )
+      const built = buildRequestParts({
+        prompt: currentPrompt,
+        context,
+        images: encodedImages,
+        text,
+        sessionID: session.id,
+        messageID: Identifier.ascending("message"),
+        sessionDirectory,
+        pastedTexts,
+      })
+      const parts = built.requestParts
+        .filter((part) => part.type === "text" || part.type === "file")
+        .map(({ id, ...part }) => part)
+      const task = built.requestParts
+        .flatMap((part) => (part.type === "text" ? [part.text] : []))
+        .join("\n")
+        .trim() || text
       serverSync().session.set("session_status", session.id, { type: "busy" })
       const controller = new AbortController()
       pending.set(pendingKey(session.id), {
@@ -576,7 +607,8 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       try {
         const started = await sdk().client.swarm.start({
           sessionID: session.id,
-          task: text,
+          task,
+          parts,
           preset: swarmMode === "deep" ? "deep" : undefined,
           model: {
             providerID: currentModel.provider.id,

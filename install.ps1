@@ -1,7 +1,7 @@
 <# Overcode Windows Installer
 #
 # Run from PowerShell:
-#   irm https://raw.githubusercontent.com/ConnorSawaya/overcode/overcode-rebrand/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/ConnorSawaya/overcode/plain-cli/install.ps1 | iex
 #
 # Options:
 #   -Version <version>    Install a specific version (e.g. 1.0.180)

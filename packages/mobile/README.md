@@ -25,7 +25,7 @@ The app requests camera access only when scanning a QR pairing code. Manual pair
 
 ## Mobile APK updates
 
-On launch, reconnect, foreground return, and periodically while open, the app checks the update manifest at `https://raw.githubusercontent.com/ConnorSawaya/overcode/overcode-rebrand/packages/mobile/update.json`. When its version is newer than the bundled app, Overcode Mobile automatically starts downloading the APK and opens Android's normal install confirmation. Android requires the user to approve the install; the app cannot silently replace itself.
+On launch, reconnect, foreground return, and periodically while open, the app checks the update manifest at `https://raw.githubusercontent.com/ConnorSawaya/overcode/plain-cli/packages/mobile/update.json`. When its version is newer than the bundled app, Overcode Mobile automatically starts downloading the APK and opens Android's normal install confirmation. Android requires the user to approve the install; the app cannot silently replace itself.
 
 When a GitHub release is published, `.github/workflows/overcode-mobile-release.yml` builds a consistently signed APK and uploads it as `Overcode-Mobile.apk`. Update `packages/mobile/update.json` with the matching version in the release source. Set `VITE_OVERCODE_MOBILE_UPDATE_URL` during `build:web`/`build:apk` to use another manifest URL.
 
