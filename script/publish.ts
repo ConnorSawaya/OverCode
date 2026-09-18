@@ -47,6 +47,12 @@ await $`bun ./packages/plugin/script/publish.ts`
 console.log("\n=== ui ===\n")
 await $`bun ./packages/ui/script/publish.ts`
 
+// The CLI distribution lives in packages/cli/dist, staged in this job from
+// the overcode-preview-cli artifact; without this call `@overcode-ai/cli`
+// and its platform packages are never published to npm.
+console.log("\n=== cli distribution ===\n")
+await $`bun ./packages/cli/script/publish.ts`
+
 if (Script.release) {
   await $`bun ./packages/desktop/scripts/finalize-latest-json.ts`
   await $`bun ./packages/desktop/scripts/finalize-latest-yml.ts`

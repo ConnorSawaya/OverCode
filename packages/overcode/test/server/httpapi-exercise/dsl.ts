@@ -201,10 +201,16 @@ export function route(template: string, params: Record<string, string>) {
   )
 }
 
+// A harmless long-running command for the controlled PTY scenarios. Windows
+// cannot spawn `/bin/sh`, so the shell is platform-appropriate there.
+export const controlledPtyShell = (): { command: string; args: string[] } =>
+  process.platform === "win32"
+    ? { command: process.env.ComSpec ?? "cmd.exe", args: ["/c", "ping -n 60 127.0.0.1 > NUL"] }
+    : { command: "/bin/sh", args: ["-c", "sleep 30"] }
+
 export function controlledPtyInput(title: string | undefined) {
   return {
-    command: "/bin/sh",
-    args: ["-c", "sleep 30"],
+    ...controlledPtyShell(),
     ...(title ? { title } : {}),
   }
 }

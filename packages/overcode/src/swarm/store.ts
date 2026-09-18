@@ -2,9 +2,12 @@ export * as SwarmStore from "./store"
 
 import { Database } from "@overcode-ai/core/database/database"
 import { SwarmTable } from "@overcode-ai/core/swarm/sql"
-import { desc, eq } from "drizzle-orm"
+import { desc, eq, lt } from "drizzle-orm"
 import { Effect } from "effect"
 import { SwarmSchema } from "./schema"
+
+const TERMINAL: readonly string[] = ["completed", "failed", "cancelled"]
+const ACTIVE_AGENT: readonly string[] = ["queued", "running", "waiting_for_permission"]
 
 // Decode helpers. Store failures surface as defects (DB errors), not domain errors.
 const decode = {
@@ -114,4 +117,40 @@ export const latestBySession = Effect.fn("SwarmStore.latestBySession")(function*
 ) {
   const all = yield* listBySession(sessionID)
   return all[0]
+})
+
+/**
+ * Crash recovery: fail non-terminal records last updated before `cutoff`.
+ * Runs are process-local, so a record older than the maximum possible run
+ * duration cannot belong to a live run in any process and must be stale.
+ */
+export const sweepStale = Effect.fn("SwarmStore.sweepStale")(function* (cutoff: number) {
+  const { db } = yield* Database.Service
+  const rows = yield* db
+    .select()
+    .from(SwarmTable)
+    .where(lt(SwarmTable.time_updated, cutoff))
+    .all()
+    .pipe(Effect.orDie)
+  let swept = 0
+  for (const row of rows) {
+    if (TERMINAL.includes(row.status)) continue
+    const record = decode.record(row)
+    yield* db
+      .update(SwarmTable)
+      .set({
+        status: "failed",
+        agents: record.agents.map((agent) =>
+          ACTIVE_AGENT.includes(agent.status)
+            ? { ...agent, status: "cancelled", error: "Interrupted by a process restart", timeUpdated: Date.now() }
+            : agent,
+        ) as unknown as Record<string, unknown>[],
+        time_updated: Date.now(),
+      })
+      .where(eq(SwarmTable.id, record.id))
+      .run()
+      .pipe(Effect.orDie)
+    swept += 1
+  }
+  return swept
 })

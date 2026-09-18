@@ -17,6 +17,7 @@ import { SwarmSchema } from "./schema"
 import { SwarmConfig } from "./config"
 import { SwarmStore } from "./store"
 import { RoleDefinitions, RESULT_CONTRACT, type Role } from "./roles"
+import { MAX_RUN_TIMEOUT_MS } from "./preset"
 
 export interface StartInput {
   sessionID: SessionID
@@ -150,6 +151,7 @@ const layer = Layer.effect(
       addUsage: (...args: Parameters<typeof SwarmStore.addUsage>) => withDb(SwarmStore.addUsage(...args)),
       get: (...args: Parameters<typeof SwarmStore.get>) => withDb(SwarmStore.get(...args)),
       listBySession: (...args: Parameters<typeof SwarmStore.listBySession>) => withDb(SwarmStore.listBySession(...args)),
+      sweepStale: (...args: Parameters<typeof SwarmStore.sweepStale>) => withDb(SwarmStore.sweepStale(...args)),
     }
     const loadConfig = (override?: SwarmSchema.Config) =>
       SwarmConfig.load(override).pipe(Effect.provideService(Config.Service, configSvc))
@@ -160,6 +162,12 @@ const layer = Layer.effect(
     const runs = yield* Ref.make(
       new Map<SwarmSchema.ID, { fiber: Fiber.Fiber<SwarmSchema.Record, unknown>; children: Ctx["children"] }>(),
     )
+    // Crash recovery: a non-terminal record older than twice the maximum run
+    // timeout cannot belong to a live run (its timeout would have fired), so a
+    // previous process must have died mid-run. Never block startup on it.
+    yield* dbStore
+      .sweepStale(Date.now() - MAX_RUN_TIMEOUT_MS * 2)
+      .pipe(Effect.catch(() => Effect.succeed(0)))
     // Graceful shutdown: stop this process's in-flight runs and persist them
     // as cancelled instead of leaving rows stuck on running forever.
     yield* Effect.addFinalizer(() =>

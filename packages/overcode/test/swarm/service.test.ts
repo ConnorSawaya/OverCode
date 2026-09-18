@@ -47,6 +47,9 @@ import { Truncate } from "@/tool/truncate"
 import { MessageID, PartID, SessionID } from "../../src/session/schema"
 import { Swarm } from "../../src/swarm/service"
 import { SwarmSchema } from "../../src/swarm/schema"
+import { SwarmStore } from "../../src/swarm/store"
+import { SwarmTable } from "@overcode-ai/core/swarm/sql"
+import { eq } from "drizzle-orm"
 import { parseResult } from "../../src/swarm/service"
 import { resolvePreset } from "../../src/swarm/preset"
 import { SwarmConfig } from "../../src/swarm/config"
@@ -489,6 +492,44 @@ describe("swarm service", () => {
 
       expect(record.status).toBe("completed")
       expect(record.agents.filter((agent) => agent.role === "solver").every((agent) => agent.status === "completed")).toBe(true)
+    }),
+  )
+
+  it.instance("sweepStale fails records left behind by a dead process", () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      const swarm = yield* Swarm.Service
+      const { db } = yield* Database.Service
+      const parent = yield* sessions.create({ title: "Stale" })
+      const record = yield* swarm.create({ sessionID: parent.id, task: "t", preset: "fast" })
+      const stale = Date.now() - 10_000_000
+      yield* db
+        .update(SwarmTable)
+        .set({
+          time_updated: stale,
+          status: "running",
+          agents: [
+            {
+              id: "solver-1",
+              sessionID: parent.id,
+              role: "solver",
+              status: "running",
+              timeCreated: stale,
+              timeUpdated: stale,
+            },
+          ] as unknown as Record<string, unknown>[],
+        })
+        .where(eq(SwarmTable.id, record.id))
+        .run()
+        .pipe(Effect.orDie)
+
+      const swept = yield* SwarmStore.sweepStale(Date.now() - 5_000_000)
+
+      expect(swept).toBeGreaterThanOrEqual(1)
+      const loaded = yield* swarm.get(record.id)
+      expect(loaded?.status).toBe("failed")
+      expect(loaded?.agents[0]?.status).toBe("cancelled")
+      expect(loaded?.agents[0]?.error).toContain("restart")
     }),
   )
 

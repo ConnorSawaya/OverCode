@@ -21,6 +21,9 @@ export interface ResolvedPreset {
   stopWhenVerified: boolean
 }
 
+/** Upper bound for a run's wall-clock timeout; safe staleness floor for recovery. */
+export const MAX_RUN_TIMEOUT_MS = 3_600_000
+
 const BASE = {
   maxRounds: 2,
   maxTokens: 200_000,
@@ -59,7 +62,7 @@ export function resolvePreset(input: SwarmSchema.Config): ResolvedPreset {
     maxModelCalls: clamp(input.maxModelCalls, 1, 500, base.maxModelCalls),
     maxTokens: clamp(input.maxTokens, 1_000, 5_000_000, base.maxTokens),
     repairAttempts: clamp(input.repairAttempts, 0, 5, base.repairAttempts),
-    timeoutMs: clamp(input.timeoutMs, 10_000, 3_600_000, base.timeoutMs),
+    timeoutMs: clamp(input.timeoutMs, 10_000, MAX_RUN_TIMEOUT_MS, base.timeoutMs),
     stopWhenVerified: input.stopWhenVerified ?? base.stopWhenVerified,
   }
 }
