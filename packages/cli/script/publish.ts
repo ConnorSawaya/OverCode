@@ -27,13 +27,15 @@ console.log("binaries", binaries)
 const version = Object.values(binaries)[0]
 
 await $`mkdir -p ./dist/${pkg.name}/bin`
-await $`cp ./bin/lildax.cjs ./dist/${pkg.name}/bin/lildax`
+// The overcode launcher does `require("./lildax.cjs")`, so the sibling file
+// must keep its extension or the published command fails at runtime.
+await $`cp ./bin/lildax.cjs ./dist/${pkg.name}/bin/lildax.cjs`
 await $`cp ./bin/overcode.cjs ./dist/${pkg.name}/bin/overcode`
 await Bun.file(`./dist/${pkg.name}/package.json`).write(
   JSON.stringify(
     {
       name: pkg.name,
-      bin: { overcode: "./bin/overcode", lildax: "./bin/lildax" },
+      bin: { overcode: "./bin/overcode", lildax: "./bin/lildax.cjs" },
       version,
       license: pkg.license,
       repository: { type: "git", url: "git+https://github.com/ConnorSawaya/overcode.git" },

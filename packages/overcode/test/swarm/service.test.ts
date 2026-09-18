@@ -254,6 +254,21 @@ describe("swarm pure units", () => {
     expect(result.concerns?.join("")).toContain("JSON")
   })
 
+  test("parseResult selects the last fenced block", () => {
+    const result = parseResult(
+      `Example output:\n\`\`\`json\n{"summary":"not the result"}\n\`\`\`\nAnd the real one:\n${fence({ summary: "real result" })}`,
+      "solver-1",
+      "solver",
+    )
+    expect(result.status).toBe("completed")
+    expect(result.summary).toBe("real result")
+  })
+
+  test("parseResult survives a null block without throwing", () => {
+    const result = parseResult("```json swarm-result\nnull\n```", "solver-1", "solver")
+    expect(result.status).toBe("failed")
+  })
+
   test("resolvePreset clamps and defaults", () => {
     expect(resolvePreset({}).preset).toBe("balanced")
     expect(resolvePreset({}).workers).toBe(4)

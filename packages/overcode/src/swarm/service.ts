@@ -82,10 +82,13 @@ const textOf = (message: SessionV1.WithParts): string =>
     .map((part) => part.text)
     .join("\n")
 
-const RESULT_FENCE = /```(?:json\s+swarm-result|swarm-result|json)?\s*([\s\S]*?)```\s*$/m
+const RESULT_FENCE = /```(?:json\s+swarm-result|swarm-result|json)?\s*([\s\S]*?)```/g
 
 export function parseResult(text: string, agentId: string, role: Role): SwarmSchema.AgentResult {
-  const match = text.match(RESULT_FENCE)
+  // The result is the LAST fenced block; earlier blocks are ordinary prose or
+  // examples and must not shadow it.
+  let match: RegExpExecArray | undefined
+  for (const candidate of text.matchAll(RESULT_FENCE)) match = candidate as RegExpExecArray
   const fallback = (status: SwarmSchema.AgentResult["status"]): SwarmSchema.AgentResult => ({
     agentId,
     role,
@@ -99,13 +102,15 @@ export function parseResult(text: string, agentId: string, role: Role): SwarmSch
   } catch {
     return { ...fallback("failed"), concerns: ["Final swarm-result block was not valid JSON"] }
   }
+  const record = typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {}
+  const status = typeof record.status === "string" ? (record.status as SwarmSchema.AgentResult["status"]) : "completed"
   const decoded = SchemaDecodeAgentResult({
-    ...(typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {}),
+    ...record,
     agentId,
     role,
     // A well-formed block means the worker finished; status stays available
     // for explicit failure reports.
-    status: (parsed as { status?: unknown }).status ?? "completed",
+    status,
   })
   if (!decoded) return { ...fallback("failed"), concerns: ["Final swarm-result block failed validation"] }
   return decoded
@@ -154,6 +159,30 @@ const layer = Layer.effect(
       )
     const runs = yield* Ref.make(
       new Map<SwarmSchema.ID, { fiber: Fiber.Fiber<SwarmSchema.Record, unknown>; children: Ctx["children"] }>(),
+    )
+    // Graceful shutdown: stop this process's in-flight runs and persist them
+    // as cancelled instead of leaving rows stuck on running forever.
+    yield* Effect.addFinalizer(() =>
+      Effect.gen(function* () {
+        const active = yield* Ref.get(runs)
+        for (const entry of active.values()) {
+          yield* Fiber.interrupt(entry.fiber).pipe(Effect.catch(() => Effect.void))
+        }
+        for (const id of active.keys()) {
+          const record = yield* dbStore.get(id).pipe(Effect.catch(() => Effect.succeed(undefined)))
+          if (!record || ["completed", "failed", "cancelled"].includes(record.status)) continue
+          yield* dbStore
+            .update(id, {
+              status: "cancelled",
+              agents: record.agents.map((agent) =>
+                ["queued", "running", "waiting_for_permission"].includes(agent.status)
+                  ? { ...agent, status: "cancelled", timeUpdated: Date.now() }
+                  : agent,
+              ),
+            })
+            .pipe(Effect.catch(() => Effect.void))
+        }
+      }),
     )
 
     const persist = Effect.fn("Swarm.persist")(function* (record: SwarmSchema.MutableRecord) {

@@ -138,6 +138,30 @@ it.effect("subagent self permissions are preserved", () =>
   }),
 )
 
+it.effect("narrow task deny does not suppress the catch-all deny", () =>
+  Effect.sync(() => {
+    const executor = testAgent({
+      name: "executor",
+      mode: "subagent",
+      permission: {
+        task: { general: "deny" },
+      },
+    })
+    const effective = Permission.merge(
+      executor.permission,
+      deriveSubagentSessionPermission({
+        parentSessionPermission: [],
+        subagent: executor,
+      }),
+    )
+
+    // A rule that only denies one target must not be treated as permission:
+    // every other target is denied too instead of falling back to "ask".
+    expect(Permission.evaluate("task", "general", effective).action).toBe("deny")
+    expect(Permission.evaluate("task", "any-agent", effective).action).toBe("deny")
+  }),
+)
+
 it.effect("subagent inherits parent session deny rules as hard runtime ceilings", () =>
   Effect.sync(() => {
     const executor = testAgent({

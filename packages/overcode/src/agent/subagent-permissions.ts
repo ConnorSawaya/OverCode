@@ -15,8 +15,13 @@ export function deriveSubagentSessionPermission(input: {
   parentSessionPermission: PermissionV1.Ruleset
   subagent: Agent.Info
 }): PermissionV1.Ruleset {
-  const canTask = input.subagent.permission.some((rule) => rule.permission === "task")
-  const canTodo = input.subagent.permission.some((rule) => rule.permission === "todowrite")
+  // A narrow deny (for example `task: { general: "deny" }`) does not permit
+  // the tool; only a non-deny rule does. Otherwise a restrictive rule would
+  // suppress the catch-all deny and let the subagent bypass it.
+  const permitted = (permission: string) =>
+    input.subagent.permission.some((rule) => rule.permission === permission && rule.action !== "deny")
+  const canTask = permitted("task")
+  const canTodo = permitted("todowrite")
   return [
     ...input.parentSessionPermission.filter(
       (rule) => rule.permission === "external_directory" || rule.action === "deny",

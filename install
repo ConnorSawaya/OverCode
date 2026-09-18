@@ -65,7 +65,13 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-INSTALL_DIR=$HOME/.overcode/bin
+if [ -n "${OVERCODE_INSTALL_DIR:-}" ]; then
+    INSTALL_DIR=$OVERCODE_INSTALL_DIR
+elif [ -n "${XDG_BIN_DIR:-}" ]; then
+    INSTALL_DIR=$XDG_BIN_DIR
+else
+    INSTALL_DIR=$HOME/.overcode/bin
+fi
 mkdir -p "$INSTALL_DIR"
 
 # If --binary is provided, skip all download/detection logic
