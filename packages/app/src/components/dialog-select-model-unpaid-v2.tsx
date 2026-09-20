@@ -40,7 +40,12 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
   })
   const isFree = (item: ReturnType<ModelState["list"]>[number]) =>
     isOvercodeProvider(item.provider.id) && (!item.cost || item.cost.input === 0)
-  const freeModels = createMemo(() => model.list().filter(isFree))
+  const freeModels = createMemo(() =>
+    model
+      .list()
+      .filter((item) => model.visible({ modelID: item.id, providerID: item.provider.id }))
+      .filter(isFree),
+  )
 
   const openProviders = (provider?: string) => {
     void import("./dialog-connect-provider").then((x) => {

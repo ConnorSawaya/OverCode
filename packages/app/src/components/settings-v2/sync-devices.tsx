@@ -38,7 +38,7 @@ export function SettingsSyncDevices() {
   }
 
   const connect = async () => {
-    if (!sync || busy() || code().length !== 6) return
+    if (!sync || busy() || code().length !== 8) return
     setBusy(true)
     await sync.pair(code()).catch(() => undefined)
     setCode("")
@@ -163,15 +163,15 @@ export function SettingsSyncDevices() {
               <input
                 class="settings-sync-devices-code"
                 value={code()}
-                onInput={(event) => setCode(event.currentTarget.value.replace(/\D/g, "").slice(0, 6))}
+                onInput={(event) => setCode(event.currentTarget.value.replace(/\D/g, "").slice(0, 8))}
                 placeholder={language.t("settings.syncDevices.codePlaceholder")}
                 aria-label={language.t("settings.syncDevices.codeLabel")}
                 inputmode="numeric"
                 autocomplete="one-time-code"
-                maxlength={6}
+                maxlength={8}
                 spellcheck={false}
               />
-              <ButtonV2 type="submit" size="normal" variant="contrast" disabled={busy() || code().length !== 6}>
+              <ButtonV2 type="submit" size="normal" variant="contrast" disabled={busy() || code().length !== 8}>
                 {busy() ? language.t("settings.syncDevices.pairing") : language.t("settings.syncDevices.connect")}
               </ButtonV2>
             </form>

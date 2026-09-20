@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@overcode-ai/autostart",
-  "version": "1.18.27",
+  "version": "1.18.28",
   "type": "module",
   "private": true,
   "license": "MIT",

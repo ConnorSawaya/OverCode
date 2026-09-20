@@ -67,12 +67,12 @@ export function normalizePairingCode(value: string) {
 }
 
 export function isPairingCode(value: string | null | undefined): value is string {
-  return typeof value === "string" && /^\d{6}$/.test(normalizePairingCode(value))
+  return typeof value === "string" && /^\d{8}$/.test(normalizePairingCode(value))
 }
 
 export function formatPairingCode(value: string) {
   const normalized = normalizePairingCode(value)
-  return normalized.length === 6 ? `${normalized.slice(0, 3)} ${normalized.slice(3)}` : value
+  return normalized.length === 8 ? `${normalized.slice(0, 4)} ${normalized.slice(4)}` : value
 }
 
 function safeUrl(value: string) {

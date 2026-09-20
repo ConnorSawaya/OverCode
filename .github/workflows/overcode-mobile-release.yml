@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   build:
-    if: github.repository == 'ConnorSawaya/overcode'
+    if: github.repository == 'ConnorSawaya/OverCode'
     runs-on: ubuntu-24.04
     steps:
       - name: Check out the released source
@@ -37,8 +37,14 @@ jobs:
       - name: Configure stable APK signing
         env:
           KEYSTORE_BASE64: ${{ secrets.OVERCODE_MOBILE_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.OVERCODE_MOBILE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.OVERCODE_MOBILE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.OVERCODE_MOBILE_KEY_PASSWORD }}
         run: |
           test -n "$KEYSTORE_BASE64"
+          test -n "$KEYSTORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
           echo "$KEYSTORE_BASE64" | base64 --decode > "$GITHUB_WORKSPACE/packages/mobile/android/overcode-mobile-release.keystore"
 
       - name: Build the Pixel-compatible APK
@@ -49,6 +55,13 @@ jobs:
           OVERCODE_MOBILE_KEY_ALIAS: ${{ secrets.OVERCODE_MOBILE_KEY_ALIAS }}
           OVERCODE_MOBILE_KEY_PASSWORD: ${{ secrets.OVERCODE_MOBILE_KEY_PASSWORD }}
         run: bun run sync && android/gradlew --no-daemon --console plain -p android assembleRelease
+
+      - name: Verify APK signature
+        run: apksigner verify --verbose packages/mobile/android/app/build/outputs/apk/release/app-release.apk
+
+      - name: Remove signing material from the runner
+        if: always()
+        run: rm -f "$GITHUB_WORKSPACE/packages/mobile/android/overcode-mobile-release.keystore"
 
       - name: Upload APK to the GitHub release
         env:

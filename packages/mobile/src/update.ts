@@ -10,7 +10,7 @@ type OvercodeUpdaterPlugin = {
   downloadAndInstall(options: { url: string }): Promise<{ downloadId: number }>
 }
 
-const OvercodeUpdater = registerPlugin<OvercodeUpdaterPlugin>("OvercodeUpdater")
+export const OvercodeUpdater = registerPlugin<OvercodeUpdaterPlugin>("OvercodeUpdater")
 
 const UPDATE_MANIFEST_URL =
   import.meta.env.VITE_OVERCODE_MOBILE_UPDATE_URL ??
@@ -58,7 +58,7 @@ export function compareMobileVersions(left: string, right: string) {
 function parseMobileVersion(value: string) {
   return value
     .replace(/^v/i, "")
-    .split(/[.+-]/, 1)[0]
+    .split(/[+-]/, 1)[0]
     .split(".")
     .map((part) => Number.parseInt(part, 10))
     .map((part) => (Number.isFinite(part) ? part : 0))

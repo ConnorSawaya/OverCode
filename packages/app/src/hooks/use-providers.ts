@@ -52,6 +52,15 @@ export function useProviders(directory: Accessor<string | undefined>) {
     all: () => providers().all,
     default: () => providers().default,
     defaultModel: () => providers().defaultModel,
+    configuredModel: () => {
+      const value = dir()
+      const config = value ? serverSync().child(value)[0]?.config : serverSync().data.config
+      const model = config?.model
+      if (typeof model !== "string") return undefined
+      const [providerID, ...modelID] = model.split("/")
+      if (!providerID || modelID.length === 0) return undefined
+      return { providerID, modelID: modelID.join("/") }
+    },
     popular: () =>
       pipe(
         providers().all,

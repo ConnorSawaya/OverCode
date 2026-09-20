@@ -87,7 +87,7 @@ export class MobileAccessController implements MobileAccessPlatform {
 
     this.token = readStoredSecret() ?? randomBytes(32).toString("base64url")
     saveStoredSecret(this.token)
-    this.pairCode = randomInt(0, 1_000_000).toString().padStart(6, "0")
+    this.pairCode = randomInt(0, 100_000_000).toString().padStart(8, "0")
     this.pairExpiresAt = Date.now() + 5 * 60_000
     this.enabled = true
     this.setState({
@@ -107,7 +107,7 @@ export class MobileAccessController implements MobileAccessPlatform {
 
   async newPairingCode() {
     if (!this.enabled || !this.currentState.relayUrl) return this.start()
-    this.pairCode = randomInt(0, 1_000_000).toString().padStart(6, "0")
+    this.pairCode = randomInt(0, 100_000_000).toString().padStart(8, "0")
     this.pairExpiresAt = Date.now() + 5 * 60_000
     this.setState({
       ...this.currentState,

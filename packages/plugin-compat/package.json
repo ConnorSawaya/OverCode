@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@opencode-ai/plugin",
-  "version": "1.18.27",
+  "version": "1.18.28",
   "description": "Backwards-compatibility alias for @overcode-ai/plugin. Keeps third-party packages that depend on the old scope resolving to this fork's code. Do not publish; remove once upstream consumers migrate.",
   "private": true,
   "type": "module",

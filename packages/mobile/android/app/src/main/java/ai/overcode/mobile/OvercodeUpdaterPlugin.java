@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -32,8 +33,27 @@ public class OvercodeUpdaterPlugin extends Plugin {
             if (downloadId != activeDownloadId) return;
 
             activeDownloadId = -1L;
-            if (activeFile == null || !activeFile.exists()) {
-                notifyListeners("updateDownloadFailed", new JSObject());
+            DownloadManager manager = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
+            int status = DownloadManager.STATUS_FAILED;
+            int reason = 0;
+            if (manager != null) {
+                Cursor cursor = manager.query(new DownloadManager.Query().setFilterById(downloadId));
+                if (cursor != null) {
+                    try {
+                        if (cursor.moveToFirst()) {
+                            status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+                            reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));
+                        }
+                    } finally {
+                        cursor.close();
+                    }
+                }
+            }
+
+            if (status != DownloadManager.STATUS_SUCCESSFUL || activeFile == null || !activeFile.exists()) {
+                JSObject failure = new JSObject();
+                failure.put("reason", reason == 0 ? "download_failed" : reason);
+                notifyListeners("updateDownloadFailed", failure);
                 return;
             }
 
@@ -67,7 +87,7 @@ public class OvercodeUpdaterPlugin extends Plugin {
     public void load() {
         IntentFilter filter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            getContext().registerReceiver(downloadReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            getContext().registerReceiver(downloadReceiver, filter, Context.RECEIVER_EXPORTED);
         } else {
             getContext().registerReceiver(downloadReceiver, filter);
         }
@@ -133,5 +153,6 @@ public class OvercodeUpdaterPlugin extends Plugin {
         installIntent.setDataAndType(apkUri, APK_MIME_TYPE);
         installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
         context.startActivity(installIntent);
+        notifyListeners("updateInstallStarted", new JSObject());
     }
 }

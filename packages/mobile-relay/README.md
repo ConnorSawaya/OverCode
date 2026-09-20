@@ -2,7 +2,7 @@
 
 This service is a stateless WebSocket relay for Overcode Mobile. It forwards authenticated HTTP, Server-Sent Events, terminal WebSockets, cancellation, and disconnects between one desktop connector and its paired mobile clients. It never stores workspace data or request bodies.
 
-Pairing uses a six-digit code that the desktop connector registers for five minutes. `POST /pair` exchanges that one-time code for a device token; the token remains valid until the desktop revokes the channel or removes that device. `GET /devices` and `DELETE /devices/:id` are connector-only management endpoints.
+Pairing uses an eight-digit code that the desktop connector registers for five minutes. `POST /pair` exchanges that one-time code for a device token; the token remains valid until the desktop revokes the channel or removes that device. `GET /devices` and `DELETE /devices/:id` are connector-only management endpoints.
 
 ## Local run
 

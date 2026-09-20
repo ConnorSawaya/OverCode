@@ -40,6 +40,9 @@ type PendingHttp = {
   resolve: (response: Response) => void
   reject: (error: Error) => void
   responseStarted: boolean
+  ended: boolean
+  error?: Error
+  cleanup: () => void
   cancel: () => void
 }
 type Channel = {
@@ -239,8 +242,10 @@ async function handleHttp(request: Request) {
       const pending: PendingHttp = {
         chunks: [],
         responseStarted: false,
+        ended: false,
         resolve,
         reject,
+        cleanup: () => channel.pending.delete(id),
         cancel: () => {
           if (!channel.pending.delete(id)) return
           if (channel.connector) send(channel.connector, { type: "http.cancel", id })
@@ -302,16 +307,27 @@ function handleConnectorFrame(channel: Channel, frame: RelayFrame) {
   if (frame.type === "http.end") {
     const pending = channel.pending.get(frame.id)
     if (!pending) return
-    channel.pending.delete(frame.id)
     if (frame.error) {
       const error = new Error(frame.error)
-      pending.controller?.error(error)
-      pending.reject(error)
+      pending.error = error
+      pending.ended = true
+      if (pending.controller) {
+        pending.cleanup()
+        pending.controller.error(error)
+      } else if (!pending.responseStarted) {
+        pending.cleanup()
+        pending.reject(error)
+      }
       return
     }
-    if (pending.controller) pending.controller.close()
-    else if (!pending.responseStarted)
+    pending.ended = true
+    if (pending.controller) {
+      pending.cleanup()
+      pending.controller.close()
+    } else if (!pending.responseStarted) {
+      pending.cleanup()
       pending.reject(new Error("Connector ended the request before sending a response"))
+    }
     return
   }
   if (frame.type === "ws.accept") return
@@ -363,6 +379,13 @@ function pendingStream(pending: PendingHttp) {
     start(controller) {
       pending.controller = controller
       pending.chunks.splice(0).forEach((chunk) => controller.enqueue(chunk))
+      if (pending.error) {
+        pending.cleanup()
+        controller.error(pending.error)
+      } else if (pending.ended) {
+        pending.cleanup()
+        controller.close()
+      }
     },
     cancel() {
       pending.cancel()

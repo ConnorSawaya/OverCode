@@ -24,6 +24,13 @@ async function prepareReleaseFiles() {
     await Bun.file(file).write(pkg)
   }
 
+  for (const file of ["packages/desktop/update.json", "packages/mobile/update.json"]) {
+    const manifest = JSON.parse(await Bun.file(file).text()) as { version?: string }
+    manifest.version = Script.version
+    await Bun.write(file, `${JSON.stringify(manifest, null, 2)}\n`)
+    console.log("updated:", file)
+  }
+
   await $`bun install`
   await $`./packages/sdk/js/script/build.ts`
 }

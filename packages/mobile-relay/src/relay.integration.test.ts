@@ -41,14 +41,14 @@ describe("relay forwarding", () => {
     const registered = await fetch(`${baseUrl}/pairing`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-overcode-channel-token": connectorToken },
-      body: JSON.stringify({ code: "482 917", expiresAt }),
+      body: JSON.stringify({ code: "4829 1735", expiresAt }),
     })
     expect(registered.status).toBe(200)
 
     const paired = await fetch(`${baseUrl}/pair`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ code: "482917", deviceName: "Pixel 7" }),
+      body: JSON.stringify({ code: "48291735", deviceName: "Pixel 7" }),
     })
     expect(paired.status).toBe(200)
     const device = (await paired.json()) as { token: string; deviceId: string }
@@ -80,7 +80,7 @@ describe("relay forwarding", () => {
         await fetch(`${baseUrl}/pair`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ code: "482917" }),
+          body: JSON.stringify({ code: "48291735" }),
         })
       ).status,
     ).toBe(401)
@@ -233,14 +233,14 @@ describe("relay forwarding", () => {
     const expired = await fetch(`${baseUrl}/pairing`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-overcode-channel-token": connectorToken },
-      body: JSON.stringify({ code: "111222", expiresAt: Date.now() - 1 }),
+      body: JSON.stringify({ code: "11112222", expiresAt: Date.now() - 1 }),
     })
     expect(expired.status).toBe(400)
 
     const tooFar = await fetch(`${baseUrl}/pairing`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-overcode-channel-token": connectorToken },
-      body: JSON.stringify({ code: "111333", expiresAt: Date.now() + 6 * 60_000 }),
+      body: JSON.stringify({ code: "11113333", expiresAt: Date.now() + 6 * 60_000 }),
     })
     expect(tooFar.status).toBe(400)
 
@@ -249,14 +249,14 @@ describe("relay forwarding", () => {
       const response = await fetch(`${baseUrl}/pair`, {
         method: "POST",
         headers: { "content-type": "application/json", "x-forwarded-for": address },
-        body: JSON.stringify({ code: "000000" }),
+        body: JSON.stringify({ code: "00000000" }),
       })
       expect(response.status).toBe(401)
     }
     const limited = await fetch(`${baseUrl}/pair`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-forwarded-for": address },
-      body: JSON.stringify({ code: "000000" }),
+      body: JSON.stringify({ code: "00000000" }),
     })
     expect(limited.status).toBe(429)
     connector.close()

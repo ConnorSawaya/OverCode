@@ -4,7 +4,7 @@ Overcode Mobile is a Capacitor Android shell around the existing Overcode web cl
 
 ## Build the debug APK on Windows
 
-Use a JDK 17 or 21 installation and an Android SDK with API 35:
+Use JDK 21 and an Android SDK with API 35:
 
 ```powershell
 $env:JAVA_HOME = "C:\Program Files\Microsoft\jdk-21.0.6.7-hotspot"

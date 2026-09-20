@@ -2,7 +2,7 @@ import { createSignal, onCleanup, onMount, Show } from "solid-js"
 import { ButtonV2 } from "@overcode-ai/ui/v2/button-v2"
 import { useLanguage } from "@overcode-ai/app"
 import { Capacitor } from "@capacitor/core"
-import { checkForMobileUpdate, installMobileUpdate, type MobileUpdateManifest } from "./update"
+import { checkForMobileUpdate, installMobileUpdate, OvercodeUpdater, type MobileUpdateManifest } from "./update"
 import pkg from "../../app/package.json"
 
 const UPDATE_CHECK_INTERVAL = 6 * 60 * 60 * 1000
@@ -24,6 +24,24 @@ function markStarted(version: string) {
   }
 }
 
+function clearStarted(version: string | null) {
+  if (!version) return
+  try {
+    if (localStorage.getItem(UPDATE_STARTED_KEY) === version) localStorage.removeItem(UPDATE_STARTED_KEY)
+  } catch {
+    return
+  }
+}
+
+type UpdateListener = { remove: () => Promise<void> }
+
+type UpdaterPlugin = {
+  addListener(
+    eventName: "updateDownloadFailed" | "updateInstallPermissionRequired",
+    listener: (event: { reason?: string }) => void,
+  ): Promise<UpdateListener>
+}
+
 export function MobileUpdateNotice() {
   const language = useLanguage()
   const [update, setUpdate] = createSignal<MobileUpdateManifest>()
@@ -39,7 +57,6 @@ export function MobileUpdateNotice() {
       setDismissed(false)
       setStatus("idle")
       if (next && Capacitor.isNativePlatform() && startedVersion() !== next.version) {
-        markStarted(next.version)
         void install(next)
       }
     } catch {
@@ -63,6 +80,25 @@ export function MobileUpdateNotice() {
   }
 
   onMount(() => {
+    let disposed = false
+    let listeners: UpdateListener[] = []
+    const setupListeners = async () => {
+      if (!Capacitor.isNativePlatform()) return
+      const updater = OvercodeUpdater as unknown as UpdaterPlugin
+      const next = await Promise.all([
+        updater.addListener("updateDownloadFailed", () => {
+          clearStarted(update()?.version ?? startedVersion())
+          setStatus("error")
+        }),
+        updater.addListener("updateInstallPermissionRequired", () => setStatus("started")),
+      ])
+      if (disposed) {
+        await Promise.all(next.map((listener) => listener.remove()))
+        return
+      }
+      listeners = next
+    }
+    void setupListeners()
     const initial = window.setTimeout(() => void check(), 1000)
     const interval = window.setInterval(() => void check(), UPDATE_CHECK_INTERVAL)
     const onVisibilityChange = () => {
@@ -71,10 +107,12 @@ export function MobileUpdateNotice() {
     document.addEventListener("visibilitychange", onVisibilityChange)
     window.addEventListener("online", check)
     onCleanup(() => {
+      disposed = true
       window.clearTimeout(initial)
       window.clearInterval(interval)
       document.removeEventListener("visibilitychange", onVisibilityChange)
       window.removeEventListener("online", check)
+      void Promise.all(listeners.map((listener) => listener.remove()))
     })
   })
 

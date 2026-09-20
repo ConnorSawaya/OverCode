@@ -1,10 +1,10 @@
 import { type Accessor, createMemo, createResource } from "solid-js"
 import { createStore } from "solid-js/store"
-import { DateTime } from "luxon"
-import { filter, firstBy, flat, groupBy, mapValues, pipe, uniqueBy, values } from "remeda"
+import { uniqueBy } from "remeda"
 import { createSimpleContext } from "@overcode-ai/ui/context"
-import { useProviders } from "@/hooks/use-providers"
+import { isOvercodeProvider, useProviders } from "@/hooks/use-providers"
 import { Persist, persisted } from "@/utils/persist"
+import { isModelVisible } from "./model-visibility"
 
 export type ModelKey = { providerID: string; modelID: string }
 
@@ -46,51 +46,21 @@ export const { use: useModels, provider: ModelsProvider } = createSimpleContext(
       ),
     )
 
-    const release = createMemo(
-      () =>
-        new Map(
-          available().map((model) => {
-            const parsed = DateTime.fromISO(model.release_date)
-            return [modelKey({ providerID: model.provider.id, modelID: model.id }), parsed] as const
-          }),
-        ),
-    )
-
-    const latest = createMemo(() =>
-      pipe(
-        available(),
-        filter(
-          (x) =>
-            Math.abs(
-              (release().get(modelKey({ providerID: x.provider.id, modelID: x.id })) ?? DateTime.invalid("invalid"))
-                .diffNow()
-                .as("months"),
-            ) < 6,
-        ),
-        groupBy((x) => x.provider.id),
-        mapValues((models) =>
-          pipe(
-            models,
-            groupBy((x) => x.family),
-            values(),
-            (groups) =>
-              groups.flatMap((g) => {
-                const first = firstBy(g, [(x) => x.release_date, "desc"])
-                return first ? [{ modelID: first.id, providerID: first.provider.id }] : []
-              }),
-          ),
-        ),
-        values(),
-        flat(),
-      ),
-    )
-
-    const latestSet = createMemo(() => new Set(latest().map((x) => modelKey(x))))
-
     const visibility = createMemo(() => {
       const map = new Map<string, Visibility>()
       for (const item of store.user) map.set(`${item.providerID}:${item.modelID}`, item.visibility)
       return map
+    })
+    const configured = createMemo(() => {
+      const result = new Set<string>()
+      const add = (model: ModelKey | null | undefined) => {
+        if (model) result.add(modelKey(model))
+      }
+
+      add(providers.defaultModel())
+      add(providers.configuredModel())
+
+      return result
     })
 
     const list = createMemo(() =>
@@ -114,13 +84,11 @@ export const { use: useModels, provider: ModelsProvider } = createSimpleContext(
 
     const visible = (model: ModelKey) => {
       const key = modelKey(model)
-      const state = visibility().get(key)
-      if (state === "hide") return false
-      if (state === "show") return true
-      if (latestSet().has(key)) return true
-      const date = release().get(key)
-      if (!date?.isValid) return true
-      return false
+      return isModelVisible({
+        visibility: visibility().get(key),
+        configured: configured().has(key),
+        firstParty: isOvercodeProvider(model.providerID),
+      })
     }
 
     const setVisibility = (model: ModelKey, state: boolean) => {
