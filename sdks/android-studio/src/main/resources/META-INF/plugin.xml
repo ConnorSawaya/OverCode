@@ -1,0 +1,32 @@
+<idea-plugin>
+    <id>ai.overcode.androidstudio</id>
+    <name>Overcode for Android Studio</name>
+    <vendor email="hello@overcode.ai" url="https://github.com/ConnorSawaya/overcode">Overcode</vendor>
+
+    <description><![CDATA[
+        Connect Android Studio to Overcode through JetBrains AI Assistant's Agent Client Protocol integration.
+        Goal loops, goal_control, and queued messages continue to run in Overcode.
+    ]]></description>
+
+    <idea-version since-build="261" until-build="261.*"/>
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="Overcode" anchor="right" factoryClass="ai.overcode.androidstudio.OvercodeToolWindowFactory" />
+    </extensions>
+
+    <actions>
+        <action id="ai.overcode.androidstudio.openToolWindow"
+                class="ai.overcode.androidstudio.ShowOvercodeToolWindowAction"
+                text="Open Overcode"
+                description="Open the Overcode Android Studio integration">
+            <add-to-group group-id="ToolsMenu" anchor="last" />
+        </action>
+        <action id="ai.overcode.androidstudio.installAcp"
+                class="ai.overcode.androidstudio.InstallOvercodeAcpAction"
+                text="Install Overcode ACP Configuration"
+                description="Configure Overcode as a JetBrains AI Assistant agent">
+            <add-to-group group-id="ToolsMenu" anchor="last" />
+        </action>
+    </actions>
+</idea-plugin>
