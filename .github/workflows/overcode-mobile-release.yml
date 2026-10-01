@@ -3,19 +3,27 @@ name: Overcode Mobile APK
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build, for example v1.18.28"
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 jobs:
   build:
-    if: github.repository == 'ConnorSawaya/overcode' && startsWith(github.event.release.tag_name, 'overcode-mobile-v')
+    if: github.repository == 'ConnorSawaya/overcode' && (github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'overcode-mobile-v') || startsWith(github.event.release.tag_name, 'v'))
     runs-on: ubuntu-24.04
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
     steps:
       - name: Check out the released source
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ inputs.tag || github.event.release.tag_name }}
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
@@ -30,6 +38,8 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
 
       - name: Install workspace dependencies
         run: bun install --frozen-lockfile
@@ -37,8 +47,14 @@ jobs:
       - name: Configure stable APK signing
         env:
           KEYSTORE_BASE64: ${{ secrets.OVERCODE_MOBILE_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.OVERCODE_MOBILE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.OVERCODE_MOBILE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.OVERCODE_MOBILE_KEY_PASSWORD }}
         run: |
           test -n "$KEYSTORE_BASE64"
+          test -n "$KEYSTORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
           echo "$KEYSTORE_BASE64" | base64 --decode > "$GITHUB_WORKSPACE/packages/mobile/android/overcode-mobile-release.keystore"
 
       - name: Build the Pixel-compatible APK
@@ -50,7 +66,14 @@ jobs:
           OVERCODE_MOBILE_KEY_PASSWORD: ${{ secrets.OVERCODE_MOBILE_KEY_PASSWORD }}
         run: chmod +x android/gradlew && bun run sync && ./android/gradlew --no-daemon --console plain -p android assembleRelease
 
+      - name: Verify APK signature
+        run: '"$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose packages/mobile/android/app/build/outputs/apk/release/app-release.apk'
+
+      - name: Remove signing material from the runner
+        if: always()
+        run: rm -f "$GITHUB_WORKSPACE/packages/mobile/android/overcode-mobile-release.keystore"
+
       - name: Upload APK to the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: cp packages/mobile/android/app/build/outputs/apk/release/app-release.apk packages/mobile/android/app/build/outputs/apk/release/Overcode-Mobile.apk && gh release upload "${{ github.event.release.tag_name }}" packages/mobile/android/app/build/outputs/apk/release/Overcode-Mobile.apk --clobber
+        run: cp packages/mobile/android/app/build/outputs/apk/release/app-release.apk packages/mobile/android/app/build/outputs/apk/release/Overcode-Mobile.apk && gh release upload "$RELEASE_TAG" packages/mobile/android/app/build/outputs/apk/release/Overcode-Mobile.apk --clobber

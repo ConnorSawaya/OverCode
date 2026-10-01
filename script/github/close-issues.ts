@@ -1,6 +1,14 @@
 #!/usr/bin/env bun
 
-const repo = "anomalyco/opencode"
+const defaultRepo = "ConnorSawaya/OverCode"
+const args = Bun.argv.slice(2)
+const repoIndex = args.indexOf("--repo")
+const repo = repoIndex === -1 ? process.env.GITHUB_REPOSITORY ?? defaultRepo : args[repoIndex + 1]
+const dryRun = args.includes("--dry-run")
+if (!repo || !/^[^/]+\/[^/]+$/.test(repo)) {
+  console.error("--repo must be in owner/repo format")
+  process.exit(1)
+}
 const days = 60
 const msg = `To stay organized issues are automatically closed after ${days} days of no activity. If the issue is still relevant please open a new one.`
 
@@ -40,6 +48,10 @@ function shouldSkip(i: Issue) {
 }
 
 async function close(num: number) {
+  if (dryRun) {
+    console.log(`Would close https://github.com/${repo}/issues/${num}`)
+    return
+  }
   const base = `https://api.github.com/repos/${repo}/issues/${num}`
 
   const comment = await fetch(`${base}/comments`, {
@@ -60,6 +72,7 @@ async function close(num: number) {
 }
 
 async function main() {
+  console.log(`${dryRun ? "DRY RUN" : "EXECUTE"}: issue cleanup for ${repo}`)
   let page = 1
   let closed = 0
 

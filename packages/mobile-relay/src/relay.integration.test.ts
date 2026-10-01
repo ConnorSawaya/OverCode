@@ -326,7 +326,9 @@ describe("relay forwarding", () => {
     const second = await openSocket(`${baseUrl.replace("http", "ws")}/connector?token=${secondToken}`)
     expect((await nextFrame(second)).type).toBe("connector.ready")
 
-    const expiresAt = Date.now() + 5 * 60_000
+    // Leave room for the request to reach the relay, whose TTL check uses its
+    // own later Date.now() value.
+    const expiresAt = Date.now() + 4 * 60_000
     const firstRegistration = await fetch(`${baseUrl}/pairing`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-overcode-channel-token": firstToken },

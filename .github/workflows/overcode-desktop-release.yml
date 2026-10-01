@@ -12,23 +12,54 @@ on:
         type: string
       source_ref:
         description: "Branch or ref to package and update"
-        required: true
-        default: overcode-rebrand
+        required: false
+        default: overcode-unified
         type: string
 
 permissions:
+  id-token: write
   contents: write
 
 jobs:
   windows:
     if: github.repository == 'ConnorSawaya/overcode'
     runs-on: windows-2022
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
+      AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
+      AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
     steps:
       - name: Check out release source
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.source_ref || github.ref }}
+          ref: ${{ inputs.source_ref || (github.ref_type == 'tag' && github.ref || 'overcode-unified') }}
           fetch-depth: 0
+
+      - name: Capture built source commit
+        id: source
+        shell: pwsh
+        run: "\"commit=$(git rev-parse HEAD)\" >> $env:GITHUB_OUTPUT"
+
+      - name: Validate Azure signing configuration
+        shell: pwsh
+        run: |
+          $required = @(
+            'AZURE_CLIENT_ID', 'AZURE_TENANT_ID', 'AZURE_SUBSCRIPTION_ID',
+            'AZURE_TRUSTED_SIGNING_ACCOUNT_NAME', 'AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE',
+            'AZURE_TRUSTED_SIGNING_ENDPOINT'
+          )
+          $missing = @($required | Where-Object { -not (Get-Item "Env:$_" -ErrorAction SilentlyContinue).Value })
+          if ($missing.Count -gt 0) {
+            throw "Azure Trusted Signing configuration is missing required GitHub secrets: $($missing -join ', '). Cannot produce a signed desktop release."
+          }
+
+      - name: Set up Bun and install workspace dependencies
+        uses: ./.github/actions/setup-bun
+        with:
+          install-flags: "--frozen-lockfile"
 
       - name: Set version
         id: version
@@ -40,7 +71,7 @@ jobs:
           $version = $env:INPUT_VERSION
           if (-not $version) { $version = $env:GITHUB_REF_NAME -replace '^overcode-desktop-v', '' }
           $sourceRef = $env:INPUT_SOURCE_REF
-          if (-not $sourceRef) { $sourceRef = 'overcode-rebrand' }
+          if (-not $sourceRef) { $sourceRef = 'overcode-unified' }
           if ($version -notmatch '^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$') {
             throw "Version must be semantic, for example 1.18.32"
           }
@@ -51,10 +82,12 @@ jobs:
           "version=$version" >> $env:GITHUB_OUTPUT
           "source_ref=$sourceRef" >> $env:GITHUB_OUTPUT
 
-      - name: Set up Bun and install workspace dependencies
-        uses: ./.github/actions/setup-bun
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
-          install-flags: "--frozen-lockfile"
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Build the Overcode installer
         working-directory: packages/desktop
@@ -63,11 +96,22 @@ jobs:
           OPENCODE_CHANNEL: prod
         run: bun run package:win
 
+      - name: Verify installer Authenticode signature
+        shell: pwsh
+        run: |
+          $installer = "${{ github.workspace }}\packages\desktop\dist\overcode-desktop-win-x64.exe"
+          if (-not (Test-Path $installer)) { throw "Desktop installer was not produced: $installer" }
+          $signature = Get-AuthenticodeSignature $installer
+          if ($signature.Status -ne 'Valid') {
+            throw "Invalid Authenticode signature for ${installer}: $($signature.Status)"
+          }
+
       - name: Create or update GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          SOURCE_COMMIT: ${{ steps.source.outputs.commit }}
         run: |
           $tag = "overcode-desktop-v$env:RELEASE_VERSION"
           $installer = "packages/desktop/dist/overcode-desktop-win-x64.exe"
@@ -75,9 +119,11 @@ jobs:
           if (-not (Test-Path $installer)) { throw "Desktop installer was not produced: $installer" }
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --repo $env:GITHUB_REPOSITORY --title "Overcode Desktop $env:RELEASE_VERSION" --notes "Overcode Desktop $env:RELEASE_VERSION" --latest
+            gh release create $tag --repo $env:GITHUB_REPOSITORY --title "Overcode Desktop $env:RELEASE_VERSION" --notes "Overcode Desktop $env:RELEASE_VERSION" --target $env:SOURCE_COMMIT --latest
+            if ($LASTEXITCODE -ne 0) { throw "Failed to create GitHub release $tag" }
           }
           gh release upload $tag $installer $blockmap --repo $env:GITHUB_REPOSITORY --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Failed to upload signed desktop release assets for $tag" }
 
       - name: Update the GitHub update feed
         shell: pwsh
@@ -100,5 +146,7 @@ jobs:
           git add packages/desktop/package.json packages/desktop/update.json
           if (-not (git diff --cached --quiet)) {
             git commit -m "chore: publish Overcode desktop $env:RELEASE_VERSION"
+            if ($LASTEXITCODE -ne 0) { throw "Failed to commit desktop update feed" }
             git push origin "HEAD:$env:SOURCE_REF"
+            if ($LASTEXITCODE -ne 0) { throw "Failed to push desktop update feed to $env:SOURCE_REF" }
           }
